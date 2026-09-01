@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=65.5", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "root-explorer"
+version = "0.1.0"
+description = "A Streamlit app for interactive inspection and plotting of HEP ROOT TTrees."
+authors = [
+  { name = "Alexander Pesch Berrocal", email = "alexander.pesch.berrocal@rwth-aachen.de" },
+  { name = "Jan Lukas Späh", email = "janlukas.spaeh@physik.rwth-aachen.de" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["ROOT", "HEP", "TTrees", "Streamlit"]
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "awkward",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "plotly",
+    "streamlit",
+    "uproot",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-cov",
+]
+dev = [
+    "bump-my-version>=1.2",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+    "ruff>=0.6",
+]
+docs = [
+    "myst-parser",
+    "sphinx>=7",
+    "sphinx-autodoc-typehints",
+    "sphinx-autoapi",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Homepage = "https://github.com/AlexanderPeschBerrocal/root-explorer"
+Issues = "https://github.com/AlexanderPeschBerrocal/root-explorer/issues"
+Source = "https://github.com/AlexanderPeschBerrocal/root-explorer"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
