@@ -8,7 +8,7 @@ from typing import Any, Optional, Sequence
 import streamlit as st
 import uproot
 
-from .models import BranchInfo
+from ..models import BranchInfo
 
 
 def parse_cli_rootfile() -> Optional[str]:

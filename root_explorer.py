@@ -70,7 +70,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from matplotlib.colors import LogNorm
 
-from root_explorer.arrays import (
+from root_explorer.analysis.arrays import (
     ArrayShapeMismatchError,
     align_arrays,
     apply_finite_filter,
@@ -104,7 +104,7 @@ from root_explorer.arrays import (
     weight_is_per_event_array,
 )
 from root_explorer.models import BranchInfo, VariableSpec
-from root_explorer.root_io import (
+from root_explorer.io.root import (
     branch_choices,
     choose_default,
     get_branch_info,
@@ -118,7 +118,7 @@ from root_explorer.root_io import (
     split_collection,
     walk_ttrees,
 )
-from root_explorer.variables import evaluate_variable
+from root_explorer.analysis.variables import evaluate_variable
 
 APP_TITLE = "ROOT Explorer"
 DEFAULT_MAX_ENTRIES = 20_000

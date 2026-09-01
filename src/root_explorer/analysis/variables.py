@@ -17,7 +17,7 @@ from .arrays import (
     reduce_per_event,
     safe_float_array,
 )
-from .models import VariableSpec
+from ..models import VariableSpec
 
 
 def evaluate_variable(spec: VariableSpec, path: str, tree_name: str, entry_start: int,

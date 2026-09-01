@@ -7,8 +7,8 @@ from typing import Any, Optional, Sequence
 import awkward as ak
 import numpy as np
 
-from .models import VariableSpec
-from .root_io import read_branch, read_event_branch
+from ..models import VariableSpec
+from ..io.root import read_branch, read_event_branch
 
 
 def to_numpy_flat(arr: Any) -> np.ndarray:
