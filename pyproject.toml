@@ -11,10 +11,11 @@ authors = [
   { name = "Jan Lukas Späh", email = "janlukas.spaeh@physik.rwth-aachen.de" }
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 keywords = ["ROOT", "HEP", "TTrees", "Streamlit"]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
