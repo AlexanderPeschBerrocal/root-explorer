@@ -13,7 +13,7 @@ def test_app_starts_without_input() -> None:
 
     assert not at.exception
     assert at.title[0].value == "ROOT Explorer"
-    assert at.info[0].value == "Provide a ROOT file to begin."
+    assert at.text_input(key="root_path").label == "ROOT file path"
 
 
 def test_app_shows_invalid_path_error() -> None:
