@@ -221,7 +221,7 @@ def make_geometry_plotly_traces(
                     z=zs,
                     mode="lines",
                     name=f"wire: {material}",
-                    line=dict(width=1, color=rgb),
+                    line={"width": 1, "color": rgb},
                     hoverinfo="skip",
                     showlegend=False,
                     legendgroup="geometry",
@@ -258,7 +258,7 @@ def overlay_geometry_on_plotly(
     if not traces:
         return fig
     new_fig = go.Figure(data=[*traces, *list(fig.data)], layout=fig.layout)
-    new_fig.update_layout(legend=dict(itemsizing="constant"))
+    new_fig.update_layout(legend={"itemsizing": "constant"})
     base_meta = fig.layout.meta if isinstance(fig.layout.meta, dict) else {}
     new_fig.update_layout(meta={**base_meta, "geometry_overlay": info})
     return new_fig
