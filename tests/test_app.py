@@ -7,7 +7,6 @@ from streamlit.testing.v1 import AppTest
 def make_app_test() -> AppTest:
     return AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=10)
 
-
 def test_app_starts_without_input() -> None:
     at = make_app_test().run()
 
