@@ -80,7 +80,7 @@ def main() -> None:
         source_mode = st.radio("File source", ["Path", "Upload"], horizontal=True)
         root_path = ""
         if source_mode == "Path":
-            root_path = st.text_input("ROOT file path", value=cli_path or "")
+            root_path = st.text_input("ROOT file path", value=cli_path or "", key="root_path")
         else:
             uploaded = st.file_uploader("Upload ROOT file", type=["root"])
             if uploaded is not None:
@@ -132,7 +132,9 @@ def main() -> None:
             st.stop()
 
         st.subheader("Detector geometry overlay")
-        geometry_enabled = st.checkbox("Enable 3D detector overlay", value=False)
+        geometry_enabled = st.checkbox(
+            "Enable 3D detector overlay", value=False, key="geometry_enabled"
+        )
         geometry_scene = None
         geometry_options: dict[str, Any] = {"enabled": False}
         if geometry_enabled:
@@ -663,7 +665,7 @@ def main() -> None:
                     )
                 descending = st.checkbox("largest first", value=True)
                 max_rank_rows = st.slider("rows", 5, 200, 10)
-                if st.button("Compute ranking"):
+                if st.button("Compute ranking", key="rank_compute"):
                     if int(metric_stop) <= int(metric_start):
                         st.error("ranking stop must be larger than ranking start.")
                     else:
