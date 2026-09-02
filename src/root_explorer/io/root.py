@@ -63,7 +63,11 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
     f = uproot.open(path)
     t = f[tree_name]
     info: list[BranchInfo] = []
-    for name in t:
+    # Iterating over a TTree yields TBranch objects in current Uproot versions;
+    # use the mapping keys so the branch name remains a string throughout the
+    # metadata model and collection grouping code.
+    branch_names = t.keys()
+    for name in branch_names:
         try:
             branch = t[name]
             typename = str(getattr(branch, "typename", "unknown"))
