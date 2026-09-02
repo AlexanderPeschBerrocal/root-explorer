@@ -198,7 +198,7 @@ def angular_segments(delta: float, base_segments: int) -> int:
     frac = min(1.0, max(0.0, abs(delta) / full))
     if frac > 0.98:
         return base_segments
-    return max(1, int(math.ceil(base_segments * frac)))
+    return max(1, math.ceil(base_segments * frac))
 
 
 def ring_point(r: float, phi: float, z: float) -> Vec3:

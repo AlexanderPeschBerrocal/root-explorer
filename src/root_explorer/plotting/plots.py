@@ -98,7 +98,7 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
     values = arr.astype(float, copy=False)
     return {
         "variable": name,
-        "n": int(len(values)),
+        "n": len(values),
         "min": float(np.nanmin(values)),
         "median": float(np.nanmedian(values)),
         "mean": float(np.nanmean(values)),
