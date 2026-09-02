@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Sequence
 from typing import Any
 
@@ -97,12 +98,8 @@ def finite_mask(*arrays: np.ndarray) -> np.ndarray:
     n = len(aligned[0])
     mask = np.ones(n, dtype=bool)
     for arr in aligned:
-        try:
+        with contextlib.suppress(Exception):
             mask &= np.isfinite(arr.astype(float, copy=False))
-        except Exception:
-            # Non-numeric arrays are left unchanged; downstream plotting may fail
-            # with a useful error.
-            pass
     return mask
 
 

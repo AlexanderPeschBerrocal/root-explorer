@@ -66,7 +66,7 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
     f = uproot.open(path)
     t = f[tree_name]
     info: list[BranchInfo] = []
-    for name in t.keys():
+    for name in t:
         try:
             branch = t[name]
             typename = str(getattr(branch, "typename", "unknown"))

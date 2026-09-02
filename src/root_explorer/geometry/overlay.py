@@ -75,7 +75,7 @@ def geometry_materials(scene: dict[str, Any] | None) -> list[str]:
         return []
     mats = scene.get("meta", {}).get("materials", {})
     if isinstance(mats, dict) and mats:
-        return sorted(str(k) for k in mats.keys())
+        return sorted(str(k) for k in mats)
     out = sorted({str(obj.get("material", "geometry")) for obj in scene.get("objects", [])})
     return out or ["geometry"]
 
