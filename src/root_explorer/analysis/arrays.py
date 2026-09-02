@@ -77,7 +77,7 @@ def align_arrays(
     reference_shape = normalized[0].shape
     mismatches = [
         f"{label} has shape {values.shape}"
-        for label, values in zip(labels, normalized)
+        for label, values in zip(labels, normalized, strict=True)
         if values.shape != reference_shape
     ]
     if mismatches:
@@ -250,7 +250,7 @@ def validate_raw_event_shapes(
 
     levels = [raw_list_shape_levels(arr) for arr in arrays]
     reference = levels[0]
-    for name, candidate in zip(names[1:], levels[1:]):
+    for name, candidate in zip(names[1:], levels[1:], strict=True):
         if len(candidate) != len(reference):
             raise ArrayShapeMismatchError(
                 f"Cannot align {context}: {names[0]!r} and {name!r} have different "
@@ -258,7 +258,7 @@ def validate_raw_event_shapes(
                 "No plot was produced."
             )
         for depth, (reference_counts, candidate_counts) in enumerate(
-            zip(reference, candidate), start=1
+            zip(reference, candidate, strict=True), start=1
         ):
             if reference_counts.shape != candidate_counts.shape or not np.array_equal(
                 reference_counts, candidate_counts
@@ -300,7 +300,7 @@ def validate_event_counts(
 
     normalized = [np.asarray(values, dtype=int).reshape(-1) for values in counts]
     reference = normalized[0]
-    for name, candidate in zip(names[1:], normalized[1:]):
+    for name, candidate in zip(names[1:], normalized[1:], strict=True):
         if candidate.shape != reference.shape:
             raise ArrayShapeMismatchError(
                 f"Cannot align {context}: {names[0]!r} covers {len(reference)} event(s), "

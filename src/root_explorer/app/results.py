@@ -90,7 +90,7 @@ def show_cached_plot_result(
                         "No static export format selected. Select PNG, PDF, or both before making the plot."
                     )
         mime_types = {"png": "image/png", "pdf": "application/pdf"}
-        for column, file_format in zip(export_columns[1:], formats):
+        for column, file_format in zip(export_columns[1:], formats, strict=True):
             with column:
                 st.download_button(
                     f"Download {file_format.upper()}",

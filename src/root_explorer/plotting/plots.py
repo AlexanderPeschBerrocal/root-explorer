@@ -52,7 +52,7 @@ def apply_range_cuts(
     n = len(values[0]) if values else len(aligned_cuts[0])
     mask = np.ones(n, dtype=bool)
 
-    for cut, (_, lo, hi) in zip(aligned_cuts, cuts):
+    for cut, (_, lo, hi) in zip(aligned_cuts, cuts, strict=True):
         cut_values = cut.astype(float, copy=False)
         mask &= np.isfinite(cut_values)
         if lo is not None:

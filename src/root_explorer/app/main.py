@@ -482,7 +482,7 @@ def main() -> None:
                         arrays.append(color)
 
                     cut_definitions: list[tuple[np.ndarray, float | None, float | None]] = []
-                    for spec, bounds in zip(cut_specs, cut_bounds):
+                    for spec, bounds in zip(cut_specs, cut_bounds, strict=True):
                         cut_values, _ = cut_values_for_values(
                             spec,
                             x_spec,
@@ -832,7 +832,7 @@ def main() -> None:
                         )
                         arrays.append(event_color)
                     event_cut_definitions: list[tuple[np.ndarray, float | None, float | None]] = []
-                    for spec, bounds in zip(event_cut_specs, event_cut_bounds):
+                    for spec, bounds in zip(event_cut_specs, event_cut_bounds, strict=True):
                         cv, _ = cut_values_for_values(
                             spec,
                             ex_spec,
