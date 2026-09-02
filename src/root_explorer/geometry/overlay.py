@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from .gdml import SceneBuilder, material_color
-
 
 GEOMETRY_QUALITY_LEVELS = ["fast", "medium", "high"]
 DEFAULT_MAX_GEOMETRY_OBJECTS = 50_000
@@ -31,7 +31,9 @@ def load_geometry_scene(
 ) -> dict[str, Any]:
     suffix = Path(path).suffix.casefold()
     if suffix != ".gdml":
-        raise ValueError(f"Unsupported geometry file extension: {suffix}. Only .gdml files are supported.")
+        raise ValueError(
+            f"Unsupported geometry file extension: {suffix}. Only .gdml files are supported."
+        )
     builder = SceneBuilder(
         Path(path),
         quality=quality,
@@ -47,9 +49,17 @@ def decode_geometry_scene(scene: dict[str, Any]) -> tuple[np.ndarray, np.ndarray
     pos = np.frombuffer(base64.b64decode(scene.get("positions", "")), dtype="<f4")
     positions = pos.reshape((-1, 3)) if len(pos) else np.empty((0, 3), dtype=np.float32)
     raw_colors = base64.b64decode(scene.get("colors", "")) if scene.get("colors") else b""
-    colors = np.frombuffer(raw_colors, dtype=np.uint8).reshape((-1, 4)) if raw_colors else np.empty((0, 4), dtype=np.uint8)
+    colors = (
+        np.frombuffer(raw_colors, dtype=np.uint8).reshape((-1, 4))
+        if raw_colors
+        else np.empty((0, 4), dtype=np.uint8)
+    )
     raw_ids = base64.b64decode(scene.get("ids", "")) if scene.get("ids") else b""
-    ids = np.frombuffer(raw_ids, dtype="<u4") if raw_ids else np.zeros(len(positions), dtype=np.uint32)
+    ids = (
+        np.frombuffer(raw_ids, dtype="<u4")
+        if raw_ids
+        else np.zeros(len(positions), dtype=np.uint32)
+    )
     return positions, colors, ids
 
 
@@ -60,12 +70,12 @@ def plotly_color_from_rgba(rgba: Sequence[int], opacity_scale: float = 1.0) -> t
     return f"rgb({r},{g},{b})", opacity
 
 
-def geometry_materials(scene: Optional[dict[str, Any]]) -> list[str]:
+def geometry_materials(scene: dict[str, Any] | None) -> list[str]:
     if not scene:
         return []
     mats = scene.get("meta", {}).get("materials", {})
     if isinstance(mats, dict) and mats:
-        return sorted(str(k) for k in mats.keys())
+        return sorted(str(k) for k in mats)
     out = sorted({str(obj.get("material", "geometry")) for obj in scene.get("objects", [])})
     return out or ["geometry"]
 
@@ -81,7 +91,12 @@ def geometry_summary_dataframe(scene: dict[str, Any]) -> pd.DataFrame:
     ]
     bbox = meta.get("bbox")
     if isinstance(bbox, list) and len(bbox) == 6:
-        rows.append({"item": "bbox [xmin,ymin,zmin,xmax,ymax,zmax]", "value": ", ".join(f"{x:.4g}" for x in bbox)})
+        rows.append(
+            {
+                "item": "bbox [xmin,ymin,zmin,xmax,ymax,zmax]",
+                "value": ", ".join(f"{x:.4g}" for x in bbox),
+            }
+        )
     summary = pd.DataFrame(rows)
     summary["value"] = summary["value"].astype(str)
     return summary
@@ -90,7 +105,7 @@ def geometry_summary_dataframe(scene: dict[str, Any]) -> pd.DataFrame:
 def make_geometry_plotly_traces(
     scene: dict[str, Any],
     *,
-    selected_materials: Optional[set[str]] = None,
+    selected_materials: set[str] | None = None,
     opacity_scale: float = 0.30,
     max_vertices: int = DEFAULT_DISPLAY_GEOMETRY_VERTICES,
     scale: float = 1.0,
@@ -104,13 +119,15 @@ def make_geometry_plotly_traces(
         return [], {"shown_vertices": 0, "shown_objects": 0, "truncated": False}
 
     if not objects:
-        objects = [{
-            "id": 0,
-            "name": "geometry",
-            "material": "geometry",
-            "first_vertex": 0,
-            "vertex_count": len(positions) - (len(positions) % 3),
-        }]
+        objects = [
+            {
+                "id": 0,
+                "name": "geometry",
+                "material": "geometry",
+                "first_vertex": 0,
+                "vertex_count": len(positions) - (len(positions) % 3),
+            }
+        ]
 
     by_material: dict[str, list[np.ndarray]] = {}
     material_rgba: dict[str, tuple[int, int, int, int]] = {}
@@ -165,18 +182,26 @@ def make_geometry_plotly_traces(
         trim = n_tri * 3
         pts = pts[:trim]
         tri = np.arange(trim, dtype=np.int64).reshape(-1, 3)
-        rgb, opacity = plotly_color_from_rgba(material_rgba.get(material, material_color(material)), opacity_scale)
-        traces.append(go.Mesh3d(
-            x=pts[:, 0], y=pts[:, 1], z=pts[:, 2],
-            i=tri[:, 0], j=tri[:, 1], k=tri[:, 2],
-            name=f"geometry: {material}",
-            color=rgb,
-            opacity=opacity,
-            flatshading=True,
-            hoverinfo="skip",
-            showscale=False,
-            legendgroup="geometry",
-        ))
+        rgb, opacity = plotly_color_from_rgba(
+            material_rgba.get(material, material_color(material)), opacity_scale
+        )
+        traces.append(
+            go.Mesh3d(
+                x=pts[:, 0],
+                y=pts[:, 1],
+                z=pts[:, 2],
+                i=tri[:, 0],
+                j=tri[:, 1],
+                k=tri[:, 2],
+                name=f"geometry: {material}",
+                color=rgb,
+                opacity=opacity,
+                flatshading=True,
+                hoverinfo="skip",
+                showscale=False,
+                legendgroup="geometry",
+            )
+        )
         if wireframe:
             tris = pts.reshape(-1, 3, 3)
             if len(tris) > max_wireframe_triangles:
@@ -189,20 +214,30 @@ def make_geometry_plotly_traces(
                     xs.extend([float(p[0]), float(q[0]), None])
                     ys.extend([float(p[1]), float(q[1]), None])
                     zs.extend([float(p[2]), float(q[2]), None])
-            traces.append(go.Scatter3d(
-                x=xs, y=ys, z=zs,
-                mode="lines",
-                name=f"wire: {material}",
-                line=dict(width=1, color=rgb),
-                hoverinfo="skip",
-                showlegend=False,
-                legendgroup="geometry",
-            ))
+            traces.append(
+                go.Scatter3d(
+                    x=xs,
+                    y=ys,
+                    z=zs,
+                    mode="lines",
+                    name=f"wire: {material}",
+                    line={"width": 1, "color": rgb},
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup="geometry",
+                )
+            )
 
-    return traces, {"shown_vertices": shown_vertices, "shown_objects": shown_objects, "truncated": truncated}
+    return traces, {
+        "shown_vertices": shown_vertices,
+        "shown_objects": shown_objects,
+        "truncated": truncated,
+    }
 
 
-def overlay_geometry_on_plotly(fig: go.Figure, scene: Optional[dict[str, Any]], options: Optional[dict[str, Any]]) -> go.Figure:
+def overlay_geometry_on_plotly(
+    fig: go.Figure, scene: dict[str, Any] | None, options: dict[str, Any] | None
+) -> go.Figure:
     if not scene or not options or not options.get("enabled", False):
         return fig
     selected = options.get("materials")
@@ -213,13 +248,17 @@ def overlay_geometry_on_plotly(fig: go.Figure, scene: Optional[dict[str, Any]], 
         opacity_scale=float(options.get("opacity", 0.30)),
         max_vertices=int(options.get("max_vertices", DEFAULT_DISPLAY_GEOMETRY_VERTICES)),
         scale=float(options.get("scale", 1.0)),
-        offset=(float(options.get("offset_x", 0.0)), float(options.get("offset_y", 0.0)), float(options.get("offset_z", 0.0))),
+        offset=(
+            float(options.get("offset_x", 0.0)),
+            float(options.get("offset_y", 0.0)),
+            float(options.get("offset_z", 0.0)),
+        ),
         wireframe=bool(options.get("wireframe", False)),
     )
     if not traces:
         return fig
     new_fig = go.Figure(data=[*traces, *list(fig.data)], layout=fig.layout)
-    new_fig.update_layout(legend=dict(itemsizing="constant"))
+    new_fig.update_layout(legend={"itemsizing": "constant"})
     base_meta = fig.layout.meta if isinstance(fig.layout.meta, dict) else {}
     new_fig.update_layout(meta={**base_meta, "geometry_overlay": info})
     return new_fig

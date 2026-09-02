@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -22,10 +21,10 @@ class VariableSpec:
     """A user-selected variable definition."""
 
     mode: str
-    branch: Optional[str] = None
+    branch: str | None = None
     index: int = 0
-    branch_a: Optional[str] = None
-    branch_b: Optional[str] = None
-    branch_c: Optional[str] = None
-    branch_d: Optional[str] = None
+    branch_a: str | None = None
+    branch_b: str | None = None
+    branch_c: str | None = None
+    branch_d: str | None = None
     label: str = ""

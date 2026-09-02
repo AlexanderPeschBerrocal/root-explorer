@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -20,7 +19,9 @@ from ..plotting.plots import (
 )
 
 
-def show_cached_plot_result(result_key: str, outdir: Path, *, save_button_key: str, empty_message: str) -> None:
+def show_cached_plot_result(
+    result_key: str, outdir: Path, *, save_button_key: str, empty_message: str
+) -> None:
     """Display the most recently generated plot and provide a save button.
 
     Streamlit buttons are momentary: clicking a save button triggers a rerun where
@@ -33,7 +34,9 @@ def show_cached_plot_result(result_key: str, outdir: Path, *, save_button_key: s
         st.info(empty_message)
         return
 
-    st.caption("Showing the most recently generated plot. Click the make-plot button again to update it after changing settings.")
+    st.caption(
+        "Showing the most recently generated plot. Click the make-plot button again to update it after changing settings."
+    )
 
     summary = result.get("summary")
     if summary is not None:
@@ -54,7 +57,9 @@ def show_cached_plot_result(result_key: str, outdir: Path, *, save_button_key: s
         st.caption("Save writes to the cluster; Download sends the file to this browser.")
         save_col, download_col = st.columns(2)
         with save_col:
-            if st.button(result.get("save_button_label", "Save HTML"), key=save_button_key, width="stretch"):
+            if st.button(
+                result.get("save_button_label", "Save HTML"), key=save_button_key, width="stretch"
+            ):
                 saved_path = save_plotly_figure(fig, outdir, save_name)
                 st.success(f"Saved: {saved_path}")
         with download_col:
@@ -72,16 +77,20 @@ def show_cached_plot_result(result_key: str, outdir: Path, *, save_button_key: s
         st.markdown("#### Export")
         st.caption("Save writes to the cluster; Download sends the file to this browser.")
         formats = result.get("save_formats", ["png"])
-        export_columns = st.columns(1 + max(len(formats), 1))
+        export_columns = st.columns(1 + len(formats))
         with export_columns[0]:
-            if st.button(result.get("save_button_label", "Save plot"), key=save_button_key, width="stretch"):
+            if st.button(
+                result.get("save_button_label", "Save plot"), key=save_button_key, width="stretch"
+            ):
                 saved_paths = save_matplotlib_figure(fig, outdir, save_name, formats)
                 if saved_paths:
                     st.success("Saved: " + ", ".join(str(path) for path in saved_paths))
                 else:
-                    st.warning("No static export format selected. Select PNG, PDF, or both before making the plot.")
+                    st.warning(
+                        "No static export format selected. Select PNG, PDF, or both before making the plot."
+                    )
         mime_types = {"png": "image/png", "pdf": "application/pdf"}
-        for column, file_format in zip(export_columns[1:], formats):
+        for column, file_format in zip(export_columns[1:], formats, strict=True):
             with column:
                 st.download_button(
                     f"Download {file_format.upper()}",

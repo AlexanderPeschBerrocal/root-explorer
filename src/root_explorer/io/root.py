@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import streamlit as st
 import uproot
@@ -11,7 +12,7 @@ import uproot
 from ..models import BranchInfo
 
 
-def parse_cli_rootfile() -> Optional[str]:
+def parse_cli_rootfile() -> str | None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("rootfile", nargs="?")
     args, _ = parser.parse_known_args()
@@ -32,11 +33,8 @@ def walk_ttrees(root_file: Any) -> list[str]:
 
     names: list[str] = []
     for key, obj in root_file.items(recursive=True):
-        try:
-            if is_ttree(obj):
-                names.append(key.split(";")[0])
-        except Exception:
-            continue
+        if is_ttree(obj):
+            names.append(key.split(";")[0])
     return sorted(set(names))
 
 
@@ -65,7 +63,11 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
     f = uproot.open(path)
     t = f[tree_name]
     info: list[BranchInfo] = []
-    for name in t.keys():
+    # Iterating over a TTree yields TBranch objects in current Uproot versions;
+    # use the mapping keys so the branch name remains a string throughout the
+    # metadata model and collection grouping code.
+    branch_names = t.keys()
+    for name in branch_names:
         try:
             branch = t[name]
             typename = str(getattr(branch, "typename", "unknown"))
@@ -79,7 +81,7 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
 
 
 @st.cache_data(show_spinner=True, max_entries=64)
-def read_branch(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int]):
+def read_branch(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: int | None):
     f = uproot.open(path)
     t = f[tree_name]
     return t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)
@@ -95,7 +97,9 @@ def read_event_branch(path: str, tree_name: str, branch: str, event_index: int):
 
 def is_probably_numeric_typename(typename: str) -> bool:
     lower = typename.lower()
-    return any(token in lower for token in ["int", "float", "double", "bool", "char", "short", "long"])
+    return any(
+        token in lower for token in ["int", "float", "double", "bool", "char", "short", "long"]
+    )
 
 
 def numeric_branches(branch_info: list[BranchInfo]) -> list[str]:

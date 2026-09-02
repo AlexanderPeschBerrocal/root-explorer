@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import streamlit as st
 
@@ -12,7 +13,13 @@ from ..models import VariableSpec
 from ..plotting.plots import parse_optional_float
 
 
-def variable_selector(prefix: str, branches: list[str], preferred: Sequence[str], *, allow_event_reductions: bool = True) -> VariableSpec:
+def variable_selector(
+    prefix: str,
+    branches: list[str],
+    preferred: Sequence[str],
+    *,
+    allow_event_reductions: bool = True,
+) -> VariableSpec:
     modes = {
         "Direct branch values": "branch",
         "Multiplicity per event": "multiplicity",
@@ -32,7 +39,14 @@ def variable_selector(prefix: str, branches: list[str], preferred: Sequence[str]
         "delta R": "delta_r",
     }
     if not allow_event_reductions:
-        for key in ["Multiplicity per event", "nth object per event", "Sum per event", "Mean per event", "Max per event", "Min per event"]:
+        for key in [
+            "Multiplicity per event",
+            "nth object per event",
+            "Sum per event",
+            "Mean per event",
+            "Max per event",
+            "Min per event",
+        ]:
             modes.pop(key, None)
 
     mode_label = st.selectbox(f"{prefix}: variable type", list(modes.keys()), key=f"{prefix}_mode")
@@ -40,28 +54,73 @@ def variable_selector(prefix: str, branches: list[str], preferred: Sequence[str]
     options = branches
 
     if mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
-        branch = st.selectbox(f"{prefix}: branch", options, index=choose_default(options, preferred), key=f"{prefix}_branch")
+        branch = st.selectbox(
+            f"{prefix}: branch",
+            options,
+            index=choose_default(options, preferred),
+            key=f"{prefix}_branch",
+        )
         index = 0
         if mode == "nth":
-            index = st.number_input(f"{prefix}: object index", min_value=0, max_value=1000, value=0, step=1, key=f"{prefix}_index")
+            index = st.number_input(
+                f"{prefix}: object index",
+                min_value=0,
+                max_value=1000,
+                value=0,
+                step=1,
+                key=f"{prefix}_index",
+            )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
     if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product", "delta_phi"}:
-        a = st.selectbox(f"{prefix}: A / x / phi1", options, index=choose_default(options, preferred), key=f"{prefix}_a")
-        b = st.selectbox(f"{prefix}: B / y / phi2", options, index=min(1, len(options) - 1), key=f"{prefix}_b")
+        a = st.selectbox(
+            f"{prefix}: A / x / phi1",
+            options,
+            index=choose_default(options, preferred),
+            key=f"{prefix}_a",
+        )
+        b = st.selectbox(
+            f"{prefix}: B / y / phi2", options, index=min(1, len(options) - 1), key=f"{prefix}_b"
+        )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b)
 
     if mode == "eta_xyz":
-        a = st.selectbox(f"{prefix}: x", options, index=choose_default(options, ["x", "px"]), key=f"{prefix}_x")
-        b = st.selectbox(f"{prefix}: y", options, index=choose_default(options, ["y", "py"]), key=f"{prefix}_y")
-        c = st.selectbox(f"{prefix}: z", options, index=choose_default(options, ["z", "pz"]), key=f"{prefix}_z")
+        a = st.selectbox(
+            f"{prefix}: x", options, index=choose_default(options, ["x", "px"]), key=f"{prefix}_x"
+        )
+        b = st.selectbox(
+            f"{prefix}: y", options, index=choose_default(options, ["y", "py"]), key=f"{prefix}_y"
+        )
+        c = st.selectbox(
+            f"{prefix}: z", options, index=choose_default(options, ["z", "pz"]), key=f"{prefix}_z"
+        )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
 
     if mode == "delta_r":
-        a = st.selectbox(f"{prefix}: eta 1", options, index=choose_default(options, ["eta"]), key=f"{prefix}_eta1")
-        b = st.selectbox(f"{prefix}: phi 1", options, index=choose_default(options, ["phi"]), key=f"{prefix}_phi1")
-        c = st.selectbox(f"{prefix}: eta 2", options, index=choose_default(options, ["eta"]), key=f"{prefix}_eta2")
-        d = st.selectbox(f"{prefix}: phi 2", options, index=choose_default(options, ["phi"]), key=f"{prefix}_phi2")
+        a = st.selectbox(
+            f"{prefix}: eta 1",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta1",
+        )
+        b = st.selectbox(
+            f"{prefix}: phi 1",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi1",
+        )
+        c = st.selectbox(
+            f"{prefix}: eta 2",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta2",
+        )
+        d = st.selectbox(
+            f"{prefix}: phi 2",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi2",
+        )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c, branch_d=d)
 
     raise RuntimeError("Unreachable variable selector state.")
@@ -87,7 +146,7 @@ def supports_histogram_weights(plot_type: str) -> bool:
     return plot_type in {"1D histogram", "2D histogram"}
 
 
-def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) -> Optional[str]:
+def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
     st.markdown("### Histogram weights")
@@ -102,14 +161,25 @@ def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) 
     )
 
 
-def range_cut_controls(prefix: str, branches: list[str]) -> tuple[list[VariableSpec], list[tuple[Optional[float], Optional[float]]]]:
+def range_cut_controls(
+    prefix: str, branches: list[str]
+) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts")
-    n_cuts = st.number_input("Number of range cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts")
+    n_cuts = st.number_input(
+        "Number of range cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
+    )
     cut_specs: list[VariableSpec] = []
-    cut_bounds: list[tuple[Optional[float], Optional[float]]] = []
+    cut_bounds: list[tuple[float | None, float | None]] = []
     for i in range(int(n_cuts)):
         with st.expander(f"Cut {i + 1}", expanded=i < 3):
-            cut_specs.append(variable_selector(f"{prefix}_cut_{i}", branches, ["pt", "eta", "mass"], allow_event_reductions=False))
+            cut_specs.append(
+                variable_selector(
+                    f"{prefix}_cut_{i}",
+                    branches,
+                    ["pt", "eta", "mass"],
+                    allow_event_reductions=False,
+                )
+            )
             lo = st.text_input(f"cut {i + 1} min", value="", key=f"{prefix}_cut_{i}_min")
             hi = st.text_input(f"cut {i + 1} max", value="", key=f"{prefix}_cut_{i}_max")
             lo_value = parse_optional_float(lo)
@@ -152,36 +222,82 @@ def plot_style_controls(
         style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
         style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
         style["log_z"] = st.checkbox("log color scale", value=True, key=f"{prefix}_log_z")
-        style["equal_aspect"] = st.checkbox("equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect")
+        style["equal_aspect"] = st.checkbox(
+            "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
+        )
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D scatter":
-        style["marker_size_2d"] = st.slider("marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d")
-        style["opacity_2d"] = st.slider("opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d")
-        style["max_points"] = st.number_input("max scatter points", min_value=1_000, max_value=10_000_000, value=DEFAULT_MAX_POINTS, step=10_000, key=f"{prefix}_max_points_2d")
+        style["marker_size_2d"] = st.slider(
+            "marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d"
+        )
+        style["opacity_2d"] = st.slider(
+            "opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
+        )
+        style["max_points"] = st.number_input(
+            "max scatter points",
+            min_value=1_000,
+            max_value=10_000_000,
+            value=DEFAULT_MAX_POINTS,
+            step=10_000,
+            key=f"{prefix}_max_points_2d",
+        )
         if color_enabled:
-            style["colorscale"] = st.selectbox("color scale", COLOR_SCALES, key=f"{prefix}_colorscale_2d")
-            style["reverse_colorscale"] = st.checkbox("reverse color scale", key=f"{prefix}_reverse_colorscale_2d")
-            style["color_min_text"] = st.text_input("color min", value="", key=f"{prefix}_color_min_2d")
-            style["color_max_text"] = st.text_input("color max", value="", key=f"{prefix}_color_max_2d")
-        style["equal_aspect"] = st.checkbox("equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect")
+            style["colorscale"] = st.selectbox(
+                "color scale", COLOR_SCALES, key=f"{prefix}_colorscale_2d"
+            )
+            style["reverse_colorscale"] = st.checkbox(
+                "reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
+            )
+            style["color_min_text"] = st.text_input(
+                "color min", value="", key=f"{prefix}_color_min_2d"
+            )
+            style["color_max_text"] = st.text_input(
+                "color max", value="", key=f"{prefix}_color_max_2d"
+            )
+        style["equal_aspect"] = st.checkbox(
+            "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
+        )
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "3D scatter interactive":
-        style["marker_size_3d"] = st.slider("marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d")
-        style["opacity_3d"] = st.slider("opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d")
-        style["max_points"] = st.number_input("max scatter points", min_value=1_000, max_value=10_000_000, value=DEFAULT_MAX_POINTS, step=10_000, key=f"{prefix}_max_points_3d")
-        style["aspectmode"] = st.selectbox("aspect mode", ["data", "cube", "auto", "manual"], key=f"{prefix}_aspectmode")
+        style["marker_size_3d"] = st.slider(
+            "marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d"
+        )
+        style["opacity_3d"] = st.slider(
+            "opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
+        )
+        style["max_points"] = st.number_input(
+            "max scatter points",
+            min_value=1_000,
+            max_value=10_000_000,
+            value=DEFAULT_MAX_POINTS,
+            step=10_000,
+            key=f"{prefix}_max_points_3d",
+        )
+        style["aspectmode"] = st.selectbox(
+            "aspect mode", ["data", "cube", "auto", "manual"], key=f"{prefix}_aspectmode"
+        )
         if color_enabled:
-            style["colorscale"] = st.selectbox("color scale", COLOR_SCALES, key=f"{prefix}_colorscale_3d")
-            style["reverse_colorscale"] = st.checkbox("reverse color scale", key=f"{prefix}_reverse_colorscale_3d")
-            style["color_min_text"] = st.text_input("color min", value="", key=f"{prefix}_color_min_3d")
-            style["color_max_text"] = st.text_input("color max", value="", key=f"{prefix}_color_max_3d")
+            style["colorscale"] = st.selectbox(
+                "color scale", COLOR_SCALES, key=f"{prefix}_colorscale_3d"
+            )
+            style["reverse_colorscale"] = st.checkbox(
+                "reverse color scale", key=f"{prefix}_reverse_colorscale_3d"
+            )
+            style["color_min_text"] = st.text_input(
+                "color min", value="", key=f"{prefix}_color_min_3d"
+            )
+            style["color_max_text"] = st.text_input(
+                "color max", value="", key=f"{prefix}_color_max_3d"
+            )
 
     return style
 
 
-def label_export_controls(prefix: str, plot_type: str, *, default_title: str = "", default_save_name: str = "plot") -> dict[str, Any]:
+def label_export_controls(
+    prefix: str, plot_type: str, *, default_title: str = "", default_save_name: str = "plot"
+) -> dict[str, Any]:
     st.markdown("### Labels")
     controls = {
         "title": st.text_input("title", value=default_title, key=f"{prefix}_title"),

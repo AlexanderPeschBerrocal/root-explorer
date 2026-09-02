@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+import contextlib
+from collections.abc import Sequence
+from typing import Any
 
 import awkward as ak
 import numpy as np
 
-from ..models import VariableSpec
 from ..io.root import read_branch, read_event_branch
+from ..models import VariableSpec
 
 
 def to_numpy_flat(arr: Any) -> np.ndarray:
@@ -46,7 +48,7 @@ class ArrayShapeMismatchError(ValueError):
 def align_arrays(
     arrays: Sequence[np.ndarray],
     *,
-    names: Optional[Sequence[str]] = None,
+    names: Sequence[str] | None = None,
     context: str = "arrays",
 ) -> list[np.ndarray]:
     """Validate that flat arrays have identical shapes; never truncate values."""
@@ -66,14 +68,16 @@ def align_arrays(
     if not normalized:
         return []
 
-    labels = list(names) if names is not None else [f"array {i + 1}" for i in range(len(normalized))]
+    labels = (
+        list(names) if names is not None else [f"array {i + 1}" for i in range(len(normalized))]
+    )
     if len(labels) != len(normalized):
         raise ValueError("The number of array names must match the number of arrays.")
 
     reference_shape = normalized[0].shape
     mismatches = [
         f"{label} has shape {values.shape}"
-        for label, values in zip(labels, normalized)
+        for label, values in zip(labels, normalized, strict=True)
         if values.shape != reference_shape
     ]
     if mismatches:
@@ -94,12 +98,8 @@ def finite_mask(*arrays: np.ndarray) -> np.ndarray:
     n = len(aligned[0])
     mask = np.ones(n, dtype=bool)
     for arr in aligned:
-        try:
+        with contextlib.suppress(Exception):
             mask &= np.isfinite(arr.astype(float, copy=False))
-        except Exception:
-            # Non-numeric arrays are left unchanged; downstream plotting may fail
-            # with a useful error.
-            pass
     return mask
 
 
@@ -151,18 +151,32 @@ def delta_phi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
     return np.arctan2(np.sin(phi1 - phi2), np.cos(phi1 - phi2))
 
 
-def read_for_scope(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int], event_index: Optional[int]):
+def read_for_scope(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+):
     if event_index is None:
         return read_branch(path, tree_name, branch, entry_start, entry_stop)
     return read_event_branch(path, tree_name, branch, event_index)
 
 
-def branch_values(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int], event_index: Optional[int]) -> np.ndarray:
+def branch_values(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> np.ndarray:
     arr = read_for_scope(path, tree_name, branch, entry_start, entry_stop, event_index)
     return event_to_numpy(arr) if event_index is not None else to_numpy_flat(arr)
 
 
-def variable_reference_branch(spec: VariableSpec) -> Optional[str]:
+def variable_reference_branch(spec: VariableSpec) -> str | None:
     if spec.mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
         return spec.branch
     return spec.branch_a
@@ -179,7 +193,7 @@ def array_length(arr: Any) -> int:
     return len(values)
 
 
-def raw_counts_per_event(arr: Any, event_index: Optional[int]) -> np.ndarray:
+def raw_counts_per_event(arr: Any, event_index: int | None) -> np.ndarray:
     """Return the number of scalar values contributed by each event."""
 
     if event_index is not None:
@@ -219,7 +233,7 @@ def validate_raw_event_shapes(
     names: Sequence[str],
     *,
     entry_start: int,
-    event_index: Optional[int],
+    event_index: int | None,
     context: str,
 ) -> None:
     """Validate scalar counts and nested list boundaries before flattening."""
@@ -236,7 +250,7 @@ def validate_raw_event_shapes(
 
     levels = [raw_list_shape_levels(arr) for arr in arrays]
     reference = levels[0]
-    for name, candidate in zip(names[1:], levels[1:]):
+    for name, candidate in zip(names[1:], levels[1:], strict=True):
         if len(candidate) != len(reference):
             raise ArrayShapeMismatchError(
                 f"Cannot align {context}: {names[0]!r} and {name!r} have different "
@@ -244,11 +258,10 @@ def validate_raw_event_shapes(
                 "No plot was produced."
             )
         for depth, (reference_counts, candidate_counts) in enumerate(
-            zip(reference, candidate), start=1
+            zip(reference, candidate, strict=True), start=1
         ):
-            if (
-                reference_counts.shape != candidate_counts.shape
-                or not np.array_equal(reference_counts, candidate_counts)
+            if reference_counts.shape != candidate_counts.shape or not np.array_equal(
+                reference_counts, candidate_counts
             ):
                 raise ArrayShapeMismatchError(
                     f"Cannot align {context}: {names[0]!r} and {name!r} have different "
@@ -275,7 +288,7 @@ def validate_event_counts(
     names: Sequence[str],
     *,
     entry_start: int,
-    event_index: Optional[int],
+    event_index: int | None,
     context: str,
 ) -> None:
     """Require identical per-event multiplicities before flattening arrays."""
@@ -287,7 +300,7 @@ def validate_event_counts(
 
     normalized = [np.asarray(values, dtype=int).reshape(-1) for values in counts]
     reference = normalized[0]
-    for name, candidate in zip(names[1:], normalized[1:]):
+    for name, candidate in zip(names[1:], normalized[1:], strict=True):
         if candidate.shape != reference.shape:
             raise ArrayShapeMismatchError(
                 f"Cannot align {context}: {names[0]!r} covers {len(reference)} event(s), "
@@ -296,7 +309,9 @@ def validate_event_counts(
         mismatches = np.flatnonzero(candidate != reference)
         if len(mismatches):
             local_index = int(mismatches[0])
-            absolute_index = int(event_index) if event_index is not None else int(entry_start) + local_index
+            absolute_index = (
+                int(event_index) if event_index is not None else int(entry_start) + local_index
+            )
             raise ArrayShapeMismatchError(
                 f"Cannot align {context}: in event {absolute_index}, {names[0]!r} contributes "
                 f"{int(reference[local_index])} value(s), while {name!r} contributes "
@@ -311,8 +326,8 @@ def variable_counts_per_event(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> np.ndarray:
     """Return how many plotted values each event contributes for a variable."""
 
@@ -338,7 +353,7 @@ def value_is_scalar(arr: Any) -> bool:
         return False
 
 
-def weight_is_per_event_array(arr: Any, event_index: Optional[int]) -> bool:
+def weight_is_per_event_array(arr: Any, event_index: int | None) -> bool:
     if event_index is not None:
         return value_is_scalar(arr)
     try:
@@ -355,13 +370,17 @@ def histogram_weights_for_values(
     reference_spec: VariableSpec,
     value_count: int,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> np.ndarray:
     """Read histogram weights and broadcast per-event weights over object values."""
 
-    raw_weights = read_for_scope(path, tree_name, weight_branch, entry_start, entry_stop, event_index)
-    weights = safe_float_array(event_to_numpy(raw_weights) if event_index is not None else to_numpy_flat(raw_weights))
+    raw_weights = read_for_scope(
+        path, tree_name, weight_branch, entry_start, entry_stop, event_index
+    )
+    weights = safe_float_array(
+        event_to_numpy(raw_weights) if event_index is not None else to_numpy_flat(raw_weights)
+    )
     reference_counts = variable_counts_per_event(
         reference_spec, path, tree_name, entry_start, entry_stop, event_index
     )
@@ -423,8 +442,8 @@ def variable_is_event_level_array(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> bool:
     if variable_is_per_event(spec):
         return True
@@ -449,8 +468,8 @@ def validate_variable_event_shapes(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     context: str,
 ) -> None:
@@ -475,9 +494,7 @@ def validate_variable_event_shapes(
         reference_branches = [variable_reference_branch(spec) for spec in object_specs]
         if all(reference_branches):
             raw_arrays = [
-                read_for_scope(
-                    path, tree_name, str(branch), entry_start, entry_stop, event_index
-                )
+                read_for_scope(path, tree_name, str(branch), entry_start, entry_stop, event_index)
                 for branch in reference_branches
             ]
             validate_raw_event_shapes(
@@ -494,8 +511,8 @@ def read_aligned_branch_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     context: str,
 ) -> list[np.ndarray]:
@@ -526,15 +543,17 @@ def values_for_reference_shape(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     values_are_per_event: bool = False,
     values_name: str = "secondary variable",
 ) -> np.ndarray:
     """Broadcast event-level values to match flattened object-level plot values."""
 
-    counts = variable_counts_per_event(reference_spec, path, tree_name, entry_start, entry_stop, event_index)
+    counts = variable_counts_per_event(
+        reference_spec, path, tree_name, entry_start, entry_stop, event_index
+    )
     reference_name = variable_spec_name(reference_spec)
     expected_values = int(np.sum(counts))
     if expected_values != value_count:
@@ -570,8 +589,8 @@ def variable_values_for_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> tuple[np.ndarray, str]:
     from .variables import evaluate_variable
 
@@ -582,8 +601,12 @@ def variable_values_for_values(
     if not values_are_per_event:
         validate_event_counts(
             [
-                variable_counts_per_event(reference_spec, path, tree_name, entry_start, entry_stop, event_index),
-                variable_counts_per_event(spec, path, tree_name, entry_start, entry_stop, event_index),
+                variable_counts_per_event(
+                    reference_spec, path, tree_name, entry_start, entry_stop, event_index
+                ),
+                variable_counts_per_event(
+                    spec, path, tree_name, entry_start, entry_stop, event_index
+                ),
             ],
             [variable_spec_name(reference_spec), label],
             entry_start=entry_start,
@@ -629,8 +652,8 @@ def cut_values_for_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> tuple[np.ndarray, str]:
     return variable_values_for_values(
         spec,
