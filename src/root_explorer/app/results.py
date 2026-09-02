@@ -77,7 +77,7 @@ def show_cached_plot_result(
         st.markdown("#### Export")
         st.caption("Save writes to the cluster; Download sends the file to this browser.")
         formats = result.get("save_formats", ["png"])
-        export_columns = st.columns(1 + max(len(formats), 1))
+        export_columns = st.columns(1 + len(formats))
         with export_columns[0]:
             if st.button(
                 result.get("save_button_label", "Save plot"), key=save_button_key, width="stretch"
