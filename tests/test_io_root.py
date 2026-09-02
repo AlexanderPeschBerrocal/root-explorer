@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+import sys
+
+import awkward as ak
+import numpy as np
+
+from root_explorer.app.results import collection_summary
+from root_explorer.io import root as root_io
+
+
+class _FakeBranch:
+    typename = "float32"
+    interpretation = "fake interpretation"
+
+
+class _FakeTree:
+    def __init__(self, names: list[str]) -> None:
+        self._branches = {name: _FakeBranch() for name in names}
+
+    def __iter__(self):
+        # Match Uproot's TTree behavior: direct iteration yields branch objects.
+        return iter(self._branches.values())
+
+    def keys(self) -> list[str]:
+        return list(self._branches)
+
+    def __getitem__(self, name: str) -> _FakeBranch:
+        return self._branches[name]
+
+
+class _FakeFile:
+    def __init__(self, tree: _FakeTree) -> None:
+        self.tree = tree
+
+    def __getitem__(self, name: str) -> _FakeTree:
+        assert name == "Events"
+        return self.tree
+
+
+def test_get_branch_info_keeps_branch_names_as_strings(monkeypatch) -> None:
+    tree = _FakeTree(["run", "Muon_pt", "Muon_eta"])
+    monkeypatch.setattr(root_io.uproot, "open", lambda path: _FakeFile(tree))
+
+    info = root_io.get_branch_info("fake.root", "Events")
+
+    assert [branch.name for branch in info] == ["run", "Muon_pt", "Muon_eta"]
+    assert [branch.field for branch in info] == ["run", "pt", "eta"]
+    summary = collection_summary(info)
+    assert summary.loc[summary["collection"] == "Muon", "example fields"].item() == "pt, eta"
+
+
+def test_root_fixture_metadata_reads_and_helper_choices(root_path) -> None:
+    root_file = root_io.open_root_file(str(root_path))
+    branch_info = root_io.get_branch_info(str(root_path), "Events")
+    muon_pt = root_io.read_branch(str(root_path), "Events", "Muon_pt", 0, 4)
+    event_muon_pt = root_io.read_event_branch(str(root_path), "Events", "Muon_pt", 0)
+
+    assert root_io.walk_ttrees(root_file) == ["Events"]
+    assert {branch.name for branch in branch_info} >= {"event", "Muon_pt", "Jet_pt", "genWeight"}
+    assert "Muon_pt" in root_io.numeric_branches(branch_info)
+    assert root_io.branch_choices(["Muon_pt", "Jet_pt"], "muON") == ["Muon_pt"]
+    assert root_io.choose_default(["Jet_pt", "Muon_pt"], ["muon"]) == 1
+    assert isinstance(muon_pt, ak.Array)
+    np.testing.assert_allclose(np.asarray(event_muon_pt), np.asarray(muon_pt[0]))
+
+
+def test_root_name_helpers_and_cli_path(monkeypatch) -> None:
+    assert root_io.split_collection("Electron.eta") == ("Electron", "eta")
+    assert root_io.split_collection("eventNumber") == ("event-level", "eventNumber")
+    assert root_io.is_probably_numeric_typename("std::vector<float>")
+    assert not root_io.is_probably_numeric_typename("std::string")
+
+    monkeypatch.setattr(sys, "argv", ["streamlit_app.py", "input.root", "--server.port", "8501"])
+    assert root_io.parse_cli_rootfile() == "input.root"
