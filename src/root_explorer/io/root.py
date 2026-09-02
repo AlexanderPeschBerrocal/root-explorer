@@ -33,11 +33,8 @@ def walk_ttrees(root_file: Any) -> list[str]:
 
     names: list[str] = []
     for key, obj in root_file.items(recursive=True):
-        try:
-            if is_ttree(obj):
-                names.append(key.split(";")[0])
-        except Exception:
-            continue
+        if is_ttree(obj):
+            names.append(key.split(";")[0])
     return sorted(set(names))
 
 
