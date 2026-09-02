@@ -13,7 +13,9 @@ from matplotlib.colors import LogNorm
 from ..analysis.arrays import align_arrays
 
 
-def downsample_arrays(arrays: Sequence[np.ndarray], max_points: int, seed: int = 12345) -> list[np.ndarray]:
+def downsample_arrays(
+    arrays: Sequence[np.ndarray], max_points: int, seed: int = 12345
+) -> list[np.ndarray]:
     arrays = align_arrays(arrays)
     if not arrays:
         return []
@@ -44,8 +46,8 @@ def apply_range_cuts(
     if not aligned:
         return []
 
-    values = aligned[:len(arrays)]
-    aligned_cuts = aligned[len(arrays):]
+    values = aligned[: len(arrays)]
+    aligned_cuts = aligned[len(arrays) :]
     n = len(values[0]) if values else len(aligned_cuts[0])
     mask = np.ones(n, dtype=bool)
 
@@ -60,7 +62,12 @@ def apply_range_cuts(
     return [v[mask] for v in values]
 
 
-def apply_range_cut(arrays: Sequence[np.ndarray], cut_var: Optional[np.ndarray], lo: Optional[float], hi: Optional[float]) -> list[np.ndarray]:
+def apply_range_cut(
+    arrays: Sequence[np.ndarray],
+    cut_var: Optional[np.ndarray],
+    lo: Optional[float],
+    hi: Optional[float],
+) -> list[np.ndarray]:
     # Kept as a small compatibility wrapper for any local code that imports this helper.
     if cut_var is None:
         return align_arrays(arrays)
@@ -79,7 +86,14 @@ def parse_optional_float(text: str) -> Optional[float]:
 
 def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
     if len(arr) == 0:
-        return {"variable": name, "n": 0, "min": np.nan, "median": np.nan, "mean": np.nan, "max": np.nan}
+        return {
+            "variable": name,
+            "n": 0,
+            "min": np.nan,
+            "median": np.nan,
+            "mean": np.nan,
+            "max": np.nan,
+        }
     values = arr.astype(float, copy=False)
     return {
         "variable": name,
@@ -91,7 +105,15 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
     }
 
 
-def safe_hist2d(ax, x: np.ndarray, y: np.ndarray, bins_x: int, bins_y: int, log_scale: bool, weights: Optional[np.ndarray] = None):
+def safe_hist2d(
+    ax,
+    x: np.ndarray,
+    y: np.ndarray,
+    bins_x: int,
+    bins_y: int,
+    log_scale: bool,
+    weights: Optional[np.ndarray] = None,
+):
     h, xedges, yedges = np.histogram2d(x, y, bins=(bins_x, bins_y), weights=weights)
     positive = h[np.isfinite(h) & (h > 0)]
     norm = None
@@ -143,10 +165,28 @@ def plotly_figure_html(fig) -> bytes:
     return fig.to_html(include_plotlyjs="cdn").encode("utf-8")
 
 
-def build_plotly_3d(x, y, z, x_label, y_label, z_label, *, color=None, color_label=None,
-                    title="", marker_size=2.5, opacity=0.65, colorscale="Viridis",
-                    reversescale=False, aspectmode="data", color_min=None, color_max=None):
-    marker = dict(size=marker_size, opacity=opacity, colorscale=colorscale, reversescale=reversescale)
+def build_plotly_3d(
+    x,
+    y,
+    z,
+    x_label,
+    y_label,
+    z_label,
+    *,
+    color=None,
+    color_label=None,
+    title="",
+    marker_size=2.5,
+    opacity=0.65,
+    colorscale="Viridis",
+    reversescale=False,
+    aspectmode="data",
+    color_min=None,
+    color_max=None,
+):
+    marker = dict(
+        size=marker_size, opacity=opacity, colorscale=colorscale, reversescale=reversescale
+    )
     if color is not None:
         marker.update(color=color, colorbar=dict(title=color_label or "color"))
         if color_min is not None:
@@ -163,7 +203,9 @@ def build_plotly_3d(x, y, z, x_label, y_label, z_label, *, color=None, color_lab
     )
     fig.update_layout(
         title=title,
-        scene=dict(xaxis_title=x_label, yaxis_title=y_label, zaxis_title=z_label, aspectmode=aspectmode),
+        scene=dict(
+            xaxis_title=x_label, yaxis_title=y_label, zaxis_title=z_label, aspectmode=aspectmode
+        ),
         margin=dict(l=0, r=0, b=0, t=42),
     )
     return fig
@@ -193,17 +235,23 @@ def render_static_plot(
     if plot_type == "1D histogram":
         ax.hist(x, bins=style["bins_x"], weights=weights)
         ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label or ("entries" if weights is None else f"weighted entries ({weight_branch})"))
+        ax.set_ylabel(
+            y_label or ("entries" if weights is None else f"weighted entries ({weight_branch})")
+        )
         if style.get("log_y", False):
             ax.set_yscale("log")
 
     elif plot_type == "2D histogram":
         if y is None:
             raise ValueError("2D histogram requires a y variable.")
-        mesh = safe_hist2d(ax, x, y, style["bins_x"], style["bins_y"], style["log_z"], weights=weights)
+        mesh = safe_hist2d(
+            ax, x, y, style["bins_x"], style["bins_y"], style["log_z"], weights=weights
+        )
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
-        fig.colorbar(mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})")
+        fig.colorbar(
+            mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
+        )
 
     elif plot_type == "2D scatter":
         if y is None:
@@ -217,7 +265,9 @@ def render_static_plot(
                 s=style["marker_size_2d"],
                 alpha=style["opacity_2d"],
                 c=color,
-                cmap=matplotlib_cmap_name(style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)),
+                cmap=matplotlib_cmap_name(
+                    style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
+                ),
                 vmin=cmin,
                 vmax=cmax,
             )

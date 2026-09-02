@@ -77,11 +77,15 @@ def as_float(attrs: Dict[str, str], key: str, default: float = 0.0) -> float:
 
 
 def length_value(attrs: Dict[str, str], key: str, default: float = 0.0) -> float:
-    return as_float(attrs, key, default) * LEN_UNITS.get(attrs.get("lunit") or attrs.get("unit"), 1.0)
+    return as_float(attrs, key, default) * LEN_UNITS.get(
+        attrs.get("lunit") or attrs.get("unit"), 1.0
+    )
 
 
 def angle_value(attrs: Dict[str, str], key: str, default_deg: float = 0.0) -> float:
-    return as_float(attrs, key, default_deg) * ANGLE_UNITS.get(attrs.get("aunit") or attrs.get("unit"), math.pi / 180.0)
+    return as_float(attrs, key, default_deg) * ANGLE_UNITS.get(
+        attrs.get("aunit") or attrs.get("unit"), math.pi / 180.0
+    )
 
 
 def identity() -> Mat4:
@@ -144,7 +148,9 @@ def transform_point(m: Mat4, p: Vec3) -> Vec3:
 
 
 def transform_mesh(tris: Iterable[Triangle], m: Mat4) -> List[Triangle]:
-    return [(transform_point(m, a), transform_point(m, b), transform_point(m, c)) for a, b, c in tris]
+    return [
+        (transform_point(m, a), transform_point(m, b), transform_point(m, c)) for a, b, c in tris
+    ]
 
 
 def parse_position(el: Optional[ET.Element]) -> Vec3:
@@ -171,7 +177,9 @@ def placement_matrix(physvol: ET.Element) -> Mat4:
 
 def add_tri(tris: List[Triangle], a: Vec3, b: Vec3, c: Vec3) -> None:
     # Skip degenerate triangles; they confuse transparency and picking.
-    ax, ay, az = a; bx, by, bz = b; cx, cy, cz = c
+    ax, ay, az = a
+    bx, by, bz = b
+    cx, cy, cz = c
     ux, uy, uz = bx - ax, by - ay, bz - az
     vx, vy, vz = cx - ax, cy - ay, cz - az
     nx = uy * vz - uz * vy
@@ -286,12 +294,22 @@ def make_box(attrs: Dict[str, str]) -> List[Triangle]:
     y = length_value(attrs, "y") / 2.0
     z = length_value(attrs, "z") / 2.0
     v = [
-        (-x, -y, -z), (x, -y, -z), (x, y, -z), (-x, y, -z),
-        (-x, -y, z), (x, -y, z), (x, y, z), (-x, y, z),
+        (-x, -y, -z),
+        (x, -y, -z),
+        (x, y, -z),
+        (-x, y, -z),
+        (-x, -y, z),
+        (x, -y, z),
+        (x, y, z),
+        (-x, y, z),
     ]
     faces = [
-        (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1),
-        (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0),
+        (0, 1, 2, 3),
+        (4, 7, 6, 5),
+        (0, 4, 5, 1),
+        (1, 5, 6, 2),
+        (2, 6, 7, 3),
+        (3, 7, 4, 0),
     ]
     tris: List[Triangle] = []
     for a, b, c, d in faces:
@@ -324,9 +342,14 @@ def make_cone(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
     start = angle_value(attrs, "startphi", 0.0)
     delta = angle_value(attrs, "deltaphi", 360.0)
     return make_tube_like(
-        length_value(attrs, "rmin1"), length_value(attrs, "rmax1"),
-        length_value(attrs, "rmin2"), length_value(attrs, "rmax2"),
-        z, start, delta, seg_base,
+        length_value(attrs, "rmin1"),
+        length_value(attrs, "rmax1"),
+        length_value(attrs, "rmin2"),
+        length_value(attrs, "rmax2"),
+        z,
+        start,
+        delta,
+        seg_base,
     )
 
 
@@ -386,9 +409,15 @@ class SceneBuilder:
     solid_type_counts: Dict[str, int] = field(default_factory=dict)
     duplicate_volume_names: Dict[str, int] = field(default_factory=dict)
     duplicate_solid_names: Dict[str, int] = field(default_factory=dict)
-    bbox_min: List[float] = field(default_factory=lambda: [float("inf"), float("inf"), float("inf")])
-    bbox_max: List[float] = field(default_factory=lambda: [float("-inf"), float("-inf"), float("-inf")])
-    mesh_cache: Dict[Tuple[str, int, str], Tuple[List[Triangle], str, str]] = field(default_factory=dict)
+    bbox_min: List[float] = field(
+        default_factory=lambda: [float("inf"), float("inf"), float("inf")]
+    )
+    bbox_max: List[float] = field(
+        default_factory=lambda: [float("-inf"), float("-inf"), float("-inf")]
+    )
+    mesh_cache: Dict[Tuple[str, int, str], Tuple[List[Triangle], str, str]] = field(
+        default_factory=dict
+    )
     stop_reason: str = ""
 
     def __post_init__(self) -> None:
@@ -409,8 +438,12 @@ class SceneBuilder:
             name = el.attrib.get("name", f"anonymous_{len(solid_counts)}")
             seq = solid_counts.get(name, 0)
             solid_counts[name] = seq + 1
-            self.solids_by_name.setdefault(name, []).append(SolidDef(name, strip_namespace(el.tag), el, seq))
-        self.duplicate_solid_names = {k: len(v) for k, v in self.solids_by_name.items() if len(v) > 1}
+            self.solids_by_name.setdefault(name, []).append(
+                SolidDef(name, strip_namespace(el.tag), el, seq)
+            )
+        self.duplicate_solid_names = {
+            k: len(v) for k, v in self.solids_by_name.items() if len(v) > 1
+        }
 
         structure_el = child_by_tag(self.root, "structure")
         if structure_el is None:
@@ -427,8 +460,12 @@ class SceneBuilder:
             solid = solidref.attrib.get("ref", "") if solidref is not None else ""
             hint = solid_use_counter.get(solid, 0)
             solid_use_counter[solid] = hint + 1
-            self.volumes_by_name.setdefault(name, []).append(VolumeDef(name, mat, solid, hint, el, seq))
-        self.duplicate_volume_names = {k: len(v) for k, v in self.volumes_by_name.items() if len(v) > 1}
+            self.volumes_by_name.setdefault(name, []).append(
+                VolumeDef(name, mat, solid, hint, el, seq)
+            )
+        self.duplicate_volume_names = {
+            k: len(v) for k, v in self.volumes_by_name.items() if len(v) > 1
+        }
 
         setup_el = child_by_tag(self.root, "setup")
         if setup_el is not None:
@@ -447,7 +484,9 @@ class SceneBuilder:
         idx = hint if 0 <= hint < len(defs) else min(hint % len(defs), len(defs) - 1)
         return defs[idx]
 
-    def select_volume(self, name: str, occurrence: int = 0, total_occurrences: int = 1) -> List[VolumeDef]:
+    def select_volume(
+        self, name: str, occurrence: int = 0, total_occurrences: int = 1
+    ) -> List[VolumeDef]:
         defs = self.volumes_by_name.get(name)
         if not defs:
             self.warn(f"Missing volume reference: {name}")
@@ -543,8 +582,11 @@ class SceneBuilder:
             for child in child_defs:
                 child_path = f"{path}/{pv_name}:{child.name}#{child.seq}"
                 self.traverse(child, child_matrix, child_path, depth + 1)
-                if len(self.objects) >= self.max_objects or len(self.positions) // 3 >= self.max_vertices:
-                    self.stop_reason = f"Stopped at {len(self.objects)} objects / {len(self.positions)//3} vertices. Increase --max-objects or --max-vertices for more."
+                if (
+                    len(self.objects) >= self.max_objects
+                    or len(self.positions) // 3 >= self.max_vertices
+                ):
+                    self.stop_reason = f"Stopped at {len(self.objects)} objects / {len(self.positions) // 3} vertices. Increase --max-objects or --max-vertices for more."
                     return
 
     def add_volume_mesh(self, volume: VolumeDef, matrix: Mat4, path: str) -> None:
@@ -562,29 +604,35 @@ class SceneBuilder:
             for p in tri:
                 tp = transform_point(matrix, p)
                 for k in range(3):
-                    if tp[k] < local_min[k]: local_min[k] = tp[k]
-                    if tp[k] > local_max[k]: local_max[k] = tp[k]
-                    if tp[k] < self.bbox_min[k]: self.bbox_min[k] = tp[k]
-                    if tp[k] > self.bbox_max[k]: self.bbox_max[k] = tp[k]
+                    if tp[k] < local_min[k]:
+                        local_min[k] = tp[k]
+                    if tp[k] > local_max[k]:
+                        local_max[k] = tp[k]
+                    if tp[k] < self.bbox_min[k]:
+                        self.bbox_min[k] = tp[k]
+                    if tp[k] > self.bbox_max[k]:
+                        self.bbox_max[k] = tp[k]
                 self.positions.extend(tp)
                 self.colors.extend(rgba)
                 self.ids.append(obj_id)
         vertex_count = len(self.positions) // 3 - first_vertex
         if vertex_count == 0:
             return
-        self.objects.append(ObjectInfo(
-            id=obj_id,
-            name=path.rsplit("/", 1)[-1],
-            path=path,
-            volume=volume.name,
-            volume_seq=volume.seq,
-            material=volume.material,
-            solid=solid_name,
-            solid_type=solid_type,
-            first_vertex=first_vertex,
-            vertex_count=vertex_count,
-            bbox=[*local_min, *local_max],
-        ))
+        self.objects.append(
+            ObjectInfo(
+                id=obj_id,
+                name=path.rsplit("/", 1)[-1],
+                path=path,
+                volume=volume.name,
+                volume_seq=volume.seq,
+                material=volume.material,
+                solid=solid_name,
+                solid_type=solid_type,
+                first_vertex=first_vertex,
+                vertex_count=vertex_count,
+                bbox=[*local_min, *local_max],
+            )
+        )
         self.material_counts[volume.material] = self.material_counts.get(volume.material, 0) + 1
         self.solid_type_counts[solid_type] = self.solid_type_counts.get(solid_type, 0) + 1
 
@@ -600,7 +648,9 @@ class SceneBuilder:
         return self.scene_dict()
 
     def scene_dict(self) -> Dict[str, object]:
-        pos_bytes = struct.pack(f"<{len(self.positions)}f", *self.positions) if self.positions else b""
+        pos_bytes = (
+            struct.pack(f"<{len(self.positions)}f", *self.positions) if self.positions else b""
+        )
         id_bytes = struct.pack(f"<{len(self.ids)}I", *self.ids) if self.ids else b""
         objects_data = [obj.__dict__ for obj in self.objects]
         warnings = []

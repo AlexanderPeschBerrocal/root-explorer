@@ -69,10 +69,11 @@ def main() -> None:
     # App body
     # -----------------------------------------------------------------------------
 
-
     cli_path = parse_cli_rootfile()
     st.title(APP_TITLE)
-    st.caption("A general-purpose Streamlit app for interactive plotting and event inspection of HEP ROOT TTrees in the web browser.")
+    st.caption(
+        "A general-purpose Streamlit app for interactive plotting and event inspection of HEP ROOT TTrees in the web browser."
+    )
 
     with st.sidebar:
         st.header("Input")
@@ -91,7 +92,11 @@ def main() -> None:
             st.stop()
 
         root_path_obj = Path(root_path)
-        if source_mode == "Path" and not root_path_obj.exists() and not str(root_path).startswith(("root://", "http://", "https://")):
+        if (
+            source_mode == "Path"
+            and not root_path_obj.exists()
+            and not str(root_path).startswith(("root://", "http://", "https://"))
+        ):
             st.error(f"File does not exist: {root_path}")
             st.stop()
 
@@ -115,37 +120,71 @@ def main() -> None:
             st.stop()
 
         st.subheader("Read range")
-        entry_start = st.number_input("entry start", min_value=0, max_value=max(n_entries - 1, 0), value=0, step=1)
+        entry_start = st.number_input(
+            "entry start", min_value=0, max_value=max(n_entries - 1, 0), value=0, step=1
+        )
         default_stop = min(n_entries, DEFAULT_MAX_ENTRIES)
-        entry_stop = st.number_input("entry stop", min_value=1, max_value=n_entries, value=default_stop, step=1)
+        entry_stop = st.number_input(
+            "entry stop", min_value=1, max_value=n_entries, value=default_stop, step=1
+        )
         if entry_stop <= entry_start:
             st.warning("entry stop must be larger than entry start.")
             st.stop()
-
 
         st.subheader("Detector geometry overlay")
         geometry_enabled = st.checkbox("Enable 3D detector overlay", value=False)
         geometry_scene = None
         geometry_options: dict[str, Any] = {"enabled": False}
         if geometry_enabled:
-            geometry_source_mode = st.radio("Geometry source", ["Path", "Upload"], horizontal=True, key="geometry_source_mode")
+            geometry_source_mode = st.radio(
+                "Geometry source", ["Path", "Upload"], horizontal=True, key="geometry_source_mode"
+            )
             geometry_path = ""
             if geometry_source_mode == "Path":
                 geometry_path = st.text_input("GDML geometry path", value="", key="geometry_path")
             else:
-                geometry_uploaded = st.file_uploader("Upload GDML geometry", type=["gdml"], key="geometry_upload")
+                geometry_uploaded = st.file_uploader(
+                    "Upload GDML geometry", type=["gdml"], key="geometry_upload"
+                )
                 if geometry_uploaded is not None:
                     geometry_path = store_uploaded_file(geometry_uploaded)
                     st.caption(f"Uploaded copy: `{geometry_path}`")
 
             geometry_quality = st.selectbox("mesh quality", GEOMETRY_QUALITY_LEVELS, index=1)
-            include_containers = st.checkbox("include container volumes", value=False, help="Usually leave off.")
-            include_world = st.checkbox("include world volume", value=False, help="Usually leave off.")
-            geometry_build_max_objects = st.number_input("max geometry objects to parse", min_value=100, max_value=500_000, value=DEFAULT_MAX_GEOMETRY_OBJECTS, step=1_000)
-            geometry_build_max_vertices = st.number_input("max geometry vertices to parse", min_value=10_000, max_value=20_000_000, value=DEFAULT_MAX_GEOMETRY_VERTICES, step=100_000)
-            geometry_display_max_vertices = st.number_input("max geometry vertices to draw", min_value=10_000, max_value=20_000_000, value=DEFAULT_DISPLAY_GEOMETRY_VERTICES, step=50_000)
+            include_containers = st.checkbox(
+                "include container volumes", value=False, help="Usually leave off."
+            )
+            include_world = st.checkbox(
+                "include world volume", value=False, help="Usually leave off."
+            )
+            geometry_build_max_objects = st.number_input(
+                "max geometry objects to parse",
+                min_value=100,
+                max_value=500_000,
+                value=DEFAULT_MAX_GEOMETRY_OBJECTS,
+                step=1_000,
+            )
+            geometry_build_max_vertices = st.number_input(
+                "max geometry vertices to parse",
+                min_value=10_000,
+                max_value=20_000_000,
+                value=DEFAULT_MAX_GEOMETRY_VERTICES,
+                step=100_000,
+            )
+            geometry_display_max_vertices = st.number_input(
+                "max geometry vertices to draw",
+                min_value=10_000,
+                max_value=20_000_000,
+                value=DEFAULT_DISPLAY_GEOMETRY_VERTICES,
+                step=50_000,
+            )
             geometry_opacity = st.slider("geometry opacity scale", 0.02, 1.0, 0.30, step=0.02)
-            geometry_scale = st.number_input("geometry coordinate scale", value=1.0, format="%.8g", help="Use this if ROOT vertices and GDML use different length units.")
+            geometry_scale = st.number_input(
+                "geometry coordinate scale",
+                value=1.0,
+                format="%.8g",
+                help="Use this if ROOT vertices and GDML use different length units.",
+            )
             gc1, gc2, gc3 = st.columns(3)
             with gc1:
                 geometry_offset_x = st.number_input("geom dx", value=0.0, format="%.8g")
@@ -175,10 +214,14 @@ def main() -> None:
                         int(geometry_build_max_vertices),
                     )
                     meta = geometry_scene.get("meta", {})
-                    st.success(f"Loaded geometry: {meta.get('objects', 0):,} objects, {meta.get('triangles', 0):,} triangles")
+                    st.success(
+                        f"Loaded geometry: {meta.get('objects', 0):,} objects, {meta.get('triangles', 0):,} triangles"
+                    )
                     materials = geometry_materials(geometry_scene)
                     default_materials = materials[: min(len(materials), 30)]
-                    selected_materials = st.multiselect("materials to draw", materials, default=default_materials)
+                    selected_materials = st.multiselect(
+                        "materials to draw", materials, default=default_materials
+                    )
                     geometry_options = {
                         "enabled": True,
                         "materials": selected_materials,
@@ -198,7 +241,9 @@ def main() -> None:
                     geometry_options = {"enabled": False}
                     st.error(f"Could not load geometry: {exc}")
             else:
-                st.info("Provide a `.gdml` detector description by path or upload to overlay it on 3D plots.")
+                st.info(
+                    "Provide a `.gdml` detector description by path or upload to overlay it on 3D plots."
+                )
 
     branch_info = get_branch_info(root_path, tree_name)
     all_branches = [b.name for b in branch_info]
@@ -211,7 +256,9 @@ def main() -> None:
         st.session_state["event_index"] = 0
         st.session_state["data_context"] = current_data_context
 
-    plot_tab, event_tab, branch_tab, geometry_tab, help_tab = st.tabs(["Plotter", "Event viewer", "Branches", "Geometry", "Help"])
+    plot_tab, event_tab, branch_tab, geometry_tab, help_tab = st.tabs(
+        ["Plotter", "Event viewer", "Branches", "Geometry", "Help"]
+    )
 
     with branch_tab:
         st.subheader("Branch and collection browser")
@@ -225,25 +272,42 @@ def main() -> None:
             df = pd.DataFrame([b.__dict__ for b in branch_info])
             if query:
                 q = query.casefold()
-                df = df[df.apply(lambda row: q in " ".join(map(str, row.values)).casefold(), axis=1)]
+                df = df[
+                    df.apply(lambda row: q in " ".join(map(str, row.values)).casefold(), axis=1)
+                ]
             st.dataframe(df, width="stretch", height=540)
 
     with geometry_tab:
         st.subheader("Detector geometry overlay")
         if geometry_scene is None:
-            st.info("Enable the 3D detector overlay in the sidebar and provide a GDML geometry file by path or upload.")
+            st.info(
+                "Enable the 3D detector overlay in the sidebar and provide a GDML geometry file by path or upload."
+            )
         else:
             st.dataframe(geometry_summary_dataframe(geometry_scene), width="stretch")
             meta = geometry_scene.get("meta", {})
             materials = meta.get("materials", {})
             if isinstance(materials, dict) and materials:
-                mat_df = pd.DataFrame([{"material": k, "objects": v} for k, v in sorted(materials.items(), key=lambda kv: (-kv[1], kv[0]))])
+                mat_df = pd.DataFrame(
+                    [
+                        {"material": k, "objects": v}
+                        for k, v in sorted(materials.items(), key=lambda kv: (-kv[1], kv[0]))
+                    ]
+                )
                 st.markdown("#### Materials")
                 st.dataframe(mat_df, width="stretch")
             solid_types = meta.get("solidTypes", {})
             if isinstance(solid_types, dict) and solid_types:
                 st.markdown("#### Solid types")
-                st.dataframe(pd.DataFrame([{"solid type": k, "objects": v} for k, v in sorted(solid_types.items(), key=lambda kv: (-kv[1], kv[0]))]), width="stretch")
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {"solid type": k, "objects": v}
+                            for k, v in sorted(solid_types.items(), key=lambda kv: (-kv[1], kv[0]))
+                        ]
+                    ),
+                    width="stretch",
+                )
             warnings = meta.get("warnings") or []
             if warnings:
                 st.markdown("#### Geometry parser warnings")
@@ -315,9 +379,18 @@ def main() -> None:
 
             use_color = False
             if supports_point_color(plot_type):
-                use_color = st.checkbox("Color points", value=plot_type == "3D scatter interactive", key="plot_color_points")
+                use_color = st.checkbox(
+                    "Color points",
+                    value=plot_type == "3D scatter interactive",
+                    key="plot_color_points",
+                )
                 if use_color:
-                    color_spec = variable_selector("color", branches, ["pt", "energy", "mass", "pdgId", "charge"], allow_event_reductions=False)
+                    color_spec = variable_selector(
+                        "color",
+                        branches,
+                        ["pt", "energy", "mass", "pdgId", "charge"],
+                        allow_event_reductions=False,
+                    )
 
             weight_branch = histogram_weight_selector("plot", plot_type, branches)
             cut_specs, cut_bounds = range_cut_controls("plot", branches)
@@ -332,7 +405,9 @@ def main() -> None:
                 default_opacity_3d=0.65,
                 default_equal_aspect=False,
             )
-            label_controls = label_export_controls("plot", plot_type, default_save_name="root_explorer_plot")
+            label_controls = label_export_controls(
+                "plot", plot_type, default_save_name="root_explorer_plot"
+            )
             make_plot = st.button(
                 "Make plot",
                 type="primary",
@@ -355,64 +430,119 @@ def main() -> None:
                     )
                     arrays: list[np.ndarray] = []
                     labels: list[str] = []
-                    x, x_label = evaluate_variable(x_spec, root_path, tree_name, int(entry_start), int(entry_stop))
-                    arrays.append(x); labels.append(x_label)
+                    x, x_label = evaluate_variable(
+                        x_spec, root_path, tree_name, int(entry_start), int(entry_stop)
+                    )
+                    arrays.append(x)
+                    labels.append(x_label)
                     if y_spec is not None:
-                        y, y_label = evaluate_variable(y_spec, root_path, tree_name, int(entry_start), int(entry_stop))
-                        arrays.append(y); labels.append(y_label)
+                        y, y_label = evaluate_variable(
+                            y_spec, root_path, tree_name, int(entry_start), int(entry_stop)
+                        )
+                        arrays.append(y)
+                        labels.append(y_label)
                     else:
-                        y = None; y_label = ""
+                        y = None
+                        y_label = ""
                     if z_spec is not None:
-                        z, z_label = evaluate_variable(z_spec, root_path, tree_name, int(entry_start), int(entry_stop))
-                        arrays.append(z); labels.append(z_label)
+                        z, z_label = evaluate_variable(
+                            z_spec, root_path, tree_name, int(entry_start), int(entry_stop)
+                        )
+                        arrays.append(z)
+                        labels.append(z_label)
                     else:
-                        z = None; z_label = ""
+                        z = None
+                        z_label = ""
                     weights = None
                     if weight_branch is not None:
-                        weights = histogram_weights_for_values(root_path, tree_name, weight_branch, x_spec, len(x), int(entry_start), int(entry_stop), None)
+                        weights = histogram_weights_for_values(
+                            root_path,
+                            tree_name,
+                            weight_branch,
+                            x_spec,
+                            len(x),
+                            int(entry_start),
+                            int(entry_stop),
+                            None,
+                        )
                         arrays.append(weights)
-                    color = None; color_label = None
+                    color = None
+                    color_label = None
                     if color_spec is not None:
-                        color, color_label = variable_values_for_values(color_spec, x_spec, len(x), root_path, tree_name, int(entry_start), int(entry_stop), None)
+                        color, color_label = variable_values_for_values(
+                            color_spec,
+                            x_spec,
+                            len(x),
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            None,
+                        )
                         arrays.append(color)
 
                     cut_definitions: list[tuple[np.ndarray, Optional[float], Optional[float]]] = []
                     for spec, bounds in zip(cut_specs, cut_bounds):
-                        cut_values, _ = cut_values_for_values(spec, x_spec, len(x), root_path, tree_name, int(entry_start), int(entry_stop), None)
+                        cut_values, _ = cut_values_for_values(
+                            spec,
+                            x_spec,
+                            len(x),
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            None,
+                        )
                         cut_definitions.append((cut_values, bounds[0], bounds[1]))
                     arrays = apply_range_cuts(arrays, cut_definitions)
 
                     arrays = apply_finite_filter(arrays)
                     idx = 0
-                    x = arrays[idx]; idx += 1
+                    x = arrays[idx]
+                    idx += 1
                     if y_spec is not None:
-                        y = arrays[idx]; idx += 1
+                        y = arrays[idx]
+                        idx += 1
                     if z_spec is not None:
-                        z = arrays[idx]; idx += 1
+                        z = arrays[idx]
+                        idx += 1
                     if weight_branch is not None:
-                        weights = arrays[idx]; idx += 1
+                        weights = arrays[idx]
+                        idx += 1
                     if color_spec is not None:
-                        color = arrays[idx]; idx += 1
+                        color = arrays[idx]
+                        idx += 1
 
                     if plot_type in {"2D scatter", "3D scatter interactive"}:
                         ds = [x]
-                        if y_spec is not None: ds.append(y)
-                        if z_spec is not None: ds.append(z)
-                        if color is not None: ds.append(color)
+                        if y_spec is not None:
+                            ds.append(y)
+                        if z_spec is not None:
+                            ds.append(z)
+                        if color is not None:
+                            ds.append(color)
                         ds = downsample_arrays(ds, int(style["max_points"]))
                         x = ds[0]
-                        if y_spec is not None: y = ds[1]
-                        if z_spec is not None: z = ds[2]
-                        if color is not None: color = ds[-1]
+                        if y_spec is not None:
+                            y = ds[1]
+                        if z_spec is not None:
+                            z = ds[2]
+                        if color is not None:
+                            color = ds[-1]
 
                     rows = [describe_array(labels[0], x)]
-                    if y_spec is not None: rows.append(describe_array(labels[1], y))
-                    if z_spec is not None: rows.append(describe_array(labels[2], z))
-                    if color is not None: rows.append(describe_array(color_label or "color", color))
+                    if y_spec is not None:
+                        rows.append(describe_array(labels[1], y))
+                    if z_spec is not None:
+                        rows.append(describe_array(labels[2], z))
+                    if color is not None:
+                        rows.append(describe_array(color_label or "color", color))
                     summary_df = pd.DataFrame(rows)
 
                     xlab = label_controls["custom_x"] or labels[0]
-                    ylab = label_controls["custom_y"] or (labels[1] if y_spec is not None else "entries")
+                    ylab = label_controls["custom_y"] or (
+                        labels[1] if y_spec is not None else "entries"
+                    )
                     zlab = label_controls["custom_z"] or (labels[2] if z_spec is not None else "")
                     title = label_controls["title"] or plot_type
                     save_name = label_controls["save_name"]
@@ -421,7 +551,12 @@ def main() -> None:
                         cmin = parse_optional_float(style.get("color_min_text", ""))
                         cmax = parse_optional_float(style.get("color_max_text", ""))
                         fig3d = build_plotly_3d(
-                            x, y, z, xlab, ylab, zlab,
+                            x,
+                            y,
+                            z,
+                            xlab,
+                            ylab,
+                            zlab,
                             color=color,
                             color_label=color_label,
                             title=title,
@@ -489,21 +624,43 @@ def main() -> None:
             st.subheader("Event inspection")
             if "event_index" not in st.session_state:
                 st.session_state["event_index"] = 0
-            event_index = st.number_input("event index", min_value=0, max_value=max(n_entries - 1, 0), value=int(st.session_state["event_index"]), step=1)
+            event_index = st.number_input(
+                "event index",
+                min_value=0,
+                max_value=max(n_entries - 1, 0),
+                value=int(st.session_state["event_index"]),
+                step=1,
+            )
             st.session_state["event_index"] = int(event_index)
 
             with st.expander("Rank events", expanded=True):
-                metric_branch = st.selectbox("metric branch", branches, index=choose_default(branches, ["pt", "energy", "mass", "x"]), key="metric_branch")
-                metric_mode = st.selectbox("metric", ["multiplicity", "sum", "mean", "max", "min", "count_above", "count_below"], key="metric_mode")
+                metric_branch = st.selectbox(
+                    "metric branch",
+                    branches,
+                    index=choose_default(branches, ["pt", "energy", "mass", "x"]),
+                    key="metric_branch",
+                )
+                metric_mode = st.selectbox(
+                    "metric",
+                    ["multiplicity", "sum", "mean", "max", "min", "count_above", "count_below"],
+                    key="metric_mode",
+                )
                 metric_abs = st.checkbox("use absolute values", value=False)
                 threshold = None
                 if metric_mode in {"count_above", "count_below"}:
                     threshold = st.number_input("threshold", value=0.0)
                 r1, r2 = st.columns(2)
                 with r1:
-                    metric_start = st.number_input("ranking start", min_value=0, max_value=max(n_entries - 1, 0), value=0)
+                    metric_start = st.number_input(
+                        "ranking start", min_value=0, max_value=max(n_entries - 1, 0), value=0
+                    )
                 with r2:
-                    metric_stop = st.number_input("ranking stop", min_value=1, max_value=n_entries, value=min(n_entries, DEFAULT_MAX_ENTRIES))
+                    metric_stop = st.number_input(
+                        "ranking stop",
+                        min_value=1,
+                        max_value=n_entries,
+                        value=min(n_entries, DEFAULT_MAX_ENTRIES),
+                    )
                 descending = st.checkbox("largest first", value=True)
                 max_rank_rows = st.slider("rows", 5, 200, 10)
                 if st.button("Compute ranking"):
@@ -511,8 +668,19 @@ def main() -> None:
                         st.error("ranking stop must be larger than ranking start.")
                     else:
                         try:
-                            ev, vals = compute_event_metric(root_path, tree_name, metric_branch, metric_mode, int(metric_start), int(metric_stop), threshold, metric_abs)
-                            st.session_state["rank_df"] = metric_dataframe(ev, vals, descending, int(max_rank_rows))
+                            ev, vals = compute_event_metric(
+                                root_path,
+                                tree_name,
+                                metric_branch,
+                                metric_mode,
+                                int(metric_start),
+                                int(metric_stop),
+                                threshold,
+                                metric_abs,
+                            )
+                            st.session_state["rank_df"] = metric_dataframe(
+                                ev, vals, descending, int(max_rank_rows)
+                            )
                             st.session_state["rank_label"] = f"{metric_mode}({metric_branch})"
                         except Exception as exc:
                             st.error(f"Ranking failed: {exc}")
@@ -521,7 +689,9 @@ def main() -> None:
                     st.dataframe(st.session_state["rank_df"], width="stretch", height=220)
                     events = st.session_state["rank_df"]["event"].astype(int).tolist()
                     if events:
-                        selected = st.selectbox("jump to event", events, format_func=lambda e: f"event {e}")
+                        selected = st.selectbox(
+                            "jump to event", events, format_func=lambda e: f"event {e}"
+                        )
                         if st.button("Use selected event"):
                             st.session_state["event_index"] = int(selected)
                             st.rerun()
@@ -530,18 +700,33 @@ def main() -> None:
             event_plot_type = st.selectbox("Plot type", PLOT_TYPES, index=0, key="event_plot_type")
 
             st.markdown("### Variables")
-            ex_spec = variable_selector("event_x", branches, ["x", "pt", "eta"], allow_event_reductions=False)
+            ex_spec = variable_selector(
+                "event_x", branches, ["x", "pt", "eta"], allow_event_reductions=False
+            )
             ey_spec = ez_spec = event_color_spec = None
             if needs_y_variable(event_plot_type):
-                ey_spec = variable_selector("event_y", branches, ["y", "eta", "phi"], allow_event_reductions=False)
+                ey_spec = variable_selector(
+                    "event_y", branches, ["y", "eta", "phi"], allow_event_reductions=False
+                )
             if needs_z_variable(event_plot_type):
-                ez_spec = variable_selector("event_z", branches, ["z", "phi"], allow_event_reductions=False)
+                ez_spec = variable_selector(
+                    "event_z", branches, ["z", "phi"], allow_event_reductions=False
+                )
 
             event_use_color = False
             if supports_point_color(event_plot_type):
-                event_use_color = st.checkbox("Color points", value=event_plot_type == "3D scatter interactive", key="event_color_points")
+                event_use_color = st.checkbox(
+                    "Color points",
+                    value=event_plot_type == "3D scatter interactive",
+                    key="event_color_points",
+                )
                 if event_use_color:
-                    event_color_spec = variable_selector("event_color", branches, ["energy", "pt", "charge", "pdgId"], allow_event_reductions=False)
+                    event_color_spec = variable_selector(
+                        "event_color",
+                        branches,
+                        ["energy", "pt", "charge", "pdgId"],
+                        allow_event_reductions=False,
+                    )
 
             event_weight_branch = histogram_weight_selector("event", event_plot_type, branches)
             event_cut_specs, event_cut_bounds = range_cut_controls("event", branches)
@@ -556,8 +741,15 @@ def main() -> None:
                 default_opacity_3d=0.75,
                 default_equal_aspect=False,
             )
-            event_label_controls = label_export_controls("event", event_plot_type, default_title="", default_save_name="root_explorer_event_plot")
-            make_event_plot = st.button("Make event plot", type="primary", key="event_make", shortcut="Shift+P")
+            event_label_controls = label_export_controls(
+                "event",
+                event_plot_type,
+                default_title="",
+                default_save_name="root_explorer_event_plot",
+            )
+            make_event_plot = st.button(
+                "Make event plot", type="primary", key="event_make", shortcut="Shift+P"
+            )
 
         with output:
             st.subheader(f"Output: event {int(event_index)}")
@@ -574,69 +766,153 @@ def main() -> None:
                     )
                     arrays: list[np.ndarray] = []
                     labels: list[str] = []
-                    ex, ex_label = evaluate_variable(ex_spec, root_path, tree_name, int(entry_start), int(entry_stop), int(event_index))
-                    arrays.append(ex); labels.append(ex_label)
+                    ex, ex_label = evaluate_variable(
+                        ex_spec,
+                        root_path,
+                        tree_name,
+                        int(entry_start),
+                        int(entry_stop),
+                        int(event_index),
+                    )
+                    arrays.append(ex)
+                    labels.append(ex_label)
                     if ey_spec is not None:
-                        ey, ey_label = evaluate_variable(ey_spec, root_path, tree_name, int(entry_start), int(entry_stop), int(event_index))
-                        arrays.append(ey); labels.append(ey_label)
+                        ey, ey_label = evaluate_variable(
+                            ey_spec,
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            int(event_index),
+                        )
+                        arrays.append(ey)
+                        labels.append(ey_label)
                     else:
-                        ey = None; ey_label = ""
+                        ey = None
+                        ey_label = ""
                     if ez_spec is not None:
-                        ez, ez_label = evaluate_variable(ez_spec, root_path, tree_name, int(entry_start), int(entry_stop), int(event_index))
-                        arrays.append(ez); labels.append(ez_label)
+                        ez, ez_label = evaluate_variable(
+                            ez_spec,
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            int(event_index),
+                        )
+                        arrays.append(ez)
+                        labels.append(ez_label)
                     else:
-                        ez = None; ez_label = ""
+                        ez = None
+                        ez_label = ""
                     event_weights = None
                     if event_weight_branch is not None:
-                        event_weights = histogram_weights_for_values(root_path, tree_name, event_weight_branch, ex_spec, array_length(ex), int(entry_start), int(entry_stop), int(event_index))
+                        event_weights = histogram_weights_for_values(
+                            root_path,
+                            tree_name,
+                            event_weight_branch,
+                            ex_spec,
+                            array_length(ex),
+                            int(entry_start),
+                            int(entry_stop),
+                            int(event_index),
+                        )
                         arrays.append(event_weights)
-                    event_color = None; event_color_label = None
+                    event_color = None
+                    event_color_label = None
                     if event_color_spec is not None:
-                        event_color, event_color_label = variable_values_for_values(event_color_spec, ex_spec, array_length(ex), root_path, tree_name, int(entry_start), int(entry_stop), int(event_index))
+                        event_color, event_color_label = variable_values_for_values(
+                            event_color_spec,
+                            ex_spec,
+                            array_length(ex),
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            int(event_index),
+                        )
                         arrays.append(event_color)
-                    event_cut_definitions: list[tuple[np.ndarray, Optional[float], Optional[float]]] = []
+                    event_cut_definitions: list[
+                        tuple[np.ndarray, Optional[float], Optional[float]]
+                    ] = []
                     for spec, bounds in zip(event_cut_specs, event_cut_bounds):
-                        cv, _ = cut_values_for_values(spec, ex_spec, array_length(ex), root_path, tree_name, int(entry_start), int(entry_stop), int(event_index))
+                        cv, _ = cut_values_for_values(
+                            spec,
+                            ex_spec,
+                            array_length(ex),
+                            root_path,
+                            tree_name,
+                            int(entry_start),
+                            int(entry_stop),
+                            int(event_index),
+                        )
                         event_cut_definitions.append((cv, bounds[0], bounds[1]))
                     arrays = apply_range_cuts(arrays, event_cut_definitions)
                     arrays = apply_finite_filter(arrays)
                     idx = 0
-                    ex = arrays[idx]; idx += 1
-                    if ey_spec is not None: ey = arrays[idx]; idx += 1
-                    if ez_spec is not None: ez = arrays[idx]; idx += 1
-                    if event_weight_branch is not None: event_weights = arrays[idx]; idx += 1
-                    if event_color_spec is not None: event_color = arrays[idx]; idx += 1
+                    ex = arrays[idx]
+                    idx += 1
+                    if ey_spec is not None:
+                        ey = arrays[idx]
+                        idx += 1
+                    if ez_spec is not None:
+                        ez = arrays[idx]
+                        idx += 1
+                    if event_weight_branch is not None:
+                        event_weights = arrays[idx]
+                        idx += 1
+                    if event_color_spec is not None:
+                        event_color = arrays[idx]
+                        idx += 1
 
                     if event_plot_type in {"2D scatter", "3D scatter interactive"}:
                         ds = [ex]
-                        if ey_spec is not None: ds.append(ey)
-                        if ez_spec is not None: ds.append(ez)
-                        if event_color is not None: ds.append(event_color)
+                        if ey_spec is not None:
+                            ds.append(ey)
+                        if ez_spec is not None:
+                            ds.append(ez)
+                        if event_color is not None:
+                            ds.append(event_color)
                         ds = downsample_arrays(ds, int(event_style["max_points"]))
                         ex = ds[0]
-                        if ey_spec is not None: ey = ds[1]
-                        if ez_spec is not None: ez = ds[2]
-                        if event_color is not None: event_color = ds[-1]
+                        if ey_spec is not None:
+                            ey = ds[1]
+                        if ez_spec is not None:
+                            ez = ds[2]
+                        if event_color is not None:
+                            event_color = ds[-1]
 
                     rows = [describe_array(labels[0], ex)]
-                    if ey_spec is not None: rows.append(describe_array(labels[1], ey))
-                    if ez_spec is not None: rows.append(describe_array(labels[2], ez))
-                    if event_color is not None: rows.append(describe_array(event_color_label or "color", event_color))
+                    if ey_spec is not None:
+                        rows.append(describe_array(labels[1], ey))
+                    if ez_spec is not None:
+                        rows.append(describe_array(labels[2], ez))
+                    if event_color is not None:
+                        rows.append(describe_array(event_color_label or "color", event_color))
                     summary_df = pd.DataFrame(rows)
 
                     preview = {"x": ex}
-                    if ey_spec is not None: preview["y"] = ey
-                    if ez_spec is not None: preview["z"] = ez
-                    if event_weights is not None: preview["weights"] = event_weights
-                    if event_color is not None: preview["color"] = event_color
+                    if ey_spec is not None:
+                        preview["y"] = ey
+                    if ez_spec is not None:
+                        preview["z"] = ez
+                    if event_weights is not None:
+                        preview["weights"] = event_weights
+                    if event_color is not None:
+                        preview["color"] = event_color
                     nprev = min(len(v) for v in preview.values()) if preview else 0
                     preview_df = None
                     if nprev:
-                        preview_df = pd.DataFrame({k: v[:nprev] for k, v in preview.items()}).head(500)
+                        preview_df = pd.DataFrame({k: v[:nprev] for k, v in preview.items()}).head(
+                            500
+                        )
 
                     exlab = event_label_controls["custom_x"] or labels[0]
-                    eylab = event_label_controls["custom_y"] or (labels[1] if ey_spec is not None else "entries")
-                    ezlab = event_label_controls["custom_z"] or (labels[2] if ez_spec is not None else "")
+                    eylab = event_label_controls["custom_y"] or (
+                        labels[1] if ey_spec is not None else "entries"
+                    )
+                    ezlab = event_label_controls["custom_z"] or (
+                        labels[2] if ez_spec is not None else ""
+                    )
                     event_title = event_label_controls["title"] or f"Event {int(event_index)}"
                     event_save_name = f"{event_label_controls['save_name']}_{int(event_index)}"
 
@@ -671,7 +947,9 @@ def main() -> None:
                             "save_button_label": "Save 3D HTML",
                         }
                     else:
-                        fig, ax = plt.subplots(figsize=(event_style["fig_width"], event_style["fig_height"]))
+                        fig, ax = plt.subplots(
+                            figsize=(event_style["fig_width"], event_style["fig_height"])
+                        )
                         render_static_plot(
                             fig,
                             ax,

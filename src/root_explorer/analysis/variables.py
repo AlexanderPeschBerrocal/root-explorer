@@ -20,8 +20,14 @@ from .arrays import (
 from ..models import VariableSpec
 
 
-def evaluate_variable(spec: VariableSpec, path: str, tree_name: str, entry_start: int,
-                      entry_stop: Optional[int], event_index: Optional[int] = None) -> tuple[np.ndarray, str]:
+def evaluate_variable(
+    spec: VariableSpec,
+    path: str,
+    tree_name: str,
+    entry_start: int,
+    entry_stop: Optional[int],
+    event_index: Optional[int] = None,
+) -> tuple[np.ndarray, str]:
     """Evaluate a variable specification for either a global range or one event."""
 
     mode = spec.mode
@@ -29,7 +35,9 @@ def evaluate_variable(spec: VariableSpec, path: str, tree_name: str, entry_start
     if mode == "branch":
         if not spec.branch:
             raise ValueError("No branch selected.")
-        return safe_float_array(branch_values(path, tree_name, spec.branch, entry_start, entry_stop, event_index)), spec.branch
+        return safe_float_array(
+            branch_values(path, tree_name, spec.branch, entry_start, entry_stop, event_index)
+        ), spec.branch
 
     if mode == "multiplicity":
         if not spec.branch:
@@ -62,7 +70,17 @@ def evaluate_variable(spec: VariableSpec, path: str, tree_name: str, entry_start
         func = {"sum": np.nansum, "mean": np.nanmean, "max": np.nanmax, "min": np.nanmin}[mode]
         return np.array([func(values)], dtype=float), f"{mode}({spec.branch})"
 
-    if mode in {"r_xy", "phi_xy", "eta_xyz", "ratio", "difference", "sum_ab", "product", "delta_phi", "delta_r"}:
+    if mode in {
+        "r_xy",
+        "phi_xy",
+        "eta_xyz",
+        "ratio",
+        "difference",
+        "sum_ab",
+        "product",
+        "delta_phi",
+        "delta_r",
+    }:
         if not spec.branch_a or not spec.branch_b:
             raise ValueError("This derived variable needs at least two branches.")
 
@@ -113,6 +131,8 @@ def evaluate_variable(spec: VariableSpec, path: str, tree_name: str, entry_start
             return out, f"eta({spec.branch_a},{spec.branch_b},{spec.branch_c})"
         if mode == "delta_r":
             c, d = aligned_values[2:4]
-            return np.sqrt((a - c) ** 2 + delta_phi(b, d) ** 2), f"ΔR({spec.branch_a},{spec.branch_b},{spec.branch_c},{spec.branch_d})"
+            return np.sqrt(
+                (a - c) ** 2 + delta_phi(b, d) ** 2
+            ), f"ΔR({spec.branch_a},{spec.branch_b},{spec.branch_c},{spec.branch_d})"
 
     raise ValueError(f"Unsupported variable mode: {mode}")

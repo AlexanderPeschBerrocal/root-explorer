@@ -79,7 +79,9 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
 
 
 @st.cache_data(show_spinner=True, max_entries=64)
-def read_branch(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int]):
+def read_branch(
+    path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int]
+):
     f = uproot.open(path)
     t = f[tree_name]
     return t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)
@@ -95,7 +97,9 @@ def read_event_branch(path: str, tree_name: str, branch: str, event_index: int):
 
 def is_probably_numeric_typename(typename: str) -> bool:
     lower = typename.lower()
-    return any(token in lower for token in ["int", "float", "double", "bool", "char", "short", "long"])
+    return any(
+        token in lower for token in ["int", "float", "double", "bool", "char", "short", "long"]
+    )
 
 
 def numeric_branches(branch_info: list[BranchInfo]) -> list[str]:

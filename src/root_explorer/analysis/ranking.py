@@ -14,8 +14,16 @@ from .arrays import multiplicity_per_event, safe_float_array, to_numpy_flat
 
 
 @st.cache_data(show_spinner=True, max_entries=32)
-def compute_event_metric(path: str, tree_name: str, branch: str, mode: str, entry_start: int,
-                         entry_stop: int, threshold: Optional[float], abs_value: bool):
+def compute_event_metric(
+    path: str,
+    tree_name: str,
+    branch: str,
+    mode: str,
+    entry_start: int,
+    entry_stop: int,
+    threshold: Optional[float],
+    abs_value: bool,
+):
     arr = read_branch(path, tree_name, branch, entry_start, entry_stop)
     if mode == "multiplicity":
         values = multiplicity_per_event(arr)
@@ -59,7 +67,9 @@ def compute_event_metric(path: str, tree_name: str, branch: str, mode: str, entr
     return np.arange(entry_start, entry_start + len(values), dtype=int), values
 
 
-def metric_dataframe(event_indices: np.ndarray, values: np.ndarray, descending: bool, max_rows: int) -> pd.DataFrame:
+def metric_dataframe(
+    event_indices: np.ndarray, values: np.ndarray, descending: bool, max_rows: int
+) -> pd.DataFrame:
     mask = np.isfinite(values)
     df = pd.DataFrame({"event": event_indices[mask].astype(int), "metric": values[mask]})
     return df.sort_values("metric", ascending=not descending).head(max_rows).reset_index(drop=True)
