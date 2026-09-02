@@ -186,7 +186,10 @@ def build_plotly_3d(
     color_max=None,
 ):
     marker = {
-        "size": marker_size, "opacity": opacity, "colorscale": colorscale, "reversescale": reversescale
+        "size": marker_size,
+        "opacity": opacity,
+        "colorscale": colorscale,
+        "reversescale": reversescale,
     }
     if color is not None:
         marker.update(color=color, colorbar={"title": color_label or "color"})
@@ -205,7 +208,10 @@ def build_plotly_3d(
     fig.update_layout(
         title=title,
         scene={
-            "xaxis_title": x_label, "yaxis_title": y_label, "zaxis_title": z_label, "aspectmode": aspectmode
+            "xaxis_title": x_label,
+            "yaxis_title": y_label,
+            "zaxis_title": z_label,
+            "aspectmode": aspectmode,
         },
         margin={"l": 0, "r": 0, "b": 0, "t": 42},
     )
