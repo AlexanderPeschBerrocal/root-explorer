@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import Sequence
 
 import numpy as np
 import plotly.graph_objects as go
@@ -29,7 +30,7 @@ def downsample_arrays(
 
 def apply_range_cuts(
     arrays: Sequence[np.ndarray],
-    cuts: Sequence[tuple[np.ndarray, Optional[float], Optional[float]]],
+    cuts: Sequence[tuple[np.ndarray, float | None, float | None]],
 ) -> list[np.ndarray]:
     """Apply all range cuts with one combined mask.
 
@@ -64,9 +65,9 @@ def apply_range_cuts(
 
 def apply_range_cut(
     arrays: Sequence[np.ndarray],
-    cut_var: Optional[np.ndarray],
-    lo: Optional[float],
-    hi: Optional[float],
+    cut_var: np.ndarray | None,
+    lo: float | None,
+    hi: float | None,
 ) -> list[np.ndarray]:
     # Kept as a small compatibility wrapper for any local code that imports this helper.
     if cut_var is None:
@@ -74,7 +75,7 @@ def apply_range_cut(
     return apply_range_cuts(arrays, [(cut_var, lo, hi)])
 
 
-def parse_optional_float(text: str) -> Optional[float]:
+def parse_optional_float(text: str) -> float | None:
     stripped = str(text).strip()
     if not stripped:
         return None
@@ -112,7 +113,7 @@ def safe_hist2d(
     bins_x: int,
     bins_y: int,
     log_scale: bool,
-    weights: Optional[np.ndarray] = None,
+    weights: np.ndarray | None = None,
 ):
     h, xedges, yedges = np.histogram2d(x, y, bins=(bins_x, bins_y), weights=weights)
     positive = h[np.isfinite(h) & (h > 0)]
@@ -221,16 +222,16 @@ def render_static_plot(
     ax,
     plot_type: str,
     x: np.ndarray,
-    y: Optional[np.ndarray],
+    y: np.ndarray | None,
     x_label: str,
     y_label: str,
     style: dict[str, Any],
     *,
     title: str,
-    weights: Optional[np.ndarray] = None,
-    weight_branch: Optional[str] = None,
-    color: Optional[np.ndarray] = None,
-    color_label: Optional[str] = None,
+    weights: np.ndarray | None = None,
+    weight_branch: str | None = None,
+    color: np.ndarray | None = None,
+    color_label: str | None = None,
 ):
     if plot_type == "1D histogram":
         ax.hist(x, bins=style["bins_x"], weights=weights)

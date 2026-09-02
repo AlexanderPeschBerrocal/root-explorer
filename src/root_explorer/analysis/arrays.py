@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import Sequence
 
 import awkward as ak
 import numpy as np
@@ -46,7 +47,7 @@ class ArrayShapeMismatchError(ValueError):
 def align_arrays(
     arrays: Sequence[np.ndarray],
     *,
-    names: Optional[Sequence[str]] = None,
+    names: Sequence[str] | None = None,
     context: str = "arrays",
 ) -> list[np.ndarray]:
     """Validate that flat arrays have identical shapes; never truncate values."""
@@ -158,8 +159,8 @@ def read_for_scope(
     tree_name: str,
     branch: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ):
     if event_index is None:
         return read_branch(path, tree_name, branch, entry_start, entry_stop)
@@ -171,14 +172,14 @@ def branch_values(
     tree_name: str,
     branch: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> np.ndarray:
     arr = read_for_scope(path, tree_name, branch, entry_start, entry_stop, event_index)
     return event_to_numpy(arr) if event_index is not None else to_numpy_flat(arr)
 
 
-def variable_reference_branch(spec: VariableSpec) -> Optional[str]:
+def variable_reference_branch(spec: VariableSpec) -> str | None:
     if spec.mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
         return spec.branch
     return spec.branch_a
@@ -195,7 +196,7 @@ def array_length(arr: Any) -> int:
     return len(values)
 
 
-def raw_counts_per_event(arr: Any, event_index: Optional[int]) -> np.ndarray:
+def raw_counts_per_event(arr: Any, event_index: int | None) -> np.ndarray:
     """Return the number of scalar values contributed by each event."""
 
     if event_index is not None:
@@ -235,7 +236,7 @@ def validate_raw_event_shapes(
     names: Sequence[str],
     *,
     entry_start: int,
-    event_index: Optional[int],
+    event_index: int | None,
     context: str,
 ) -> None:
     """Validate scalar counts and nested list boundaries before flattening."""
@@ -290,7 +291,7 @@ def validate_event_counts(
     names: Sequence[str],
     *,
     entry_start: int,
-    event_index: Optional[int],
+    event_index: int | None,
     context: str,
 ) -> None:
     """Require identical per-event multiplicities before flattening arrays."""
@@ -328,8 +329,8 @@ def variable_counts_per_event(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> np.ndarray:
     """Return how many plotted values each event contributes for a variable."""
 
@@ -355,7 +356,7 @@ def value_is_scalar(arr: Any) -> bool:
         return False
 
 
-def weight_is_per_event_array(arr: Any, event_index: Optional[int]) -> bool:
+def weight_is_per_event_array(arr: Any, event_index: int | None) -> bool:
     if event_index is not None:
         return value_is_scalar(arr)
     try:
@@ -372,8 +373,8 @@ def histogram_weights_for_values(
     reference_spec: VariableSpec,
     value_count: int,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> np.ndarray:
     """Read histogram weights and broadcast per-event weights over object values."""
 
@@ -444,8 +445,8 @@ def variable_is_event_level_array(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> bool:
     if variable_is_per_event(spec):
         return True
@@ -470,8 +471,8 @@ def validate_variable_event_shapes(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     context: str,
 ) -> None:
@@ -513,8 +514,8 @@ def read_aligned_branch_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     context: str,
 ) -> list[np.ndarray]:
@@ -545,8 +546,8 @@ def values_for_reference_shape(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
     *,
     values_are_per_event: bool = False,
     values_name: str = "secondary variable",
@@ -591,8 +592,8 @@ def variable_values_for_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> tuple[np.ndarray, str]:
     from .variables import evaluate_variable
 
@@ -654,8 +655,8 @@ def cut_values_for_values(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int],
+    entry_stop: int | None,
+    event_index: int | None,
 ) -> tuple[np.ndarray, str]:
     return variable_values_for_values(
         spec,

@@ -21,7 +21,7 @@ def compute_event_metric(
     mode: str,
     entry_start: int,
     entry_stop: int,
-    threshold: Optional[float],
+    threshold: float | None,
     abs_value: bool,
 ):
     arr = read_branch(path, tree_name, branch, entry_start, entry_stop)

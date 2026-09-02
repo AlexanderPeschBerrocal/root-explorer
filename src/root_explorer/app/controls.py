@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import Sequence
 
 import streamlit as st
 
@@ -145,7 +146,7 @@ def supports_histogram_weights(plot_type: str) -> bool:
     return plot_type in {"1D histogram", "2D histogram"}
 
 
-def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) -> Optional[str]:
+def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
     st.markdown("### Histogram weights")
@@ -162,13 +163,13 @@ def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) 
 
 def range_cut_controls(
     prefix: str, branches: list[str]
-) -> tuple[list[VariableSpec], list[tuple[Optional[float], Optional[float]]]]:
+) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts")
     n_cuts = st.number_input(
         "Number of range cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
     )
     cut_specs: list[VariableSpec] = []
-    cut_bounds: list[tuple[Optional[float], Optional[float]]] = []
+    cut_bounds: list[tuple[float | None, float | None]] = []
     for i in range(int(n_cuts)):
         with st.expander(f"Cut {i + 1}", expanded=i < 3):
             cut_specs.append(

@@ -25,8 +25,8 @@ def evaluate_variable(
     path: str,
     tree_name: str,
     entry_start: int,
-    entry_stop: Optional[int],
-    event_index: Optional[int] = None,
+    entry_stop: int | None,
+    event_index: int | None = None,
 ) -> tuple[np.ndarray, str]:
     """Evaluate a variable specification for either a global range or one event."""
 

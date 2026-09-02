@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import Sequence
 
 import streamlit as st
 import uproot
@@ -11,7 +12,7 @@ import uproot
 from ..models import BranchInfo
 
 
-def parse_cli_rootfile() -> Optional[str]:
+def parse_cli_rootfile() -> str | None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("rootfile", nargs="?")
     args, _ = parser.parse_known_args()
@@ -79,9 +80,7 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
 
 
 @st.cache_data(show_spinner=True, max_entries=64)
-def read_branch(
-    path: str, tree_name: str, branch: str, entry_start: int, entry_stop: Optional[int]
-):
+def read_branch(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: int | None):
     f = uproot.open(path)
     t = f[tree_name]
     return t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)

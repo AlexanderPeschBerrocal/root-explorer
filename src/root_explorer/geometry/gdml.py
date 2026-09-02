@@ -8,11 +8,12 @@ import struct
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+from collections.abc import Iterable
 
-Vec3 = Tuple[float, float, float]
-Mat4 = List[List[float]]
-Triangle = Tuple[Vec3, Vec3, Vec3]
+Vec3 = tuple[float, float, float]
+Mat4 = list[list[float]]
+Triangle = tuple[Vec3, Vec3, Vec3]
 
 LEN_UNITS = {
     None: 1.0,
@@ -57,31 +58,31 @@ def strip_namespace(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def child_by_tag(el: ET.Element, tag: str) -> Optional[ET.Element]:
+def child_by_tag(el: ET.Element, tag: str) -> ET.Element | None:
     for ch in list(el):
         if strip_namespace(ch.tag) == tag:
             return ch
     return None
 
 
-def children_by_tag(el: ET.Element, tag: str) -> List[ET.Element]:
+def children_by_tag(el: ET.Element, tag: str) -> list[ET.Element]:
     return [ch for ch in list(el) if strip_namespace(ch.tag) == tag]
 
 
-def as_float(attrs: Dict[str, str], key: str, default: float = 0.0) -> float:
+def as_float(attrs: dict[str, str], key: str, default: float = 0.0) -> float:
     try:
         return float(attrs.get(key, default))
     except (TypeError, ValueError):
         return default
 
 
-def length_value(attrs: Dict[str, str], key: str, default: float = 0.0) -> float:
+def length_value(attrs: dict[str, str], key: str, default: float = 0.0) -> float:
     return as_float(attrs, key, default) * LEN_UNITS.get(
         attrs.get("lunit") or attrs.get("unit"), 1.0
     )
 
 
-def angle_value(attrs: Dict[str, str], key: str, default_deg: float = 0.0) -> float:
+def angle_value(attrs: dict[str, str], key: str, default_deg: float = 0.0) -> float:
     return as_float(attrs, key, default_deg) * ANGLE_UNITS.get(
         attrs.get("aunit") or attrs.get("unit"), math.pi / 180.0
     )
@@ -146,13 +147,13 @@ def transform_point(m: Mat4, p: Vec3) -> Vec3:
     )
 
 
-def transform_mesh(tris: Iterable[Triangle], m: Mat4) -> List[Triangle]:
+def transform_mesh(tris: Iterable[Triangle], m: Mat4) -> list[Triangle]:
     return [
         (transform_point(m, a), transform_point(m, b), transform_point(m, c)) for a, b, c in tris
     ]
 
 
-def parse_position(el: Optional[ET.Element]) -> Vec3:
+def parse_position(el: ET.Element | None) -> Vec3:
     if el is None:
         return (0.0, 0.0, 0.0)
     attrs = el.attrib
@@ -160,7 +161,7 @@ def parse_position(el: Optional[ET.Element]) -> Vec3:
     return (as_float(attrs, "x") * unit, as_float(attrs, "y") * unit, as_float(attrs, "z") * unit)
 
 
-def parse_rotation(el: Optional[ET.Element]) -> Vec3:
+def parse_rotation(el: ET.Element | None) -> Vec3:
     if el is None:
         return (0.0, 0.0, 0.0)
     attrs = el.attrib
@@ -174,7 +175,7 @@ def placement_matrix(physvol: ET.Element) -> Mat4:
     return matmul(translate(*pos), euler_xyz(*rot))
 
 
-def add_tri(tris: List[Triangle], a: Vec3, b: Vec3, c: Vec3) -> None:
+def add_tri(tris: list[Triangle], a: Vec3, b: Vec3, c: Vec3) -> None:
     # Skip degenerate triangles; they confuse transparency and picking.
     ax, ay, az = a
     bx, by, bz = b
@@ -188,7 +189,7 @@ def add_tri(tris: List[Triangle], a: Vec3, b: Vec3, c: Vec3) -> None:
         tris.append((a, b, c))
 
 
-def add_quad(tris: List[Triangle], a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> None:
+def add_quad(tris: list[Triangle], a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> None:
     add_tri(tris, a, b, c)
     add_tri(tris, a, c, d)
 
@@ -214,10 +215,10 @@ def make_tube_like(
     start: float,
     delta: float,
     seg_base: int,
-    cut_low: Optional[Vec3] = None,
-    cut_high: Optional[Vec3] = None,
-) -> List[Triangle]:
-    tris: List[Triangle] = []
+    cut_low: Vec3 | None = None,
+    cut_high: Vec3 | None = None,
+) -> list[Triangle]:
+    tris: list[Triangle] = []
     if zlen <= 0 or max(rmax_low, rmax_high) <= 0:
         return tris
     full = abs(delta) >= 2 * math.pi * 0.999
@@ -246,10 +247,10 @@ def make_tube_like(
             return z1_default
         return z1_default - (nx * x + ny * y) / nz
 
-    low_outer: List[Vec3] = []
-    high_outer: List[Vec3] = []
-    low_inner: List[Vec3] = []
-    high_inner: List[Vec3] = []
+    low_outer: list[Vec3] = []
+    high_outer: list[Vec3] = []
+    low_inner: list[Vec3] = []
+    high_inner: list[Vec3] = []
 
     for phi in phis:
         x0, y0 = rmax_low * math.cos(phi), rmax_low * math.sin(phi)
@@ -288,7 +289,7 @@ def make_tube_like(
     return tris
 
 
-def make_box(attrs: Dict[str, str]) -> List[Triangle]:
+def make_box(attrs: dict[str, str]) -> list[Triangle]:
     x = length_value(attrs, "x") / 2.0
     y = length_value(attrs, "y") / 2.0
     z = length_value(attrs, "z") / 2.0
@@ -310,13 +311,13 @@ def make_box(attrs: Dict[str, str]) -> List[Triangle]:
         (2, 6, 7, 3),
         (3, 7, 4, 0),
     ]
-    tris: List[Triangle] = []
+    tris: list[Triangle] = []
     for a, b, c, d in faces:
         add_quad(tris, v[a], v[b], v[c], v[d])
     return tris
 
 
-def make_tube(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
+def make_tube(attrs: dict[str, str], seg_base: int) -> list[Triangle]:
     rmin = length_value(attrs, "rmin")
     rmax = length_value(attrs, "rmax")
     z = length_value(attrs, "z")
@@ -325,7 +326,7 @@ def make_tube(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
     return make_tube_like(rmin, rmax, rmin, rmax, z, start, delta, seg_base)
 
 
-def make_cut_tube(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
+def make_cut_tube(attrs: dict[str, str], seg_base: int) -> list[Triangle]:
     rmin = length_value(attrs, "rmin")
     rmax = length_value(attrs, "rmax")
     z = length_value(attrs, "z")
@@ -336,7 +337,7 @@ def make_cut_tube(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
     return make_tube_like(rmin, rmax, rmin, rmax, z, start, delta, seg_base, low, high)
 
 
-def make_cone(attrs: Dict[str, str], seg_base: int) -> List[Triangle]:
+def make_cone(attrs: dict[str, str], seg_base: int) -> list[Triangle]:
     z = length_value(attrs, "z")
     start = angle_value(attrs, "startphi", 0.0)
     delta = angle_value(attrs, "deltaphi", 360.0)
@@ -382,7 +383,7 @@ class ObjectInfo:
     solid_type: str
     first_vertex: int
     vertex_count: int
-    bbox: List[float]
+    bbox: list[float]
 
 
 @dataclass
@@ -395,26 +396,26 @@ class SceneBuilder:
     max_vertices: int = 1500000
     warn_limit: int = 100
     root: ET.Element = field(init=False)
-    solids_by_name: Dict[str, List[SolidDef]] = field(default_factory=dict)
-    volumes_by_name: Dict[str, List[VolumeDef]] = field(default_factory=dict)
+    solids_by_name: dict[str, list[SolidDef]] = field(default_factory=dict)
+    volumes_by_name: dict[str, list[VolumeDef]] = field(default_factory=dict)
     world_name: str = ""
-    warnings: List[str] = field(default_factory=list)
-    warning_counts: Dict[str, int] = field(default_factory=dict)
-    positions: List[float] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    warning_counts: dict[str, int] = field(default_factory=dict)
+    positions: list[float] = field(default_factory=list)
     colors: bytearray = field(default_factory=bytearray)
-    ids: List[int] = field(default_factory=list)
-    objects: List[ObjectInfo] = field(default_factory=list)
-    material_counts: Dict[str, int] = field(default_factory=dict)
-    solid_type_counts: Dict[str, int] = field(default_factory=dict)
-    duplicate_volume_names: Dict[str, int] = field(default_factory=dict)
-    duplicate_solid_names: Dict[str, int] = field(default_factory=dict)
-    bbox_min: List[float] = field(
+    ids: list[int] = field(default_factory=list)
+    objects: list[ObjectInfo] = field(default_factory=list)
+    material_counts: dict[str, int] = field(default_factory=dict)
+    solid_type_counts: dict[str, int] = field(default_factory=dict)
+    duplicate_volume_names: dict[str, int] = field(default_factory=dict)
+    duplicate_solid_names: dict[str, int] = field(default_factory=dict)
+    bbox_min: list[float] = field(
         default_factory=lambda: [float("inf"), float("inf"), float("inf")]
     )
-    bbox_max: List[float] = field(
+    bbox_max: list[float] = field(
         default_factory=lambda: [float("-inf"), float("-inf"), float("-inf")]
     )
-    mesh_cache: Dict[Tuple[str, int, str], Tuple[List[Triangle], str, str]] = field(
+    mesh_cache: dict[tuple[str, int, str], tuple[list[Triangle], str, str]] = field(
         default_factory=dict
     )
     stop_reason: str = ""
@@ -432,7 +433,7 @@ class SceneBuilder:
         solids_el = child_by_tag(self.root, "solids")
         if solids_el is None:
             raise ValueError("No <solids> section found")
-        solid_counts: Dict[str, int] = {}
+        solid_counts: dict[str, int] = {}
         for el in list(solids_el):
             name = el.attrib.get("name", f"anonymous_{len(solid_counts)}")
             seq = solid_counts.get(name, 0)
@@ -447,8 +448,8 @@ class SceneBuilder:
         structure_el = child_by_tag(self.root, "structure")
         if structure_el is None:
             raise ValueError("No <structure> section found")
-        volume_counts: Dict[str, int] = {}
-        solid_use_counter: Dict[str, int] = {}
+        volume_counts: dict[str, int] = {}
+        solid_use_counter: dict[str, int] = {}
         for el in children_by_tag(structure_el, "volume"):
             name = el.attrib.get("name", f"volume_{len(volume_counts)}")
             seq = volume_counts.get(name, 0)
@@ -475,7 +476,7 @@ class SceneBuilder:
             # Fall back to the last volume if no setup exists.
             self.world_name = next(reversed(self.volumes_by_name.keys()))
 
-    def select_solid(self, name: str, hint: int = 0) -> Optional[SolidDef]:
+    def select_solid(self, name: str, hint: int = 0) -> SolidDef | None:
         defs = self.solids_by_name.get(name)
         if not defs:
             self.warn(f"Missing solid reference: {name}")
@@ -485,7 +486,7 @@ class SceneBuilder:
 
     def select_volume(
         self, name: str, occurrence: int = 0, total_occurrences: int = 1
-    ) -> List[VolumeDef]:
+    ) -> list[VolumeDef]:
         defs = self.volumes_by_name.get(name)
         if not defs:
             self.warn(f"Missing volume reference: {name}")
@@ -502,7 +503,7 @@ class SceneBuilder:
         idx = occurrence % n
         return [defs[idx]]
 
-    def solid_mesh(self, solid_ref: str, hint: int = 0) -> Tuple[List[Triangle], str, str]:
+    def solid_mesh(self, solid_ref: str, hint: int = 0) -> tuple[list[Triangle], str, str]:
         key = (solid_ref, hint, self.quality)
         if key in self.mesh_cache:
             return self.mesh_cache[key]
@@ -561,13 +562,13 @@ class SceneBuilder:
         if len(self.objects) >= self.max_objects or len(self.positions) // 3 >= self.max_vertices:
             return
 
-        ref_totals: Dict[str, int] = {}
+        ref_totals: dict[str, int] = {}
         for pv in physvols:
             vr = child_by_tag(pv, "volumeref")
             if vr is not None:
                 ref = vr.attrib.get("ref", "")
                 ref_totals[ref] = ref_totals.get(ref, 0) + 1
-        ref_seen: Dict[str, int] = {}
+        ref_seen: dict[str, int] = {}
         for pv in physvols:
             vr = child_by_tag(pv, "volumeref")
             if vr is None:
@@ -635,7 +636,7 @@ class SceneBuilder:
         self.material_counts[volume.material] = self.material_counts.get(volume.material, 0) + 1
         self.solid_type_counts[solid_type] = self.solid_type_counts.get(solid_type, 0) + 1
 
-    def build(self) -> Dict[str, object]:
+    def build(self) -> dict[str, object]:
         self.parse()
         world_defs = self.volumes_by_name.get(self.world_name)
         if not world_defs:
@@ -646,7 +647,7 @@ class SceneBuilder:
             self.bbox_max = [1.0, 1.0, 1.0]
         return self.scene_dict()
 
-    def scene_dict(self) -> Dict[str, object]:
+    def scene_dict(self) -> dict[str, object]:
         pos_bytes = (
             struct.pack(f"<{len(self.positions)}f", *self.positions) if self.positions else b""
         )
@@ -680,7 +681,7 @@ class SceneBuilder:
         }
 
 
-def material_color(name: str) -> Tuple[int, int, int, int]:
+def material_color(name: str) -> tuple[int, int, int, int]:
     if name in DEFAULT_MATERIAL_COLORS:
         return DEFAULT_MATERIAL_COLORS[name]
     # Deterministic pleasant-ish color from the name.

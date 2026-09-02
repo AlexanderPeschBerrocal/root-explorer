@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -69,7 +70,7 @@ def plotly_color_from_rgba(rgba: Sequence[int], opacity_scale: float = 1.0) -> t
     return f"rgb({r},{g},{b})", opacity
 
 
-def geometry_materials(scene: Optional[dict[str, Any]]) -> list[str]:
+def geometry_materials(scene: dict[str, Any] | None) -> list[str]:
     if not scene:
         return []
     mats = scene.get("meta", {}).get("materials", {})
@@ -104,7 +105,7 @@ def geometry_summary_dataframe(scene: dict[str, Any]) -> pd.DataFrame:
 def make_geometry_plotly_traces(
     scene: dict[str, Any],
     *,
-    selected_materials: Optional[set[str]] = None,
+    selected_materials: set[str] | None = None,
     opacity_scale: float = 0.30,
     max_vertices: int = DEFAULT_DISPLAY_GEOMETRY_VERTICES,
     scale: float = 1.0,
@@ -235,7 +236,7 @@ def make_geometry_plotly_traces(
 
 
 def overlay_geometry_on_plotly(
-    fig: go.Figure, scene: Optional[dict[str, Any]], options: Optional[dict[str, Any]]
+    fig: go.Figure, scene: dict[str, Any] | None, options: dict[str, Any] | None
 ) -> go.Figure:
     if not scene or not options or not options.get("enabled", False):
         return fig
