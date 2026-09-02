@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import streamlit as st

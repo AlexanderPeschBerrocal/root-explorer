@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -246,7 +246,7 @@ def main() -> None:
                 )
 
     branch_info = get_branch_info(root_path, tree_name)
-    all_branches = [b.name for b in branch_info]
+    # all_branches = [b.name for b in branch_info]
     branches = numeric_branches(branch_info)
 
     current_data_context = (root_path, tree_name, int(entry_start), int(entry_stop))

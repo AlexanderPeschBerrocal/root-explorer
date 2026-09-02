@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Optional
+from typing import Any
 from collections.abc import Sequence
 
 import streamlit as st
