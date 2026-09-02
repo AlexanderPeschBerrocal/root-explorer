@@ -6,6 +6,7 @@ from typing import Optional
 
 import numpy as np
 
+from ..models import VariableSpec
 from .arrays import (
     branch_values,
     delta_phi,
@@ -17,7 +18,6 @@ from .arrays import (
     reduce_per_event,
     safe_float_array,
 )
-from ..models import VariableSpec
 
 
 def evaluate_variable(

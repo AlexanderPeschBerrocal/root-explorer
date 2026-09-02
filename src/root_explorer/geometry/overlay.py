@@ -13,7 +13,6 @@ import streamlit as st
 
 from .gdml import SceneBuilder, material_color
 
-
 GEOMETRY_QUALITY_LEVELS = ["fast", "medium", "high"]
 DEFAULT_MAX_GEOMETRY_OBJECTS = 50_000
 DEFAULT_MAX_GEOMETRY_VERTICES = 1_500_000

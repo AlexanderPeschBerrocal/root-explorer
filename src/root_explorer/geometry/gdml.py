@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-
 Vec3 = Tuple[float, float, float]
 Mat4 = List[List[float]]
 Triangle = Tuple[Vec3, Vec3, Vec3]
