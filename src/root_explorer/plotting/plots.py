@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-from collections.abc import Sequence
 
 import numpy as np
 import plotly.graph_objects as go

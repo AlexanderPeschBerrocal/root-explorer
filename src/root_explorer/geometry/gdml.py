@@ -6,9 +6,9 @@ import base64
 import math
 import struct
 import xml.etree.ElementTree as ET
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Iterable
 
 Vec3 = tuple[float, float, float]
 Mat4 = list[list[float]]

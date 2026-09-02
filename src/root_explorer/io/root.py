@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any
 from collections.abc import Sequence
+from typing import Any
 
 import streamlit as st
 import uproot
