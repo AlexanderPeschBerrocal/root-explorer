@@ -2,12 +2,83 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import awkward as ak
+import numpy as np
 import pytest
 import streamlit as st
-
-from examples.generate_test_nanoaod import generate_test_root
+import uproot
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _make_collection(
+    rng: np.random.Generator,
+    counts: np.ndarray,
+    *,
+    mass: float,
+    pdg_id: int | None = None,
+) -> dict[str, ak.Array]:
+    """Create deterministic jagged particle branches for the test TTree."""
+
+    n_particles = int(np.sum(counts))
+    px = rng.normal(0.0, 35.0, n_particles).astype(np.float32)
+    py = rng.normal(0.0, 35.0, n_particles).astype(np.float32)
+    pz = rng.normal(0.0, 60.0, n_particles).astype(np.float32)
+    pt = np.hypot(px, py).astype(np.float32)
+    phi = np.arctan2(py, px).astype(np.float32)
+    eta = np.arcsinh(pz / np.maximum(pt, 1e-6)).astype(np.float32)
+
+    if pdg_id is None:
+        mass_values = rng.uniform(2.0, 35.0, n_particles).astype(np.float32)
+        charge = rng.integers(-1, 2, n_particles, dtype=np.int8)
+        pdg_values = np.zeros(n_particles, dtype=np.int32)
+    else:
+        mass_values = np.full(n_particles, mass, dtype=np.float32)
+        charge = rng.choice(np.array([-1, 1], dtype=np.int8), n_particles)
+        pdg_values = (-pdg_id * charge).astype(np.int32)
+
+    energy = np.sqrt(px**2 + py**2 + pz**2 + mass_values**2).astype(np.float32)
+    return {
+        "px": ak.unflatten(px, counts),
+        "py": ak.unflatten(py, counts),
+        "pz": ak.unflatten(pz, counts),
+        "pt": ak.unflatten(pt, counts),
+        "eta": ak.unflatten(eta, counts),
+        "phi": ak.unflatten(phi, counts),
+        "mass": ak.unflatten(mass_values, counts),
+        "energy": ak.unflatten(energy, counts),
+        "charge": ak.unflatten(charge, counts),
+        "pdgId": ak.unflatten(pdg_values, counts),
+    }
+
+
+def _generate_test_root(output_path: Path, *, n_events: int, seed: int) -> Path:
+    """Write an isolated NanoAOD-like TTree."""
+
+    rng = np.random.default_rng(seed)
+    muon_counts = rng.poisson(1.5, n_events).astype(np.int32)
+    jet_counts = rng.poisson(4.0, n_events).astype(np.int32)
+    muons = _make_collection(rng, muon_counts, mass=0.1057, pdg_id=13)
+    jets = _make_collection(rng, jet_counts, mass=0.0)
+
+    branches: dict[str, object] = {
+        "run": np.ones(n_events, dtype=np.uint32),
+        "event": np.arange(1, n_events + 1, dtype=np.uint64),
+        "nMuon": muon_counts,
+        "nJet": jet_counts,
+        "MET_pt": rng.exponential(40.0, n_events).astype(np.float32),
+        "MET_phi": rng.uniform(-np.pi, np.pi, n_events).astype(np.float32),
+        "genWeight": (
+            rng.choice(np.array([-1.0, 1.0]), n_events, p=[0.1, 0.9])
+            * rng.uniform(0.5, 1.5, n_events)
+        ).astype(np.float32),
+    }
+    branches.update({f"Muon_{field}": values for field, values in muons.items()})
+    branches.update({f"Jet_{field}": values for field, values in jets.items()})
+
+    with uproot.recreate(output_path) as root_file:
+        root_file.mktree("Events", branches)
+    return output_path
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +94,7 @@ def clear_streamlit_caches() -> None:
 
 @pytest.fixture
 def root_path(tmp_path: Path) -> Path:
-    return generate_test_root(tmp_path / "test_nanoaod.root", n_events=12, seed=20250831)
+    return _generate_test_root(tmp_path / "test_nanoaod.root", n_events=12, seed=20250831)
 
 
 @pytest.fixture
