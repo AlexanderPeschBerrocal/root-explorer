@@ -1,0 +1,107 @@
+"""ROOT-file input controls for the Streamlit application."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import streamlit as st
+
+from ..config import DEFAULT_MAX_ENTRIES
+from ..io.root import (
+    get_branch_info,
+    numeric_branches,
+    open_root_file,
+    parse_cli_rootfile,
+    walk_ttrees,
+)
+from .results import store_uploaded_file
+from .state import DataContext
+
+
+def render_data_input() -> DataContext:
+    """Render sidebar ROOT input controls and return the selected data context.
+
+    This function deliberately uses ``st.stop`` for invalid or incomplete input,
+    matching the former single-file application flow.
+    """
+
+    cli_path = parse_cli_rootfile()
+    st.header("Input")
+    source_mode = st.radio("File source", ["Path", "Upload"], horizontal=True)
+    root_path = ""
+    if source_mode == "Path":
+        root_path = st.text_input("ROOT file path", value=cli_path or "", key="root_path")
+    else:
+        uploaded = st.file_uploader("Upload ROOT file", type=["root"])
+        if uploaded is not None:
+            root_path = store_uploaded_file(uploaded)
+            st.caption(f"Uploaded copy: `{root_path}`")
+
+    if not root_path:
+        st.info("Provide a ROOT file to begin.")
+        st.stop()
+
+    root_path_obj = Path(root_path)
+    if (
+        source_mode == "Path"
+        and not root_path_obj.exists()
+        and not root_path.startswith(("root://", "http://", "https://"))
+    ):
+        st.error(f"File does not exist: {root_path}")
+        st.stop()
+
+    try:
+        root_file = open_root_file(root_path)
+    except Exception as exc:
+        st.error(f"Could not open ROOT file: {exc}")
+        st.stop()
+
+    available_trees = walk_ttrees(root_file)
+    if not available_trees:
+        st.error("No TTrees were found. This app currently focuses on TTree-like event data.")
+        st.stop()
+
+    tree_name = st.selectbox("TTree", available_trees, index=0)
+    tree = root_file[tree_name]
+    n_entries = int(tree.num_entries)
+    st.write(f"Entries/events: **{n_entries:,}**")
+    if n_entries <= 0:
+        st.warning("This TTree has no entries to inspect.")
+        st.stop()
+
+    st.subheader("Read range")
+    entry_start = st.number_input(
+        "entry start", min_value=0, max_value=max(n_entries - 1, 0), value=0, step=1
+    )
+    entry_stop = st.number_input(
+        "entry stop",
+        min_value=1,
+        max_value=n_entries,
+        value=min(n_entries, DEFAULT_MAX_ENTRIES),
+        step=1,
+    )
+    if entry_stop <= entry_start:
+        st.warning("entry stop must be larger than entry start.")
+        st.stop()
+
+    branch_info = get_branch_info(root_path, tree_name)
+    return DataContext(
+        root_path=root_path,
+        tree_name=tree_name,
+        n_entries=n_entries,
+        entry_start=int(entry_start),
+        entry_stop=int(entry_stop),
+        branch_info=branch_info,
+        branches=numeric_branches(branch_info),
+    )
+
+
+def invalidate_data_results(context: DataContext) -> None:
+    """Clear result state whenever the selected data range changes."""
+
+    if st.session_state.get("data_context") == context.cache_key:
+        return
+    for key in ["plot_result", "event_plot_result", "rank_df", "rank_label"]:
+        st.session_state.pop(key, None)
+    st.session_state["event_index"] = 0
+    st.session_state["data_context"] = context.cache_key

@@ -46,12 +46,14 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert len(at.dataframe) >= 2
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
+    at.text_input(key="plot_save_name").input("muon_pt").run()
 
     at.button(key="plot_make").click().run()
     assert not at.exception
     result = at.session_state["plot_result"]
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
+    assert result["save_name"] == "muon_pt"
 
 
 def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
@@ -70,6 +72,19 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     result = at.session_state["event_plot_result"]
     assert result["kind"] == "plotly"
     assert result["figure"].data[0].type == "scatter3d"
+
+
+def test_ranking_selection_updates_event_index(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.button(key="rank_compute").click().run()
+
+    ranked_events = at.session_state["rank_df"]["event"].astype(int).tolist()
+    selected = ranked_events[-1]
+    next(widget for widget in at.selectbox if widget.label == "jump to event").select(selected)
+    next(widget for widget in at.button if widget.label == "Use selected event").click().run()
+
+    assert not at.exception
+    assert at.session_state["event_index"] == selected
 
 
 def test_app_loads_geometry_path(tiny_gdml_path, root_path) -> None:
