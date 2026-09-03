@@ -12,6 +12,7 @@ from root_explorer.app.controls import (
     supports_point_color,
 )
 from root_explorer.app.results import collection_summary, store_uploaded_file
+from root_explorer.app.state import DataContext
 from root_explorer.models import BranchInfo
 
 
@@ -49,3 +50,17 @@ def test_collection_summary_and_uploaded_file_storage() -> None:
     digest = hashlib.sha256(b"test root bytes").hexdigest()[:12]
     assert Path(stored).name == f"unsafe_file_{digest}.root"
     assert Path(stored).read_bytes() == b"test root bytes"
+
+
+def test_data_context_cache_key_uses_the_selected_range() -> None:
+    context = DataContext(
+        root_path="events.root",
+        tree_name="Events",
+        n_entries=100,
+        entry_start=10,
+        entry_stop=50,
+        branch_info=[],
+        branches=[],
+    )
+
+    assert context.cache_key == ("events.root", "Events", 10, 50)
