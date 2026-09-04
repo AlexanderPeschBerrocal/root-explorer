@@ -63,12 +63,24 @@ hook revisions, and review the resulting configuration before committing it.
 
 ### Versioning
 
-State that we do calver, mention bump-my-version tool
+This project uses calendar versioning (CalVer) in the form `YYYY.M.N`, where
+`YYYY.M` is the year and month of the release and `N` is the release sequence
+within that month (for example, `2026.9.0` or `2026.9.1`). Version changes are
+managed with [bump-my-version](https://callowayproject.github.io/bump-my-version/),
+which updates the package version, creates the release commit, and creates its
+annotated Git tag.
 
-To check:
+Before creating a release, inspect the configured version and preview the
+change without modifying files:
+
+```bash
 bump-my-version show current_version
 bump-my-version bump patch --dry-run -v
+```
 
-To create a new tag
+With a clean working tree, create the release and push the commit and tag:
+
+```bash
 bump-my-version bump patch
 git push --follow-tags
+```
