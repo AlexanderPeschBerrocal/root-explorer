@@ -60,6 +60,18 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.mypy]
+python_version = "3.10"
+files = [
+    "src/root_explorer/models.py",
+    "src/root_explorer/analysis/variables.py",
+    "src/root_explorer/geometry/gdml.py",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
 [tool.ruff]
 required-version = "==0.16.5"
 line-length = 100

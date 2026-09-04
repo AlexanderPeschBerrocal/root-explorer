@@ -522,7 +522,7 @@ class SceneBuilder:
             tris = make_cone(attrs, self.seg_base)
         elif tag in {"subtraction", "union", "intersection"}:
             first = child_by_tag(solid.element, "first")
-            first_ref = first.attrib.get("ref") if first is not None else ""
+            first_ref = first.attrib.get("ref", "") if first is not None else ""
             tris, subtype, _ = self.solid_mesh(first_ref, solid.seq)
             # Apply the optional transform attached to the first boolean operand if present.
             # For subtraction, this visualizer approximates the result by the minuend mesh.
@@ -532,7 +532,7 @@ class SceneBuilder:
                 )
             else:
                 second = child_by_tag(solid.element, "second")
-                second_ref = second.attrib.get("ref") if second is not None else ""
+                second_ref = second.attrib.get("ref", "") if second is not None else ""
                 tris2, _, _ = self.solid_mesh(second_ref, solid.seq)
                 pos = parse_position(child_by_tag(solid.element, "position"))
                 rot = parse_rotation(child_by_tag(solid.element, "rotation"))
