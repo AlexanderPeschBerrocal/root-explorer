@@ -15,7 +15,10 @@ from ..models import VariableSpec
 
 def to_numpy_flat(arr: Any) -> np.ndarray:
     try:
-        return ak.to_numpy(ak.flatten(arr, axis=None))
+        return np.asarray(ak.to_numpy(ak.flatten(arr, axis=None), allow_missing=False)).astype(
+            float
+        )
+        # ak.to_numpy() returns a masked array if the input has missing values, so we do not allow it
     except Exception:
         try:
             return np.asarray(arr)

@@ -72,6 +72,10 @@ warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = ["awkward.*", "uproot.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 required-version = "==0.16.5"
 line-length = 100
