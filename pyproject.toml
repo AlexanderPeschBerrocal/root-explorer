@@ -11,12 +11,10 @@ authors = [
   { name = "Jan Lukas Späh", email = "janlukas.spaeh@physik.rwth-aachen.de" }
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["ROOT", "HEP", "TTrees", "Streamlit"]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
@@ -61,7 +59,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 files = [
     "src/root_explorer/models.py",
     "src/root_explorer/analysis/variables.py",
