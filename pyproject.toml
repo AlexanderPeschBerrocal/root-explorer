@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-explorer"
-version = "0.1.0"
+version = "2026.9.0"
 description = "A Streamlit app for interactive inspection and plotting of HEP ROOT TTrees."
 authors = [
   { name = "Alexander Pesch Berrocal", email = "alexander.pesch.berrocal@rwth-aachen.de" },
@@ -36,7 +36,7 @@ test = [
 ]
 dev = [
     "build==1.6.0",
-    "bump-my-version>=1.2",
+    "bump-my-version==1.5.1",
     "mypy>=1.11",
     "pre-commit>=3.8",
     "ruff==0.16.5",
@@ -85,3 +85,26 @@ select = [
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
+
+[tool.bumpversion]
+parse = """(?x)
+    (?P<release>
+        (?:[1-9][0-9]{3})\\.
+        (?:1[0-2]|[1-9])
+    )
+    \\.(?P<patch>\\d+)
+"""
+serialize = ["{release}.{patch}"]
+
+commit = true
+tag = true
+tag_name = "v{new_version}"
+message = "Release: {new_version}"
+
+[tool.bumpversion.parts.release]
+calver_format = "{YYYY}.{MM}"
+
+[[tool.bumpversion.files]]
+filename = "src/root_explorer/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'

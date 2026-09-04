@@ -60,3 +60,27 @@ If the Ruff revision is updated, keep it synchronized with the Ruff version in
 `pyproject.toml` and `.github/workflows/ruff.yaml` so local hooks and CI use the
 same version. Use `pre-commit autoupdate` only when intentionally updating the
 hook revisions, and review the resulting configuration before committing it.
+
+### Versioning
+
+This project uses calendar versioning (CalVer) in the form `YYYY.M.N`, where
+`YYYY.M` is the year and month of the release and `N` is the release sequence
+within that month (for example, `2026.9.0` or `2026.9.1`). Version changes are
+managed with [bump-my-version](https://callowayproject.github.io/bump-my-version/),
+which updates the package version, creates the release commit, and creates its
+annotated Git tag.
+
+Before creating a release, inspect the configured version and preview the
+change without modifying files:
+
+```bash
+bump-my-version show current_version
+bump-my-version bump patch --dry-run -v
+```
+
+With a clean working tree, create the release and push the commit and tag:
+
+```bash
+bump-my-version bump patch
+git push --follow-tags
+```
