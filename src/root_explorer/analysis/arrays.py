@@ -15,7 +15,10 @@ from ..models import VariableSpec
 
 def to_numpy_flat(arr: Any) -> np.ndarray:
     try:
-        return ak.to_numpy(ak.flatten(arr, axis=None))
+        return np.asarray(ak.to_numpy(ak.flatten(arr, axis=None), allow_missing=False)).astype(
+            float
+        )
+        # ak.to_numpy() returns a masked array if the input has missing values, so we do not allow it
     except Exception:
         try:
             return np.asarray(arr)
@@ -25,7 +28,7 @@ def to_numpy_flat(arr: Any) -> np.ndarray:
 
 def event_to_numpy(arr: Any) -> np.ndarray:
     try:
-        return ak.to_numpy(ak.flatten(arr, axis=None))
+        return np.asarray(ak.to_numpy(ak.flatten(arr, axis=None)))
     except Exception:
         try:
             return np.asarray(arr)
@@ -111,7 +114,7 @@ def apply_finite_filter(arrays: Sequence[np.ndarray]) -> list[np.ndarray]:
 
 def multiplicity_per_event(arr: Any) -> np.ndarray:
     try:
-        return ak.to_numpy(ak.num(arr, axis=1)).astype(float)
+        return np.asarray(ak.to_numpy(ak.num(arr, axis=1))).astype(float)
     except Exception:
         # Scalar event-level branch: multiplicity is one value per event.
         try:
@@ -123,7 +126,7 @@ def multiplicity_per_event(arr: Any) -> np.ndarray:
 def nth_per_event(arr: Any, index: int) -> np.ndarray:
     try:
         selected = ak.pad_none(arr, index + 1, axis=1)[:, index]
-        return ak.to_numpy(ak.fill_none(selected, np.nan)).astype(float)
+        return np.asarray(ak.to_numpy(ak.fill_none(selected, np.nan))).astype(float)
     except Exception:
         flat = to_numpy_flat(arr)
         return safe_float_array(flat)
@@ -142,13 +145,13 @@ def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
             out = ak.min(values, axis=1, mask_identity=False)
         else:
             raise ValueError(mode)
-        return ak.to_numpy(out).astype(float)
+        return np.asarray(ak.to_numpy(out)).astype(float)
     except Exception:
         return safe_float_array(to_numpy_flat(arr))
 
 
 def delta_phi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
-    return np.arctan2(np.sin(phi1 - phi2), np.cos(phi1 - phi2))
+    return np.asarray(np.arctan2(np.sin(phi1 - phi2), np.cos(phi1 - phi2)))
 
 
 def read_for_scope(
@@ -158,7 +161,7 @@ def read_for_scope(
     entry_start: int,
     entry_stop: int | None,
     event_index: int | None,
-):
+) -> Any:
     if event_index is None:
         return read_branch(path, tree_name, branch, entry_start, entry_stop)
     return read_event_branch(path, tree_name, branch, event_index)
@@ -206,7 +209,7 @@ def raw_counts_per_event(arr: Any, event_index: int | None) -> np.ndarray:
         while ak.to_layout(values).purelist_depth > 2:
             # Flatten nested object substructure while preserving the outer event axis.
             values = ak.flatten(values, axis=2)
-        return ak.to_numpy(ak.num(values, axis=1)).astype(int)
+        return np.asarray(ak.to_numpy(ak.num(values, axis=1))).astype(int)
     except Exception:
         try:
             return np.ones(array_length(arr), dtype=int)

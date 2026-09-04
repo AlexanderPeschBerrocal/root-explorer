@@ -65,8 +65,15 @@ def evaluate_variable(
         if len(values) == 0:
             empty_value = 0.0 if mode == "sum" else np.nan
             return np.array([empty_value], dtype=float), f"{mode}({spec.branch})"
-        func = {"sum": np.nansum, "mean": np.nanmean, "max": np.nanmax, "min": np.nanmin}[mode]
-        return np.array([func(values)], dtype=float), f"{mode}({spec.branch})"
+        if mode == "sum":
+            reduced = np.nansum(values)
+        elif mode == "mean":
+            reduced = np.nanmean(values)
+        elif mode == "max":
+            reduced = np.nanmax(values)
+        else:
+            reduced = np.nanmin(values)
+        return np.array([reduced], dtype=float), f"{mode}({spec.branch})"
 
     if mode in {
         "r_xy",

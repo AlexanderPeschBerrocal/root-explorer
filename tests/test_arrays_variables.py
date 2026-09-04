@@ -88,6 +88,30 @@ def test_variable_evaluation_and_weight_broadcasting(root_path) -> None:
     assert len(met_values) == len(pt)
 
 
+@pytest.mark.parametrize(
+    ("mode", "reducer"),
+    [("sum", np.nansum), ("mean", np.nanmean), ("max", np.nanmax), ("min", np.nanmin)],
+)
+def test_event_reductions_preserve_numpy_results(root_path, mode, reducer) -> None:
+    counts = np.asarray(read_branch(str(root_path), "Events", "nMuon", 0, 12))
+    event_index = int(np.flatnonzero(counts)[0])
+    event_values = np.asarray(
+        read_branch(str(root_path), "Events", "Muon_pt", event_index, event_index + 1)[0]
+    )
+
+    values, label = evaluate_variable(
+        VariableSpec(mode=mode, branch="Muon_pt"),
+        str(root_path),
+        "Events",
+        0,
+        12,
+        event_index,
+    )
+
+    assert label == f"{mode}(Muon_pt)"
+    np.testing.assert_allclose(values, [reducer(event_values)])
+
+
 def test_derived_ratio_handles_zero_denominators(root_path) -> None:
     ratio, label = evaluate_variable(
         VariableSpec(mode="ratio", branch_a="Muon_pt", branch_b="Muon_pt"),

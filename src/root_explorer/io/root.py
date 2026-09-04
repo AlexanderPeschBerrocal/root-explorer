@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Sequence
 from typing import Any
 
+import awkward as ak
 import streamlit as st
 import uproot
 
@@ -16,11 +17,11 @@ def parse_cli_rootfile() -> str | None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("rootfile", nargs="?")
     args, _ = parser.parse_known_args()
-    return args.rootfile
+    return args.rootfile  # type: ignore[no-any-return]
 
 
 @st.cache_resource(show_spinner=False)
-def open_root_file(path: str):
+def open_root_file(path: str) -> Any:
     return uproot.open(path)
 
 
@@ -81,14 +82,17 @@ def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
 
 
 @st.cache_data(show_spinner=True, max_entries=64)
-def read_branch(path: str, tree_name: str, branch: str, entry_start: int, entry_stop: int | None):
+def read_branch(
+    path: str, tree_name: str, branch: str, entry_start: int, entry_stop: int | None
+) -> ak.Array:
     f = uproot.open(path)
     t = f[tree_name]
-    return t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)
+    arr: ak.Array = t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)
+    return arr
 
 
 @st.cache_data(show_spinner=True, max_entries=128)
-def read_event_branch(path: str, tree_name: str, branch: str, event_index: int):
+def read_event_branch(path: str, tree_name: str, branch: str, event_index: int) -> Any:
     f = uproot.open(path)
     t = f[tree_name]
     arr = t[branch].array(library="ak", entry_start=event_index, entry_stop=event_index + 1)
