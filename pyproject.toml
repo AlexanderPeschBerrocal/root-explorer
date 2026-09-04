@@ -62,6 +62,7 @@ where = ["src"]
 python_version = "3.12"
 files = [
     "src/root_explorer/models.py",
+    "src/root_explorer/analysis/arrays.py",
     "src/root_explorer/analysis/variables.py",
     "src/root_explorer/geometry/gdml.py",
 ]
