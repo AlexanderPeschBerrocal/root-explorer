@@ -60,3 +60,15 @@ If the Ruff revision is updated, keep it synchronized with the Ruff version in
 `pyproject.toml` and `.github/workflows/ruff.yaml` so local hooks and CI use the
 same version. Use `pre-commit autoupdate` only when intentionally updating the
 hook revisions, and review the resulting configuration before committing it.
+
+### Versioning
+
+State that we do calver, mention bump-my-version tool
+
+To check:
+bump-my-version show current_version
+bump-my-version bump patch --dry-run -v
+
+To create a new tag
+bump-my-version bump patch
+git push --follow-tags
