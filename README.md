@@ -9,6 +9,30 @@ From a checkout, users can launch the app directly:
 streamlit run streamlit_app.py
 ```
 
+### Docker
+
+The application can also be built and run in Docker. This provides a reproducible
+runtime environment and does not require installing Python or the root-explorer
+dependencies on the host system.
+
+From the repository root, build the image:
+
+```bash
+docker build -t root-explorer .
+```
+
+Run the container and publish the Streamlit port:
+
+```bash
+docker run --rm -p 8501:8501 root-explorer
+```
+
+Then open [http://localhost:8501](http://localhost:8501) in a web browser.
+
+The container runs the application as an unprivileged user and includes a Docker
+health check for the Streamlit service. Stop the application with `Ctrl+C`; because
+`--rm` is used, Docker removes the stopped container automatically.
+
 ## Development
 
 From the repository root, install the package in editable mode with the developer
