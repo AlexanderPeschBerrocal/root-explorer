@@ -1,0 +1,52 @@
+# .github/workflows/docker.yaml
+
+name: Docker
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Build Docker image
+        run: docker build --tag root-explorer:ci .
+
+      - name: Start container
+        run: |
+          docker run \
+            --detach \
+            --name root-explorer-ci \
+            --publish 8501:8501 \
+            root-explorer:ci
+
+      - name: Check application health
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health > /dev/null; then
+              echo "root-explorer is healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "root-explorer did not become healthy"
+          docker logs root-explorer-ci
+          exit 1
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force root-explorer-ci || true
