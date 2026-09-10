@@ -1,2 +1,6 @@
 [server]
 runOnSave = true
+maxUploadSize = 4096
+
+[browser]
+gatherUsageStats = false
