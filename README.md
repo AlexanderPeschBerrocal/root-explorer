@@ -29,6 +29,20 @@ docker run --rm -p 8501:8501 root-explorer
 
 Then open [http://localhost:8501](http://localhost:8501) in a web browser.
 
+To make local ROOT or GDML files available when using the application's `Path`
+input mode, bind-mount a host directory into the container. For example:
+
+```bash
+docker run --rm \
+    -p 8501:8501 \
+    --mount type=bind,source="/absolute/path/to/data",target=/data,readonly \
+    root-explorer
+```
+
+Use the path as seen inside the container, for example `/data/events.root` or
+`/data/detector.gdml`, rather than the corresponding host path. Files uploaded
+through the web interface do not require a bind mount.
+
 The container runs the application as an unprivileged user and includes a Docker
 health check for the Streamlit service. Stop the application with `Ctrl+C`; because
 `--rm` is used, Docker removes the stopped container automatically.
