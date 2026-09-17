@@ -77,7 +77,8 @@ def show_cached_plot_result(
         st.markdown("#### Export")
         st.caption("Save writes to the cluster; Download sends the file to this browser.")
         formats = result.get("save_formats", ["png"])
-        export_columns = st.columns(1 + len(formats))
+        code = result.get("code")
+        export_columns = st.columns(1 + len(formats) + int(code is not None))
         with export_columns[0]:
             if st.button(
                 result.get("save_button_label", "Save plot"), key=save_button_key, width="stretch"
@@ -89,8 +90,21 @@ def show_cached_plot_result(
                     st.warning(
                         "No static export format selected. Select PNG, PDF, or both before making the plot."
                     )
+        image_columns = export_columns[1:]
+        if code is not None:
+            with export_columns[1]:
+                st.download_button(
+                    "Download plot code",
+                    data=code,
+                    file_name=f"{download_name}.py",
+                    mime="text/x-python",
+                    key=f"{save_button_key}_download_code",
+                    on_click="ignore",
+                    width="stretch",
+                )
+            image_columns = export_columns[2:]
         mime_types = {"png": "image/png", "pdf": "application/pdf"}
-        for column, file_format in zip(export_columns[1:], formats, strict=True):
+        for column, file_format in zip(image_columns, formats, strict=True):
             with column:
                 st.download_button(
                     f"Download {file_format.upper()}",

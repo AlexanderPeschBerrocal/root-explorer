@@ -23,6 +23,7 @@ from ..analysis.arrays import (
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
+from ..plotting.codegen import generate_static_plot_code
 from ..plotting.plots import (
     apply_range_cuts,
     build_plotly_3d,
@@ -392,6 +393,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     return {
         "kind": "matplotlib",
         "figure": figure,
+        "code": generate_static_plot_code(request),
         "summary": summary,
         "preview": preview,
         "save_name": save_name,

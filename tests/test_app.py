@@ -54,6 +54,13 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
     assert result["save_name"] == "muon_pt"
+    assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
+    code_download = next(
+        button
+        for button in at.get("download_button")
+        if button.key == "plot_save_cached_download_code"
+    )
+    assert code_download.label == "Download plot code"
 
 
 def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
