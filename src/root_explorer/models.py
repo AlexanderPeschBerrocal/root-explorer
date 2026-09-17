@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class BranchInfo:
-    """Small summary of one TTree branch."""
+class FieldInfo:
+    """Small summary of one field in an event container."""
 
     name: str
     typename: str

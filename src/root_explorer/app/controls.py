@@ -15,13 +15,13 @@ from ..plotting.plots import parse_optional_float
 
 def variable_selector(
     prefix: str,
-    branches: list[str],
+    fields: list[str],
     preferred: Sequence[str],
     *,
     allow_event_reductions: bool = True,
 ) -> VariableSpec:
     modes = {
-        "Direct branch values": "branch",
+        "Direct field values": "branch",
         "Multiplicity per event": "multiplicity",
         "nth object per event": "nth",
         "Sum per event": "sum",
@@ -51,11 +51,11 @@ def variable_selector(
 
     mode_label = st.selectbox(f"{prefix}: variable type", list(modes.keys()), key=f"{prefix}_mode")
     mode = modes[mode_label]
-    options = branches
+    options = fields
 
     if mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
         branch = st.selectbox(
-            f"{prefix}: branch",
+            f"{prefix}: field",
             options,
             index=choose_default(options, preferred),
             key=f"{prefix}_branch",
@@ -146,7 +146,7 @@ def supports_histogram_weights(plot_type: str) -> bool:
     return plot_type in {"1D histogram", "2D histogram"}
 
 
-def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) -> str | None:
+def histogram_weight_selector(prefix: str, plot_type: str, fields: list[str]) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
     st.markdown("### Histogram weights")
@@ -154,15 +154,15 @@ def histogram_weight_selector(prefix: str, plot_type: str, branches: list[str]) 
     if not use_weights:
         return None
     return st.selectbox(
-        "weight branch",
-        branches,
-        index=choose_default(branches, ["weight", "genWeight", "eventWeight"]),
+        "weight field",
+        fields,
+        index=choose_default(fields, ["weight", "genWeight", "eventWeight"]),
         key=f"{prefix}_weight_branch",
     )
 
 
 def range_cut_controls(
-    prefix: str, branches: list[str]
+    prefix: str, fields: list[str]
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts")
     n_cuts = st.number_input(
@@ -175,7 +175,7 @@ def range_cut_controls(
             cut_specs.append(
                 variable_selector(
                     f"{prefix}_cut_{i}",
-                    branches,
+                    fields,
                     ["pt", "eta", "mass"],
                     allow_event_reductions=False,
                 )

@@ -9,7 +9,7 @@ from typing import Any
 import awkward as ak
 import numpy as np
 
-from ..io.root import read_branch, read_event_branch
+from ..io.root import read_event_field, read_field
 from ..models import VariableSpec
 
 
@@ -163,8 +163,8 @@ def read_for_scope(
     event_index: int | None,
 ) -> Any:
     if event_index is None:
-        return read_branch(path, tree_name, branch, entry_start, entry_stop)
-    return read_event_branch(path, tree_name, branch, event_index)
+        return read_field(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_field(path, tree_name, branch, event_index)
 
 
 def branch_values(

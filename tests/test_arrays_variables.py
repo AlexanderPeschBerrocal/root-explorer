@@ -16,7 +16,7 @@ from root_explorer.analysis.arrays import (
     variable_values_for_values,
 )
 from root_explorer.analysis.variables import evaluate_variable
-from root_explorer.io.root import read_branch
+from root_explorer.io.root import read_field
 from root_explorer.models import VariableSpec
 
 
@@ -46,7 +46,9 @@ def test_alignment_reports_shape_and_jagged_boundary_errors() -> None:
         )
 
 
-def test_variable_evaluation_and_weight_broadcasting(root_path) -> None:
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_variable_evaluation_and_weight_broadcasting(request, fixture_name: str) -> None:
+    root_path = request.getfixturevalue(fixture_name)
     muon_pt = VariableSpec(mode="branch", branch="Muon_pt")
     pt, label = evaluate_variable(muon_pt, str(root_path), "Events", 0, 12)
     radial, radial_label = evaluate_variable(
@@ -60,13 +62,13 @@ def test_variable_evaluation_and_weight_broadcasting(root_path) -> None:
     assert radial_label == "r(Muon_px,Muon_py)"
     np.testing.assert_allclose(radial, pt, rtol=1e-5)
 
-    counts = multiplicity_per_event(read_branch(str(root_path), "Events", "Muon_pt", 0, 12)).astype(
+    counts = multiplicity_per_event(read_field(str(root_path), "Events", "Muon_pt", 0, 12)).astype(
         int
     )
     event_weights = histogram_weights_for_values(
         str(root_path), "Events", "genWeight", muon_pt, len(pt), 0, 12, None
     )
-    raw_event_weights = read_branch(str(root_path), "Events", "genWeight", 0, 12)
+    raw_event_weights = read_field(str(root_path), "Events", "genWeight", 0, 12)
     np.testing.assert_allclose(event_weights, np.repeat(np.asarray(raw_event_weights), counts))
 
     object_weights = histogram_weights_for_values(
@@ -92,11 +94,13 @@ def test_variable_evaluation_and_weight_broadcasting(root_path) -> None:
     ("mode", "reducer"),
     [("sum", np.nansum), ("mean", np.nanmean), ("max", np.nanmax), ("min", np.nanmin)],
 )
-def test_event_reductions_preserve_numpy_results(root_path, mode, reducer) -> None:
-    counts = np.asarray(read_branch(str(root_path), "Events", "nMuon", 0, 12))
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_event_reductions_preserve_numpy_results(request, fixture_name: str, mode, reducer) -> None:
+    root_path = request.getfixturevalue(fixture_name)
+    counts = np.asarray(read_field(str(root_path), "Events", "nMuon", 0, 12))
     event_index = int(np.flatnonzero(counts)[0])
     event_values = np.asarray(
-        read_branch(str(root_path), "Events", "Muon_pt", event_index, event_index + 1)[0]
+        read_field(str(root_path), "Events", "Muon_pt", event_index, event_index + 1)[0]
     )
 
     values, label = evaluate_variable(
@@ -112,7 +116,9 @@ def test_event_reductions_preserve_numpy_results(root_path, mode, reducer) -> No
     np.testing.assert_allclose(values, [reducer(event_values)])
 
 
-def test_derived_ratio_handles_zero_denominators(root_path) -> None:
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_derived_ratio_handles_zero_denominators(request, fixture_name: str) -> None:
+    root_path = request.getfixturevalue(fixture_name)
     ratio, label = evaluate_variable(
         VariableSpec(mode="ratio", branch_a="Muon_pt", branch_b="Muon_pt"),
         str(root_path),

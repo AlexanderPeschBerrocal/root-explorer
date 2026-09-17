@@ -8,11 +8,12 @@ import streamlit as st
 
 from ..config import DEFAULT_MAX_ENTRIES
 from ..io.root import (
-    get_branch_info,
-    numeric_branches,
+    get_entry_count,
+    get_field_info,
+    numeric_fields,
     open_root_file,
     parse_cli_rootfile,
-    walk_ttrees,
+    walk_event_containers,
 )
 from .results import store_uploaded_file
 from .state import DataContext
@@ -56,17 +57,16 @@ def render_data_input() -> DataContext:
         st.error(f"Could not open ROOT file: {exc}")
         st.stop()
 
-    available_trees = walk_ttrees(root_file)
-    if not available_trees:
-        st.error("No TTrees were found. This app currently focuses on TTree-like event data.")
+    available_containers = walk_event_containers(root_file)
+    if not available_containers:
+        st.error("No TTrees or RNTuples containing event data were found.")
         st.stop()
 
-    tree_name = st.selectbox("TTree", available_trees, index=0)
-    tree = root_file[tree_name]
-    n_entries = int(tree.num_entries)
+    event_container_name = st.selectbox("Event container", available_containers, index=0)
+    n_entries = get_entry_count(root_path, event_container_name)
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
-        st.warning("This TTree has no entries to inspect.")
+        st.warning("This event container has no entries to inspect.")
         st.stop()
 
     st.subheader("Read range")
@@ -84,15 +84,15 @@ def render_data_input() -> DataContext:
         st.warning("entry stop must be larger than entry start.")
         st.stop()
 
-    branch_info = get_branch_info(root_path, tree_name)
+    field_info = get_field_info(root_path, event_container_name)
     return DataContext(
         root_path=root_path,
-        tree_name=tree_name,
+        event_container_name=event_container_name,
         n_entries=n_entries,
         entry_start=int(entry_start),
         entry_stop=int(entry_stop),
-        branch_info=branch_info,
-        branches=numeric_branches(branch_info),
+        field_info=field_info,
+        fields=numeric_fields(field_info),
     )
 
 

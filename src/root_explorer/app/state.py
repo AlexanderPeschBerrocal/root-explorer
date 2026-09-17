@@ -5,24 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import BranchInfo
+from ..models import FieldInfo
 
 
 @dataclass(frozen=True)
 class DataContext:
-    """The selected ROOT data and entry range for one Streamlit rerun."""
+    """The selected ROOT event data and entry range for one Streamlit rerun."""
 
     root_path: str
-    tree_name: str
+    event_container_name: str
     n_entries: int
     entry_start: int
     entry_stop: int
-    branch_info: list[BranchInfo]
-    branches: list[str]
+    field_info: list[FieldInfo]
+    fields: list[str]
 
     @property
     def cache_key(self) -> tuple[str, str, int, int]:
-        return (self.root_path, self.tree_name, self.entry_start, self.entry_stop)
+        return (self.root_path, self.event_container_name, self.entry_start, self.entry_stop)
 
 
 @dataclass(frozen=True)

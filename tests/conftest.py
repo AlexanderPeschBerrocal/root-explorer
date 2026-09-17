@@ -52,8 +52,8 @@ def _make_collection(
     }
 
 
-def _generate_test_root(output_path: Path, *, n_events: int, seed: int) -> Path:
-    """Write an isolated NanoAOD-like TTree."""
+def _generate_event_fields(*, n_events: int, seed: int) -> dict[str, object]:
+    """Create deterministic NanoAOD-like fields for either ROOT event format."""
 
     rng = np.random.default_rng(seed)
     muon_counts = rng.poisson(1.5, n_events).astype(np.int32)
@@ -76,8 +76,35 @@ def _generate_test_root(output_path: Path, *, n_events: int, seed: int) -> Path:
     branches.update({f"Muon_{field}": values for field, values in muons.items()})
     branches.update({f"Jet_{field}": values for field, values in jets.items()})
 
+    return branches
+
+
+def _generate_test_root(output_path: Path, *, n_events: int, seed: int) -> Path:
+    """Write an isolated NanoAOD-like TTree."""
+
     with uproot.recreate(output_path) as root_file:
-        root_file.mktree("Events", branches)
+        root_file.mktree("Events", _generate_event_fields(n_events=n_events, seed=seed))
+    return output_path
+
+
+def _generate_test_rntuple(output_path: Path, *, n_events: int, seed: int) -> Path:
+    """Write top-level and nested RNTuples with identical event data."""
+
+    fields = _generate_event_fields(n_events=n_events, seed=seed)
+    fields["Muon"] = ak.zip({"pt": fields["Muon_pt"], "eta": fields["Muon_eta"]})
+    with uproot.recreate(output_path) as root_file:
+        root_file.mkrntuple("Events", fields)
+        root_file.mkdir("nested").mkrntuple("Events", fields)
+    return output_path
+
+
+def _generate_mixed_event_containers(output_path: Path, *, n_events: int, seed: int) -> Path:
+    """Write a ROOT file with nested TTree and RNTuple event containers."""
+
+    fields = _generate_event_fields(n_events=n_events, seed=seed)
+    with uproot.recreate(output_path) as root_file:
+        root_file.mkdir("trees").mktree("Events", fields)
+        root_file.mkdir("ntuples").mkrntuple("Events", fields)
     return output_path
 
 
@@ -95,6 +122,20 @@ def clear_streamlit_caches() -> None:
 @pytest.fixture
 def root_path(tmp_path: Path) -> Path:
     return _generate_test_root(tmp_path / "test_nanoaod.root", n_events=12, seed=20250831)
+
+
+@pytest.fixture
+def rntuple_path(tmp_path: Path) -> Path:
+    return _generate_test_rntuple(
+        tmp_path / "test_nanoaod_rntuple.root", n_events=12, seed=20250831
+    )
+
+
+@pytest.fixture
+def mixed_event_containers_path(tmp_path: Path) -> Path:
+    return _generate_mixed_event_containers(
+        tmp_path / "test_mixed_event_containers.root", n_events=12, seed=20250831
+    )
 
 
 @pytest.fixture

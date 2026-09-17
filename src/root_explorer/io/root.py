@@ -1,4 +1,4 @@
-"""ROOT file and branch access used by the application and analysis helpers."""
+"""Format-neutral ROOT event-container access for the application and analysis helpers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import awkward as ak
 import streamlit as st
 import uproot
 
-from ..models import BranchInfo
+from ..models import FieldInfo
 
 
 def parse_cli_rootfile() -> str | None:
@@ -25,22 +25,37 @@ def open_root_file(path: str) -> Any:
     return uproot.open(path)
 
 
-def is_ttree(obj: Any) -> bool:
-    return isinstance(obj, uproot.behaviors.TTree.TTree)
+def is_event_container(obj: Any) -> bool:
+    """Return whether ``obj`` is a readable TTree or RNTuple."""
+
+    return isinstance(
+        obj,
+        (
+            uproot.behaviors.TTree.TTree,
+            uproot.behaviors.RNTuple.RNTuple,
+        ),
+    )
 
 
-def walk_ttrees(root_file: Any) -> list[str]:
-    """Return all readable TTree paths in a ROOT file, including nested folders."""
+def walk_event_containers(root_file: Any) -> list[str]:
+    """Return readable TTree and RNTuple paths, including nested folders."""
 
     names: list[str] = []
     for key, obj in root_file.items(recursive=True):
-        if is_ttree(obj):
+        if is_event_container(obj):
             names.append(key.split(";")[0])
     return sorted(set(names))
 
 
-def split_collection(branch_name: str) -> tuple[str, str]:
-    """Infer a HEP-style collection and field from a branch name.
+@st.cache_data(show_spinner=False)
+def get_entry_count(path: str, container_name: str) -> int:
+    """Return the number of entries in an event container."""
+
+    return int(uproot.open(path)[container_name].num_entries)
+
+
+def split_collection(field_name: str) -> tuple[str, str]:
+    """Infer a HEP-style collection and field from a field name.
 
     Examples
     --------
@@ -49,53 +64,61 @@ def split_collection(branch_name: str) -> tuple[str, str]:
     eventNumber  -> (event-level, eventNumber)
     """
 
-    if "." in branch_name:
-        head, tail = branch_name.split(".", 1)
-        return head or "event-level", tail or branch_name
-    if "_" in branch_name:
-        head, tail = branch_name.split("_", 1)
+    if "." in field_name:
+        head, tail = field_name.split(".", 1)
+        return head or "event-level", tail or field_name
+    if "_" in field_name:
+        head, tail = field_name.split("_", 1)
         if head and tail:
             return head, tail
-    return "event-level", branch_name
+    return "event-level", field_name
 
 
 @st.cache_data(show_spinner=False)
-def get_branch_info(path: str, tree_name: str) -> list[BranchInfo]:
+def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
+    """Return display metadata for the fields in one event container."""
+
     f = uproot.open(path)
-    t = f[tree_name]
-    info: list[BranchInfo] = []
-    # Iterating over a TTree yields TBranch objects in current Uproot versions;
-    # use the mapping keys so the branch name remains a string throughout the
-    # metadata model and collection grouping code.
-    branch_names = t.keys()
-    for name in branch_names:
+    container = f[container_name]
+    field_names = container.keys()
+    try:
+        typenames = dict(container.typenames())
+    except Exception:
+        typenames = {}
+
+    info: list[FieldInfo] = []
+    for name in field_names:
         try:
-            branch = t[name]
-            typename = str(getattr(branch, "typename", "unknown"))
-            interpretation = str(getattr(branch, "interpretation", "unknown"))
+            field_object = container[name]
+            typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
+            interpretation = str(getattr(field_object, "interpretation", "RField"))
         except Exception:
             typename = "unknown"
             interpretation = "unknown"
         collection, field = split_collection(name)
-        info.append(BranchInfo(name, typename, interpretation, collection, field))
+        info.append(FieldInfo(name, typename, interpretation, collection, field))
     return info
 
 
 @st.cache_data(show_spinner=True, max_entries=64)
-def read_branch(
-    path: str, tree_name: str, branch: str, entry_start: int, entry_stop: int | None
+def read_field(
+    path: str, container_name: str, field_name: str, entry_start: int, entry_stop: int | None
 ) -> ak.Array:
     f = uproot.open(path)
-    t = f[tree_name]
-    arr: ak.Array = t[branch].array(library="ak", entry_start=entry_start, entry_stop=entry_stop)
+    container = f[container_name]
+    arr: ak.Array = container[field_name].array(
+        library="ak", entry_start=entry_start, entry_stop=entry_stop
+    )
     return arr
 
 
 @st.cache_data(show_spinner=True, max_entries=128)
-def read_event_branch(path: str, tree_name: str, branch: str, event_index: int) -> Any:
+def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
     f = uproot.open(path)
-    t = f[tree_name]
-    arr = t[branch].array(library="ak", entry_start=event_index, entry_stop=event_index + 1)
+    container = f[container_name]
+    arr = container[field_name].array(
+        library="ak", entry_start=event_index, entry_stop=event_index + 1
+    )
     return arr[0]
 
 
@@ -106,16 +129,16 @@ def is_probably_numeric_typename(typename: str) -> bool:
     )
 
 
-def numeric_branches(branch_info: list[BranchInfo]) -> list[str]:
-    numeric = [b.name for b in branch_info if is_probably_numeric_typename(b.typename)]
-    return numeric or [b.name for b in branch_info]
+def numeric_fields(field_info: list[FieldInfo]) -> list[str]:
+    numeric = [field.name for field in field_info if is_probably_numeric_typename(field.typename)]
+    return numeric or [field.name for field in field_info]
 
 
-def branch_choices(branches: list[str], query: str = "") -> list[str]:
+def field_choices(fields: list[str], query: str = "") -> list[str]:
     if not query.strip():
-        return branches
+        return fields
     q = query.casefold()
-    return [b for b in branches if q in b.casefold()]
+    return [field for field in fields if q in field.casefold()]
 
 
 def choose_default(options: Sequence[str], preferred: Sequence[str]) -> int:

@@ -13,7 +13,7 @@ from root_explorer.app.controls import (
 )
 from root_explorer.app.results import collection_summary, store_uploaded_file
 from root_explorer.app.state import DataContext
-from root_explorer.models import BranchInfo
+from root_explorer.models import FieldInfo
 
 
 class _Upload:
@@ -36,14 +36,14 @@ def test_control_predicates_and_static_formats() -> None:
 def test_collection_summary_and_uploaded_file_storage() -> None:
     summary = collection_summary(
         [
-            BranchInfo("Muon_pt", "float", "", "Muon", "pt"),
-            BranchInfo("Muon_eta", "float", "", "Muon", "eta"),
-            BranchInfo("event", "uint", "", "event-level", "event"),
+            FieldInfo("Muon_pt", "float", "", "Muon", "pt"),
+            FieldInfo("Muon_eta", "float", "", "Muon", "eta"),
+            FieldInfo("event", "uint", "", "event-level", "event"),
         ]
     )
     assert summary.iloc[0].to_dict() == {
         "collection": "Muon",
-        "branches": 2,
+        "fields": 2,
         "example fields": "pt, eta",
     }
     stored = store_uploaded_file(_Upload())
@@ -55,12 +55,12 @@ def test_collection_summary_and_uploaded_file_storage() -> None:
 def test_data_context_cache_key_uses_the_selected_range() -> None:
     context = DataContext(
         root_path="events.root",
-        tree_name="Events",
+        event_container_name="Events",
         n_entries=100,
         entry_start=10,
         entry_stop=50,
-        branch_info=[],
-        branches=[],
+        field_info=[],
+        fields=[],
     )
 
     assert context.cache_key == ("events.root", "Events", 10, 50)
