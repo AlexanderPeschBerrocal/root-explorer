@@ -32,14 +32,14 @@ def evaluate_variable(
 
     if mode == "branch":
         if not spec.branch:
-            raise ValueError("No branch selected.")
+            raise ValueError("No field selected.")
         return safe_float_array(
             branch_values(path, tree_name, spec.branch, entry_start, entry_stop, event_index)
         ), spec.branch
 
     if mode == "multiplicity":
         if not spec.branch:
-            raise ValueError("No branch selected.")
+            raise ValueError("No field selected.")
         arr = read_for_scope(path, tree_name, spec.branch, entry_start, entry_stop, event_index)
         if event_index is None:
             return multiplicity_per_event(arr), f"N({spec.branch})"
@@ -47,7 +47,7 @@ def evaluate_variable(
 
     if mode == "nth":
         if not spec.branch:
-            raise ValueError("No branch selected.")
+            raise ValueError("No field selected.")
         arr = read_for_scope(path, tree_name, spec.branch, entry_start, entry_stop, event_index)
         if event_index is None:
             return nth_per_event(arr, spec.index), f"{spec.branch}[{spec.index}]"
@@ -57,7 +57,7 @@ def evaluate_variable(
 
     if mode in {"sum", "mean", "max", "min"}:
         if not spec.branch:
-            raise ValueError("No branch selected.")
+            raise ValueError("No field selected.")
         arr = read_for_scope(path, tree_name, spec.branch, entry_start, entry_stop, event_index)
         if event_index is None:
             return reduce_per_event(arr, mode), f"{mode}({spec.branch})"
@@ -87,16 +87,16 @@ def evaluate_variable(
         "delta_r",
     }:
         if not spec.branch_a or not spec.branch_b:
-            raise ValueError("This derived variable needs at least two branches.")
+            raise ValueError("This derived variable needs at least two fields.")
 
         branches = [spec.branch_a, spec.branch_b]
         if mode == "eta_xyz":
             if not spec.branch_c:
-                raise ValueError("eta needs x, y, and z branches.")
+                raise ValueError("eta needs x, y, and z fields.")
             branches.append(spec.branch_c)
         elif mode == "delta_r":
             if not spec.branch_c or not spec.branch_d:
-                raise ValueError("delta-R needs eta1, phi1, eta2, and phi2 branches.")
+                raise ValueError("delta-R needs eta1, phi1, eta2, and phi2 fields.")
             branches.extend([spec.branch_c, spec.branch_d])
 
         aligned_values = read_aligned_branch_values(

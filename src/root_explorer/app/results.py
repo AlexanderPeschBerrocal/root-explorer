@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from ..models import BranchInfo
+from ..models import FieldInfo
 from ..plotting.plots import (
     matplotlib_figure_bytes,
     plotly_figure_html,
@@ -105,16 +105,16 @@ def show_cached_plot_result(
         st.error(f"Unknown cached plot kind: {result['kind']}")
 
 
-def collection_summary(branch_info: list[BranchInfo]) -> pd.DataFrame:
+def collection_summary(field_info: list[FieldInfo]) -> pd.DataFrame:
     rows = []
-    by_collection: dict[str, list[BranchInfo]] = {}
-    for b in branch_info:
-        by_collection.setdefault(b.collection, []).append(b)
+    by_collection: dict[str, list[FieldInfo]] = {}
+    for field in field_info:
+        by_collection.setdefault(field.collection, []).append(field)
     for collection, items in sorted(by_collection.items(), key=lambda kv: (-len(kv[1]), kv[0])):
         fields = ", ".join(item.field for item in items[:12])
         if len(items) > 12:
             fields += ", ..."
-        rows.append({"collection": collection, "branches": len(items), "example fields": fields})
+        rows.append({"collection": collection, "fields": len(items), "example fields": fields})
     return pd.DataFrame(rows)
 
 

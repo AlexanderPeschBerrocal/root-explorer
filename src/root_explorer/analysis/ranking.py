@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from ..io.root import read_branch
+from ..io.root import read_field
 from .arrays import multiplicity_per_event, safe_float_array, to_numpy_flat
 
 
@@ -22,7 +22,7 @@ def compute_event_metric(
     threshold: float | None,
     abs_value: bool,
 ):
-    arr = read_branch(path, tree_name, branch, entry_start, entry_stop)
+    arr = read_field(path, tree_name, branch, entry_start, entry_stop)
     if mode == "multiplicity":
         values = multiplicity_per_event(arr)
     else:

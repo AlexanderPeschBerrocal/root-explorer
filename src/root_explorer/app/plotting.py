@@ -137,7 +137,7 @@ def _render_plot_controls(
     axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
     x_spec = variable_selector(
         axis_prefix("x"),
-        context.branches,
+        context.fields,
         ["x", "pt", "eta"] if event_index is not None else ["pt", "energy", "eta", "x"],
         allow_event_reductions=event_index is None,
     )
@@ -145,14 +145,14 @@ def _render_plot_controls(
     if needs_y_variable(plot_type):
         y_spec = variable_selector(
             axis_prefix("y"),
-            context.branches,
+            context.fields,
             ["y", "eta", "phi"] if event_index is not None else ["eta", "phi", "y"],
             allow_event_reductions=event_index is None,
         )
     if needs_z_variable(plot_type):
         z_spec = variable_selector(
             axis_prefix("z"),
-            context.branches,
+            context.fields,
             ["z", "phi"] if event_index is not None else ["phi", "z"],
             allow_event_reductions=event_index is None,
         )
@@ -166,15 +166,15 @@ def _render_plot_controls(
         if color_enabled:
             color_spec = variable_selector(
                 axis_prefix("color"),
-                context.branches,
+                context.fields,
                 ["energy", "pt", "charge", "pdgId"]
                 if event_index is not None
                 else ["pt", "energy", "mass", "pdgId", "charge"],
                 allow_event_reductions=False,
             )
 
-    weight_branch = histogram_weight_selector(prefix, plot_type, context.branches)
-    cut_specs, cut_bounds = range_cut_controls(prefix, context.branches)
+    weight_branch = histogram_weight_selector(prefix, plot_type, context.fields)
+    cut_specs, cut_bounds = range_cut_controls(prefix, context.fields)
     style = plot_style_controls(
         prefix,
         plot_type,
@@ -249,7 +249,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     validate_variable_event_shapes(
         [spec for spec in [request.x_spec, request.y_spec, request.z_spec] if spec is not None],
         context.root_path,
-        context.tree_name,
+        context.event_container_name,
         context.entry_start,
         context.entry_stop,
         event_index,
@@ -260,7 +260,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     x, x_label = evaluate_variable(
         request.x_spec,
         context.root_path,
-        context.tree_name,
+        context.event_container_name,
         context.entry_start,
         context.entry_stop,
         event_index,
@@ -275,7 +275,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if request.weight_branch is not None:
         weights = histogram_weights_for_values(
             context.root_path,
-            context.tree_name,
+            context.event_container_name,
             request.weight_branch,
             request.x_spec,
             values_length,
@@ -291,7 +291,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             request.x_spec,
             values_length,
             context.root_path,
-            context.tree_name,
+            context.event_container_name,
             context.entry_start,
             context.entry_stop,
             event_index,
@@ -305,7 +305,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             request.x_spec,
             values_length,
             context.root_path,
-            context.tree_name,
+            context.event_container_name,
             context.entry_start,
             context.entry_stop,
             event_index,
@@ -412,7 +412,7 @@ def _evaluate_optional(
     values, label = evaluate_variable(
         spec,
         context.root_path,
-        context.tree_name,
+        context.event_container_name,
         context.entry_start,
         context.entry_stop,
         event_index,

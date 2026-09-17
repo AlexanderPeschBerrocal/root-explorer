@@ -39,7 +39,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert [tab.label for tab in at.tabs] == [
         "Plotter",
         "Event viewer",
-        "Branches",
+        "Fields",
         "Geometry",
         "Help",
     ]
@@ -54,6 +54,23 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
     assert result["save_name"] == "muon_pt"
+
+
+def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
+    at = _load_root_file(make_app_test(), rntuple_path)
+
+    assert not at.exception
+    assert (
+        next(widget for widget in at.selectbox if widget.label == "Event container").value
+        == "Events"
+    )
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert result["kind"] == "matplotlib"
+    assert result["summary"].iloc[0]["n"] > 0
 
 
 def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
