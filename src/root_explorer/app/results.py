@@ -119,7 +119,7 @@ def show_cached_plot_result(
         st.error(f"Unknown cached plot kind: {result['kind']}")
 
 
-def collection_summary(field_info: list[FieldInfo]) -> pd.DataFrame:
+def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
     rows = []
     by_collection: dict[str, list[FieldInfo]] = {}
     for field in field_info:
@@ -128,7 +128,13 @@ def collection_summary(field_info: list[FieldInfo]) -> pd.DataFrame:
         fields = ", ".join(item.field for item in items[:12])
         if len(items) > 12:
             fields += ", ..."
-        rows.append({"collection": collection, "fields": len(items), "example fields": fields})
+        rows.append(
+            {
+                "collection": collection,
+                f"{item_name}s": len(items),
+                f"example {item_name}s": fields,
+            }
+        )
     return pd.DataFrame(rows)
 
 

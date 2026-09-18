@@ -25,7 +25,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
     title = labels["title"] or (
         f"Event {request.event_index}" if request.event_index is not None else request.plot_type
     )
-    branches = _request_branches(request)
+    selected_items = _request_branches(request)
     read_start = request.event_index if request.event_index is not None else context.entry_start
     read_stop = request.event_index + 1 if request.event_index is not None else context.entry_stop
 
@@ -48,12 +48,12 @@ def generate_static_plot_code(request: PlotRequest) -> str:
             f"    tree_name = {context.event_container_name!r}",
             f"    entry_start = {read_start!r}",
             f"    entry_stop = {read_stop!r}",
-            f"    branches = {branches!r}",
+            f"    selected_items = {selected_items!r}",
             "",
             "    with uproot.open(root_path) as root_file:",
             "        tree = root_file[tree_name]",
             "        data = tree.arrays(",
-            '            branches, library="ak", entry_start=entry_start, entry_stop=entry_stop',
+            '            selected_items, library="ak", entry_start=entry_start, entry_stop=entry_stop',
             "        )",
             "",
             "    def flatten(values):",

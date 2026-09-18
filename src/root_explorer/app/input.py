@@ -8,6 +8,7 @@ import streamlit as st
 
 from ..config import DEFAULT_MAX_ENTRIES
 from ..io.root import (
+    event_container_kind,
     get_entry_count,
     get_field_info,
     numeric_fields,
@@ -63,6 +64,7 @@ def render_data_input() -> DataContext:
         st.stop()
 
     event_container_name = st.selectbox("Event container", available_containers, index=0)
+    container_kind = event_container_kind(root_file[event_container_name])
     n_entries = get_entry_count(root_path, event_container_name)
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
@@ -93,6 +95,7 @@ def render_data_input() -> DataContext:
         entry_stop=int(entry_stop),
         field_info=field_info,
         fields=numeric_fields(field_info),
+        container_kind=container_kind,
     )
 
 

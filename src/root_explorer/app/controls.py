@@ -18,44 +18,49 @@ def variable_selector(
     fields: list[str],
     preferred: Sequence[str],
     *,
+    item_name: str,
     allow_event_reductions: bool = True,
 ) -> VariableSpec:
-    modes = {
-        "Direct field values": "branch",
-        "Multiplicity per event": "multiplicity",
-        "nth object per event": "nth",
-        "Sum per event": "sum",
-        "Mean per event": "mean",
-        "Max per event": "max",
-        "Min per event": "min",
-        "r = sqrt(x² + y²)": "r_xy",
-        "phi = atan2(y, x)": "phi_xy",
-        "eta = asinh(z / sqrt(x²+y²))": "eta_xyz",
-        "A / B": "ratio",
-        "A - B": "difference",
-        "A + B": "sum_ab",
-        "A * B": "product",
-        "delta phi": "delta_phi",
-        "delta R": "delta_r",
+    mode_labels = {
+        "branch": f"Direct {item_name} values",
+        "multiplicity": "Multiplicity per event",
+        "nth": "nth object per event",
+        "sum": "Sum per event",
+        "mean": "Mean per event",
+        "max": "Max per event",
+        "min": "Min per event",
+        "r_xy": "r = sqrt(x² + y²)",
+        "phi_xy": "phi = atan2(y, x)",
+        "eta_xyz": "eta = asinh(z / sqrt(x²+y²))",
+        "ratio": "A / B",
+        "difference": "A - B",
+        "sum_ab": "A + B",
+        "product": "A * B",
+        "delta_phi": "delta phi",
+        "delta_r": "delta R",
     }
     if not allow_event_reductions:
-        for key in [
-            "Multiplicity per event",
-            "nth object per event",
-            "Sum per event",
-            "Mean per event",
-            "Max per event",
-            "Min per event",
+        for mode in [
+            "multiplicity",
+            "nth",
+            "sum",
+            "mean",
+            "max",
+            "min",
         ]:
-            modes.pop(key, None)
+            mode_labels.pop(mode)
 
-    mode_label = st.selectbox(f"{prefix}: variable type", list(modes.keys()), key=f"{prefix}_mode")
-    mode = modes[mode_label]
+    mode = st.selectbox(
+        f"{prefix}: variable type",
+        list(mode_labels),
+        format_func=mode_labels.__getitem__,
+        key=f"{prefix}_mode",
+    )
     options = fields
 
     if mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
         branch = st.selectbox(
-            f"{prefix}: field",
+            f"{prefix}: {item_name}",
             options,
             index=choose_default(options, preferred),
             key=f"{prefix}_branch",
@@ -146,7 +151,9 @@ def supports_histogram_weights(plot_type: str) -> bool:
     return plot_type in {"1D histogram", "2D histogram"}
 
 
-def histogram_weight_selector(prefix: str, plot_type: str, fields: list[str]) -> str | None:
+def histogram_weight_selector(
+    prefix: str, plot_type: str, fields: list[str], *, item_name: str
+) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
     st.markdown("### Histogram weights")
@@ -154,7 +161,7 @@ def histogram_weight_selector(prefix: str, plot_type: str, fields: list[str]) ->
     if not use_weights:
         return None
     return st.selectbox(
-        "weight field",
+        f"weight {item_name}",
         fields,
         index=choose_default(fields, ["weight", "genWeight", "eventWeight"]),
         key=f"{prefix}_weight_branch",
@@ -162,7 +169,7 @@ def histogram_weight_selector(prefix: str, plot_type: str, fields: list[str]) ->
 
 
 def range_cut_controls(
-    prefix: str, fields: list[str]
+    prefix: str, fields: list[str], *, item_name: str
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts")
     n_cuts = st.number_input(
@@ -177,6 +184,7 @@ def range_cut_controls(
                     f"{prefix}_cut_{i}",
                     fields,
                     ["pt", "eta", "mass"],
+                    item_name=item_name,
                     allow_event_reductions=False,
                 )
             )
