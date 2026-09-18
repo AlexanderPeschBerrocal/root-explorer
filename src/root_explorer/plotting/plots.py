@@ -9,7 +9,8 @@ from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
-from matplotlib.colors import LogNorm
+from matplotlib import colormaps
+from matplotlib.colors import LogNorm, to_hex
 
 from ..analysis.arrays import align_arrays
 
@@ -185,10 +186,16 @@ def build_plotly_3d(
     color_min=None,
     color_max=None,
 ):
+    plotly_colorscale = colorscale
+    if colorscale.lower() == "coolwarm":
+        cmap = colormaps["coolwarm"]
+        plotly_colorscale = [
+            [position, to_hex(cmap(position))] for position in np.linspace(0.0, 1.0, 11)
+        ]
     marker = {
         "size": marker_size,
         "opacity": opacity,
-        "colorscale": colorscale,
+        "colorscale": plotly_colorscale,
         "reversescale": reversescale,
     }
     if color is not None:

@@ -63,10 +63,20 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     plt.close(fig)
 
     interactive = build_plotly_3d(
-        [1], [2], [3], "x", "y", "z", color=[4], color_label="energy", title="event"
+        [1],
+        [2],
+        [3],
+        "x",
+        "y",
+        "z",
+        color=[4],
+        color_label="energy",
+        title="event",
+        colorscale="coolwarm",
     )
     assert interactive.layout.scene.xaxis.title.text == "x"
     assert interactive.data[0].marker.color[0] == 4
+    assert len(interactive.data[0].marker.colorscale) == 11
     html_path = save_plotly_figure(interactive, tmp_path, "event plot")
     assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()

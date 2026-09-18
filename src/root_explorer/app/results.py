@@ -17,10 +17,17 @@ from ..plotting.plots import (
     save_matplotlib_figure,
     save_plotly_figure,
 )
+from .controls import export_controls, selected_static_formats
 
 
 def show_cached_plot_result(
-    result_key: str, outdir: Path, *, save_button_key: str, empty_message: str
+    result_key: str,
+    *,
+    export_prefix: str,
+    save_button_key: str,
+    make_plot_label: str,
+    make_plot_shortcut: str,
+    empty_message: str,
 ) -> None:
     """Display the most recently generated plot and provide a save button.
 
@@ -35,7 +42,8 @@ def show_cached_plot_result(
         return
 
     st.caption(
-        "Showing the most recently generated plot. Click the make-plot button again to update it after changing settings."
+        f"Showing the most recently generated plot. Click the {make_plot_label} button again "
+        f"or press {make_plot_shortcut} to update it after changing settings."
     )
 
     summary = result.get("summary")
@@ -48,13 +56,23 @@ def show_cached_plot_result(
         st.dataframe(preview, width="stretch")
 
     fig = result["figure"]
-    save_name = result["save_name"]
-    download_name = safe_filename(save_name)
+    kind = result["kind"]
 
-    if result["kind"] == "plotly":
+    if kind == "plotly":
         st.plotly_chart(fig, width="stretch")
-        st.markdown("#### Export")
-        st.caption("Save writes to the cluster; Download sends the file to this browser.")
+    elif kind == "matplotlib":
+        st.pyplot(fig)
+    else:
+        st.error(f"Unknown cached plot kind: {kind}")
+        return
+
+    export = export_controls(export_prefix, kind, default_save_name=result["save_name"])
+    outdir = Path(export["save_directory"])
+    save_name = export["save_name"]
+    download_name = safe_filename(save_name)
+    st.caption("Save writes to the cluster; Download sends the file to this browser.")
+
+    if kind == "plotly":
         save_col, download_col = st.columns(2)
         with save_col:
             if st.button(
@@ -72,11 +90,8 @@ def show_cached_plot_result(
                 on_click="ignore",
                 width="stretch",
             )
-    elif result["kind"] == "matplotlib":
-        st.pyplot(fig)
-        st.markdown("#### Export")
-        st.caption("Save writes to the cluster; Download sends the file to this browser.")
-        formats = result.get("save_formats", ["png"])
+    else:
+        formats = selected_static_formats(export)
         code = result.get("code")
         export_columns = st.columns(1 + len(formats) + int(code is not None))
         with export_columns[0]:
@@ -87,9 +102,7 @@ def show_cached_plot_result(
                 if saved_paths:
                     st.success("Saved: " + ", ".join(str(path) for path in saved_paths))
                 else:
-                    st.warning(
-                        "No static export format selected. Select PNG, PDF, or both before making the plot."
-                    )
+                    st.warning("No static export format selected. Select PNG, PDF, or both.")
         image_columns = export_columns[1:]
         if code is not None:
             with export_columns[1]:
@@ -115,8 +128,6 @@ def show_cached_plot_result(
                     on_click="ignore",
                     width="stretch",
                 )
-    else:
-        st.error(f"Unknown cached plot kind: {result['kind']}")
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
