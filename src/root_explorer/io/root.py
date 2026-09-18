@@ -37,6 +37,16 @@ def is_event_container(obj: Any) -> bool:
     )
 
 
+def event_container_kind(obj: Any) -> str:
+    """Return the ROOT storage type for a known event container."""
+
+    if isinstance(obj, uproot.behaviors.RNTuple.RNTuple):
+        return "RNTuple"
+    if isinstance(obj, uproot.behaviors.TTree.TTree):
+        return "TTree"
+    raise TypeError(f"Unsupported event container type: {type(obj).__name__}")
+
+
 def walk_event_containers(root_file: Any) -> list[str]:
     """Return readable TTree and RNTuple paths, including nested folders."""
 

@@ -23,6 +23,7 @@ from ..analysis.arrays import (
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
+from ..plotting.codegen import generate_static_plot_code
 from ..plotting.plots import (
     apply_range_cuts,
     build_plotly_3d,
@@ -139,6 +140,7 @@ def _render_plot_controls(
         axis_prefix("x"),
         context.fields,
         ["x", "pt", "eta"] if event_index is not None else ["pt", "energy", "eta", "x"],
+        item_name=context.data_item_name,
         allow_event_reductions=event_index is None,
     )
     y_spec = z_spec = color_spec = None
@@ -147,6 +149,7 @@ def _render_plot_controls(
             axis_prefix("y"),
             context.fields,
             ["y", "eta", "phi"] if event_index is not None else ["eta", "phi", "y"],
+            item_name=context.data_item_name,
             allow_event_reductions=event_index is None,
         )
     if needs_z_variable(plot_type):
@@ -154,6 +157,7 @@ def _render_plot_controls(
             axis_prefix("z"),
             context.fields,
             ["z", "phi"] if event_index is not None else ["phi", "z"],
+            item_name=context.data_item_name,
             allow_event_reductions=event_index is None,
         )
     color_enabled = False
@@ -170,11 +174,16 @@ def _render_plot_controls(
                 ["energy", "pt", "charge", "pdgId"]
                 if event_index is not None
                 else ["pt", "energy", "mass", "pdgId", "charge"],
+                item_name=context.data_item_name,
                 allow_event_reductions=False,
             )
 
-    weight_branch = histogram_weight_selector(prefix, plot_type, context.fields)
-    cut_specs, cut_bounds = range_cut_controls(prefix, context.fields)
+    weight_branch = histogram_weight_selector(
+        prefix, plot_type, context.fields, item_name=context.data_item_name
+    )
+    cut_specs, cut_bounds = range_cut_controls(
+        prefix, context.fields, item_name=context.data_item_name
+    )
     style = plot_style_controls(
         prefix,
         plot_type,
@@ -392,6 +401,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     return {
         "kind": "matplotlib",
         "figure": figure,
+        "code": generate_static_plot_code(request),
         "summary": summary,
         "preview": preview,
         "save_name": save_name,

@@ -26,14 +26,14 @@ def main() -> None:
 
     invalidate_data_results(context)
     plot_tab, event_tab, field_tab, geometry_tab, help_tab = st.tabs(
-        ["Plotter", "Event viewer", "Fields", "Geometry", "Help"]
+        ["Plotter", "Event viewer", context.data_item_plural.title(), "Geometry", "Help"]
     )
     with field_tab:
         render_field_tab(context)
     with geometry_tab:
         render_geometry_tab(geometry)
     with help_tab:
-        render_help_tab()
+        render_help_tab(context)
     with plot_tab:
         render_plot_tab(context, geometry)
     with event_tab:

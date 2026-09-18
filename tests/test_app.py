@@ -39,11 +39,13 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert [tab.label for tab in at.tabs] == [
         "Plotter",
         "Event viewer",
-        "Fields",
+        "Branches",
         "Geometry",
         "Help",
     ]
     assert len(at.dataframe) >= 2
+    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_branch").label == "x: branch"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
     at.text_input(key="plot_save_name").input("muon_pt").run()
@@ -54,6 +56,13 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
     assert result["save_name"] == "muon_pt"
+    assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
+    code_download = next(
+        button
+        for button in at.get("download_button")
+        if button.key == "plot_save_cached_download_code"
+    )
+    assert code_download.label == "Download plot code"
 
 
 def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
@@ -64,6 +73,8 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
         next(widget for widget in at.selectbox if widget.label == "Event container").value
         == "Events"
     )
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_branch").label == "x: field"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.button(key="plot_make").click().run()
 
@@ -71,6 +82,22 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     result = at.session_state["plot_result"]
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
+
+
+def test_app_updates_data_item_terminology_for_the_selected_container(
+    mixed_event_containers_path,
+) -> None:
+    at = _load_root_file(make_app_test(), mixed_event_containers_path)
+    container = next(widget for widget in at.selectbox if widget.label == "Event container")
+
+    container.select("ntuples/Events").run()
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_branch").label == "x: field"
+
+    container = next(widget for widget in at.selectbox if widget.label == "Event container")
+    container.select("trees/Events").run()
+    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_branch").label == "x: branch"
 
 
 def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:

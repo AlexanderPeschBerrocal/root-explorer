@@ -19,10 +19,21 @@ class DataContext:
     entry_stop: int
     field_info: list[FieldInfo]
     fields: list[str]
+    container_kind: str = "TTree"
 
     @property
     def cache_key(self) -> tuple[str, str, int, int]:
         return (self.root_path, self.event_container_name, self.entry_start, self.entry_stop)
+
+    @property
+    def data_item_name(self) -> str:
+        """Return the user-facing ROOT term for a selected data item."""
+
+        return "field" if self.container_kind == "RNTuple" else "branch"
+
+    @property
+    def data_item_plural(self) -> str:
+        return "fields" if self.data_item_name == "field" else "branches"
 
 
 @dataclass(frozen=True)

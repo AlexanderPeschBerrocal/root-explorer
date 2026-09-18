@@ -27,7 +27,7 @@ def render_event_selection(context: DataContext) -> int:
 
     with st.expander("Rank events", expanded=True):
         metric_branch = st.selectbox(
-            "metric field",
+            f"metric {context.data_item_name}",
             context.fields,
             index=choose_default(context.fields, ["pt", "energy", "mass", "x"]),
             key="metric_branch",

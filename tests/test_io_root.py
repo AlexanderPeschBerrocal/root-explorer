@@ -80,6 +80,22 @@ def test_event_container_metadata_reads_and_helper_choices(
     np.testing.assert_allclose(np.asarray(event_muon_pt), np.asarray(muon_pt[0]))
 
 
+@pytest.mark.parametrize(
+    ("fixture_name", "container_name", "expected_kind"),
+    [
+        ("root_path", "Events", "TTree"),
+        ("rntuple_path", "Events", "RNTuple"),
+    ],
+)
+def test_event_container_kind(
+    request, fixture_name: str, container_name: str, expected_kind: str
+) -> None:
+    path = request.getfixturevalue(fixture_name)
+    root_file = root_io.open_root_file(str(path))
+
+    assert root_io.event_container_kind(root_file[container_name]) == expected_kind
+
+
 def test_rntuple_nested_field_reads_like_its_flat_equivalent(rntuple_path) -> None:
     nested_muon_pt = root_io.read_field(str(rntuple_path), "Events", "Muon.pt", 0, 4)
     flat_muon_pt = root_io.read_field(str(rntuple_path), "Events", "Muon_pt", 0, 4)
