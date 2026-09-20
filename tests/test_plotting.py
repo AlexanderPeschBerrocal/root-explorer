@@ -16,6 +16,7 @@ from root_explorer.plotting.plots import (
     describe_array,
     downsample_arrays,
     matplotlib_figure_bytes,
+    matplotlib_cmap_name,
     parse_optional_float,
     plotly_figure_html,
     render_static_plot,
@@ -81,3 +82,34 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()
     assert safe_filename("../bad name") == ".._bad_name"
+
+
+@pytest.mark.parametrize(
+    ("reverse", "expected_name"),
+    [(False, "Greys"), (True, "Greys_r")],
+)
+def test_greys_colormap_for_static_scatter(reverse: bool, expected_name: str) -> None:
+    assert matplotlib_cmap_name("Greys", reverse) == expected_name
+
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D scatter",
+        np.array([1.0, 2.0]),
+        np.array([3.0, 4.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "colorscale": "Greys",
+            "reverse_colorscale": reverse,
+            "grid": False,
+        },
+        title="Greys scatter",
+        color=np.array([0.0, 1.0]),
+    )
+
+    assert ax.collections[0].cmap.name == expected_name
+    plt.close(fig)

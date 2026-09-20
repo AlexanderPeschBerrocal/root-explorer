@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..models import VariableSpec
+from .plots import matplotlib_cmap_name
 
 if TYPE_CHECKING:
     from ..app.plotting import PlotRequest
@@ -360,9 +361,10 @@ def _plot_lines(
                 f"    axes.scatter(x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r})"
             )
         else:
-            cmap = str(style.get("colorscale", "Viridis")).lower()
-            if style.get("reverse_colorscale", False):
-                cmap += "_r"
+            cmap = matplotlib_cmap_name(
+                str(style.get("colorscale", "Viridis")),
+                bool(style.get("reverse_colorscale", False)),
+            )
             color_min = _optional_float(style.get("color_min_text", ""))
             color_max = _optional_float(style.get("color_max_text", ""))
             lines.extend(

@@ -225,8 +225,21 @@ def build_plotly_3d(
     return fig
 
 
+MATPLOTLIB_CMAP_NAMES = {
+    "viridis": "viridis",
+    "plasma": "plasma",
+    "inferno": "inferno",
+    "magma": "magma",
+    "cividis": "cividis",
+    "greys": "Greys",
+    "coolwarm": "coolwarm",
+}
+
+
 def matplotlib_cmap_name(colorscale: str, reverse: bool = False) -> str:
-    name = colorscale.lower()
+    """Return the case-sensitive Matplotlib name for a UI color scale."""
+
+    name = MATPLOTLIB_CMAP_NAMES.get(colorscale.casefold(), colorscale)
     return f"{name}_r" if reverse else name
 
 

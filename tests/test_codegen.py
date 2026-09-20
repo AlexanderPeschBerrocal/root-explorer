@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -100,3 +101,44 @@ def test_generated_code_rejects_interactive_3d_request() -> None:
         assert "not available" in str(exc)
     else:
         raise AssertionError("Expected 3D code generation to be rejected.")
+
+
+@pytest.mark.parametrize(
+    ("reverse", "expected_name"),
+    [(False, "Greys"), (True, "Greys_r")],
+)
+def test_generated_scatter_code_preserves_greys_case(
+    reverse: bool, expected_name: str
+) -> None:
+    request = PlotRequest(
+        context=DataContext("events.root", "Events", 1, 0, 1, [], []),
+        plot_type="2D scatter",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        y_spec=VariableSpec(mode="branch", branch="y"),
+        z_spec=None,
+        color_spec=VariableSpec(mode="branch", branch="energy"),
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "max_points": 100_000,
+            "colorscale": "Greys",
+            "reverse_colorscale": reverse,
+            "equal_aspect": False,
+            "grid": False,
+        },
+        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+    )
+
+    source = generate_static_plot_code(request)
+
+    compile(source, "greys_scatter.py", "exec")
+    assert f"cmap={expected_name!r}" in source
