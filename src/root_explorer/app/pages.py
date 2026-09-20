@@ -46,7 +46,7 @@ def render_help_tab(context: DataContext) -> None:
 1. Choose a ROOT file, event dataset (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
-4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, and `delta R`.
+4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
 5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one.
 
 **Jagged collections and cuts**

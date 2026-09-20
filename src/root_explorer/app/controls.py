@@ -39,6 +39,7 @@ def variable_selector(
         "sum_ab": "A + B",
         "product": "A * B",
         "delta_phi": "delta phi",
+        "delta_eta": "delta eta",
         "delta_r": "delta R",
     }
     if not allow_event_reductions:
@@ -79,7 +80,7 @@ def variable_selector(
             )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
-    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product", "delta_phi"}:
+    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
         a = st.selectbox(
             f"{display_prefix}: A / x / phi1",
             options,
@@ -114,6 +115,36 @@ def variable_selector(
             key=f"{prefix}_z",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
+
+    if mode == "delta_phi":
+        a = st.selectbox(
+            f"{display_prefix}: phi 1",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi1",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: phi 2",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi2",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b)
+
+    if mode == "delta_eta":
+        a = st.selectbox(
+            f"{display_prefix}: eta 1",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta1",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: eta 2",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta2",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b)
 
     if mode == "delta_r":
         a = st.selectbox(

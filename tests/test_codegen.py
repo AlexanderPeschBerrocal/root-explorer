@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import awkward as ak
 import matplotlib
 import numpy as np
@@ -77,6 +79,19 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
     namespace["main"]()
     assert plt.get_fignums()
     plt.close("all")
+
+    delta_eta_request = replace(
+        request,
+        x_spec=VariableSpec(mode="delta_eta", branch_a="Muon_eta", branch_b="Muon_eta"),
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        labels={**request.labels, "custom_x": "", "custom_y": ""},
+    )
+    delta_eta_source = generate_static_plot_code(delta_eta_request)
+    compile(delta_eta_source, "delta_eta.py", "exec")
+    assert "x = x_a - x_b" in delta_eta_source
+    assert "Δη(Muon_eta,Muon_eta)" in delta_eta_source
 
 
 def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(

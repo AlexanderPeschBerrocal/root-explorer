@@ -300,11 +300,6 @@ def _emit_variable(lines: list[str], target: str, spec: VariableSpec) -> str:
     if spec.mode == "product":
         lines.append(f"    {target} = {target}_a * {target}_b")
         return f"{branches[0]}*{branches[1]}"
-    if spec.mode == "delta_phi":
-        lines.append(
-            f"    {target} = np.arctan2(np.sin({target}_a - {target}_b), np.cos({target}_a - {target}_b))"
-        )
-        return f"Δφ({branches[0]},{branches[1]})"
     if spec.mode == "eta_xyz":
         _require_branch_count(spec, branches, 3)
         lines.extend(
@@ -316,6 +311,14 @@ def _emit_variable(lines: list[str], target: str, spec: VariableSpec) -> str:
             ]
         )
         return f"eta({branches[0]},{branches[1]},{branches[2]})"
+    if spec.mode == "delta_phi":
+        lines.append(
+            f"    {target} = np.arctan2(np.sin({target}_a - {target}_b), np.cos({target}_a - {target}_b))"
+        )
+        return f"Δφ({branches[0]},{branches[1]})"
+    if spec.mode == "delta_eta":
+        lines.append(f"    {target} = {target}_a - {target}_b")
+        return f"Δη({branches[0]},{branches[1]})"
     if spec.mode == "delta_r":
         _require_branch_count(spec, branches, 4)
         lines.append(

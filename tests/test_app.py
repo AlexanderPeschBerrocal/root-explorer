@@ -48,6 +48,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     ]
     assert len(at.dataframe) >= 2
     assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_mode").options[-3:] == ["delta phi", "delta eta", "delta R"]
     assert at.selectbox(key="x_branch").label == "x: branch"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"

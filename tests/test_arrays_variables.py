@@ -128,3 +128,18 @@ def test_derived_ratio_handles_zero_denominators(request, fixture_name: str) -> 
     )
     assert label == "Muon_pt/Muon_pt"
     np.testing.assert_allclose(ratio, np.ones(len(ratio)))
+
+
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_delta_eta_is_signed_difference(request, fixture_name: str) -> None:
+    root_path = request.getfixturevalue(fixture_name)
+    delta_eta, label = evaluate_variable(
+        VariableSpec(mode="delta_eta", branch_a="Muon_eta", branch_b="Muon_eta"),
+        str(root_path),
+        "Events",
+        0,
+        12,
+    )
+
+    assert label == "Δη(Muon_eta,Muon_eta)"
+    np.testing.assert_allclose(delta_eta, np.zeros(len(delta_eta)))
