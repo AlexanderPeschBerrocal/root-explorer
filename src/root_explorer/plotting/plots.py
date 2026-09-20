@@ -263,7 +263,7 @@ def render_static_plot(
         ax.hist(x, bins=style["bins_x"], weights=weights)
         ax.set_xlabel(x_label)
         ax.set_ylabel(
-            y_label or ("entries" if weights is None else f"weighted entries ({weight_branch})")
+            y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
         )
         if style.get("log_y", False):
             ax.set_yscale("log")

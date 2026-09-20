@@ -84,6 +84,26 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     assert safe_filename("../bad name") == ".._bad_name"
 
 
+def test_weighted_histogram_uses_weighted_default_y_label() -> None:
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "1D histogram",
+        np.array([1.0, 2.0]),
+        None,
+        "pt",
+        "",
+        {"bins_x": 10, "log_y": False, "grid": False},
+        title="weighted",
+        weights=np.array([2.0, 3.0]),
+        weight_branch="genWeight",
+    )
+
+    assert ax.get_ylabel() == "sum weights (genWeight)"
+    plt.close(fig)
+
+
 @pytest.mark.parametrize(
     ("reverse", "expected_name"),
     [(False, "Greys"), (True, "Greys_r")],

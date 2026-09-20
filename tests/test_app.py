@@ -70,6 +70,17 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert code_download.label == "Download plot code"
 
 
+def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.checkbox(key="plot_use_weights").check().run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    axes = at.session_state["plot_result"]["figure"].axes[0]
+    assert axes.get_ylabel() == "sum weights (genWeight)"
+
+
 def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     at = _load_root_file(make_app_test(), rntuple_path)
 

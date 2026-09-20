@@ -60,11 +60,22 @@ def generate_static_plot_code(request: PlotRequest) -> str:
             "    def flatten(values):",
             "        return np.asarray(ak.to_numpy(ak.flatten(values, axis=None)), dtype=float)",
             "",
-            "    def align_to_x(values, name):",
+            "    def is_event_level(values):",
+            "        try:",
+            "            ak.num(values, axis=1)",
+            "        except Exception:",
+            "            return True",
+            "        return False",
+            "",
+            "    def align_to_x(values, name, *, per_event):",
+            "        if per_event:",
+            "            if len(values) == len(x_counts):",
+            "                return np.repeat(values, x_counts)",
+            "            if len(values) == 1:",
+            "                return np.repeat(values, len(x))",
+            '            raise ValueError(f"{name} does not provide one value per event.")',
             "        if len(values) == len(x):",
             "            return values",
-            "        if len(values) == len(x_counts):",
-            "            return np.repeat(values, x_counts)",
             '        raise ValueError(f"{name} does not align with x values.")',
             "",
         ]
@@ -84,7 +95,11 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         ]
     )
 
-    y_label = "entries"
+    y_label = (
+        "entries"
+        if request.weight_branch is None
+        else f"sum weights ({request.weight_branch})"
+    )
     if request.y_spec is not None:
         lines.append("")
         y_label = _emit_variable(lines, "y", request.y_spec)
@@ -101,7 +116,11 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         lines.extend(
             [
                 "",
-                f"    weights = align_to_x(flatten(data[{request.weight_branch!r}]), {request.weight_branch!r})",
+                f"    raw_weights = data[{request.weight_branch!r}]",
+                "    weights = align_to_x(",
+                f"        flatten(raw_weights), {request.weight_branch!r},",
+                "        per_event=is_event_level(raw_weights),",
+                "    )",
             ]
         )
     else:
@@ -111,7 +130,10 @@ def generate_static_plot_code(request: PlotRequest) -> str:
     if request.color_spec is not None:
         lines.append("")
         color_label = _emit_variable(lines, "color", request.color_spec)
-        lines.append(f"    color = align_to_x(color, {color_label!r})")
+        lines.append(
+            f"    color = align_to_x(color, {color_label!r}, "
+            f"per_event={_event_level_expression(request.color_spec)})"
+        )
     else:
         lines.append("    color = None")
 
@@ -120,7 +142,10 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         name = f"cut_{index}"
         lines.append("")
         label = _emit_variable(lines, name, spec)
-        lines.append(f"    {name} = align_to_x({name}, {label!r})")
+        lines.append(
+            f"    {name} = align_to_x({name}, {label!r}, "
+            f"per_event={_event_level_expression(spec)})"
+        )
         cut_names.append((name, *bounds))
 
     lines.extend(["", "    mask = np.isfinite(x)"])
@@ -184,6 +209,14 @@ def _reference_branch(spec: VariableSpec) -> str:
     if not branches:
         raise ValueError("The x variable has no input branch.")
     return branches[0]
+
+
+def _event_level_expression(spec: VariableSpec) -> str:
+    """Return generated code that preserves whether values are per-event or per-object."""
+
+    if spec.mode in {"multiplicity", "nth", "sum", "mean", "max", "min"}:
+        return "True"
+    return f"is_event_level(data[{_reference_branch(spec)!r}])"
 
 
 def _emit_variable(lines: list[str], target: str, spec: VariableSpec) -> str:
