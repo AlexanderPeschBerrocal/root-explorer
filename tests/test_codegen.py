@@ -83,7 +83,6 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
     delta_eta_request = replace(
         request,
         x_spec=VariableSpec(mode="delta_eta", branch_a="Muon_eta", branch_b="Muon_eta"),
-        weight_branch=None,
         cut_specs=[],
         cut_bounds=[],
         labels={**request.labels, "custom_x": "", "custom_y": ""},
@@ -174,9 +173,10 @@ def test_generated_code_rejects_interactive_3d_request() -> None:
     ("reverse", "expected_name"),
     [(False, "Greys"), (True, "Greys_r")],
 )
+
 def test_generated_scatter_code_preserves_greys_case(
     reverse: bool, expected_name: str
-) -> None:
+    ) -> None:
     request = PlotRequest(
         context=DataContext("events.root", "Events", 1, 0, 1, [], []),
         plot_type="2D scatter",
