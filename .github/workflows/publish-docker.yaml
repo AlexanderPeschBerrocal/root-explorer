@@ -1,0 +1,113 @@
+# .github/workflows/publish-docker.yaml
+
+name: Publish Docker image
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and package version
+        shell: bash
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[1-9][0-9]{3}\.([1-9]|1[0-2])\.[0-9]+$ ]]; then
+            echo "Invalid release tag: ${GITHUB_REF_NAME}"
+            echo "Expected CalVer tag of the form vYYYY.M.N, for example v2026.9.1"
+            exit 1
+          fi
+
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+
+          PROJECT_VERSION="$(
+            python - <<'PY'
+          import tomllib
+
+          with open("pyproject.toml", "rb") as file:
+              project = tomllib.load(file)
+
+          print(project["project"]["version"])
+          PY
+          )"
+
+          RUNTIME_VERSION="$(
+            PYTHONPATH=src python -c \
+              "import root_explorer; print(root_explorer.__version__)"
+          )"
+
+          echo "Tag version:     ${TAG_VERSION}"
+          echo "Project version: ${PROJECT_VERSION}"
+          echo "Runtime version: ${RUNTIME_VERSION}"
+
+          if [[ "${TAG_VERSION}" != "${PROJECT_VERSION}" ]]; then
+            echo "Tag version does not match pyproject.toml."
+            exit 1
+          fi
+
+          if [[ "${TAG_VERSION}" != "${RUNTIME_VERSION}" ]]; then
+            echo "Tag version does not match root_explorer.__version__."
+            exit 1
+          fi
+
+      - name: Verify release commit is on main
+        shell: bash
+        run: |
+          git fetch origin main:refs/remotes/origin/main --no-tags
+
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release tag ${GITHUB_REF_NAME} does not point to a commit contained in main."
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}
+            type=raw,value=stable
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

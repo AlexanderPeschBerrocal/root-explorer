@@ -15,13 +15,32 @@ The application can also be built and run in Docker. This provides a reproducibl
 runtime environment and does not require installing Python or the root-explorer
 dependencies on the host system.
 
-From the repository root, build the image:
+Released images are published to the GitHub Container Registry (GHCR). To run the
+most recent stable release:
+
+```bash
+docker pull ghcr.io/alexanderpeschberrocal/root-explorer:stable
+docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
+```
+
+For reproducible deployments, use a versioned image tag instead, for example:
+
+```bash
+docker pull ghcr.io/alexanderpeschberrocal/root-explorer:v2026.9.1
+docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:v2026.9.1
+```
+
+The `stable` tag moves to the most recent release, while versioned tags remain
+fixed. Public GHCR images can be pulled without authentication; private packages
+require authenticating Docker to GHCR first.
+
+From the repository root, the image can also be built locally:
 
 ```bash
 docker build -t root-explorer .
 ```
 
-Run the container and publish the Streamlit port:
+Run the locally built container and publish the Streamlit port:
 
 ```bash
 docker run --rm -p 8501:8501 root-explorer
@@ -99,7 +118,7 @@ If the Ruff revision is updated, keep it synchronized with the Ruff version in
 same version. Use `pre-commit autoupdate` only when intentionally updating the
 hook revisions, and review the resulting configuration before committing it.
 
-### Versioning
+### Versioning and releases
 
 This project uses calendar versioning (CalVer) in the form `YYYY.M.N`, where
 `YYYY.M` is the year and month of the release and `N` is the release sequence
@@ -108,17 +127,35 @@ managed with [bump-my-version](https://callowayproject.github.io/bump-my-version
 which updates the package version, creates the release commit, and creates its
 annotated Git tag.
 
-Before creating a release, inspect the configured version and preview the
-change without modifying files:
+Releases must be created from a clean, up-to-date `main` branch. Before creating
+a release, inspect the configured version and preview the change without modifying
+files:
 
 ```bash
+git switch main
+git pull --ff-only
+
 bump-my-version show current_version
 bump-my-version bump patch --dry-run -v
 ```
 
-With a clean working tree, create the release and push the commit and tag:
+Create the release commit and annotated tag, then push both:
 
 ```bash
 bump-my-version bump patch
 git push --follow-tags
 ```
+
+Pushing a `vYYYY.M.N` tag triggers the release workflow. Before publishing, the
+workflow verifies that the tag follows the CalVer convention, that the tag version
+matches both `pyproject.toml` and `root_explorer.__version__`, and that the tagged
+commit is contained in `main`.
+
+A successful release publishes the same container image to GHCR with two tags:
+
+- `vYYYY.M.N`: an immutable version-specific release tag;
+- `stable`: a moving tag pointing to the most recent release.
+
+The workflow then creates the corresponding GitHub Release with automatically
+generated release notes. Python wheel or source-distribution artefacts are not
+published as part of this release process.
