@@ -87,8 +87,7 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
 
     assert not at.exception
     assert (
-        next(widget for widget in at.selectbox if widget.label == "Event dataset").value
-        == "Events"
+        next(widget for widget in at.selectbox if widget.label == "Event dataset").value == "Events"
     )
     assert at.selectbox(key="x_mode").options[0] == "Direct field values"
     assert at.selectbox(key="x_branch").label == "x: field"
@@ -134,8 +133,7 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     assert result["kind"] == "plotly"
     assert result["figure"].data[0].type == "scatter3d"
     assert any(
-        "Make event plot button again or press Shift + P" in caption.value
-        for caption in at.caption
+        "Make event plot button again or press Shift + P" in caption.value for caption in at.caption
     )
 
 

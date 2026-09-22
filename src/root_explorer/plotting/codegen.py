@@ -96,9 +96,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
     )
 
     y_label = (
-        "entries"
-        if request.weight_branch is None
-        else f"sum weights ({request.weight_branch})"
+        "entries" if request.weight_branch is None else f"sum weights ({request.weight_branch})"
     )
     if request.y_spec is not None:
         lines.append("")
@@ -143,8 +141,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         lines.append("")
         label = _emit_variable(lines, name, spec)
         lines.append(
-            f"    {name} = align_to_x({name}, {label!r}, "
-            f"per_event={_event_level_expression(spec)})"
+            f"    {name} = align_to_x({name}, {label!r}, per_event={_event_level_expression(spec)})"
         )
         cut_names.append((name, *bounds))
 

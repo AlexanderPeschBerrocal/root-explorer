@@ -173,10 +173,7 @@ def test_generated_code_rejects_interactive_3d_request() -> None:
     ("reverse", "expected_name"),
     [(False, "Greys"), (True, "Greys_r")],
 )
-
-def test_generated_scatter_code_preserves_greys_case(
-    reverse: bool, expected_name: str
-    ) -> None:
+def test_generated_scatter_code_preserves_greys_case(reverse: bool, expected_name: str) -> None:
     request = PlotRequest(
         context=DataContext("events.root", "Events", 1, 0, 1, [], []),
         plot_type="2D scatter",
