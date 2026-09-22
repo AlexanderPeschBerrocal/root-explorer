@@ -1,4 +1,4 @@
-# .github/workflows/test-docker.yaml
+# .github/workflows/docker.yaml
 
 name: Docker
 
