@@ -9,7 +9,8 @@ from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
-from matplotlib.colors import LogNorm
+from matplotlib import colormaps
+from matplotlib.colors import LogNorm, to_hex
 
 from ..analysis.arrays import align_arrays
 
@@ -185,10 +186,16 @@ def build_plotly_3d(
     color_min=None,
     color_max=None,
 ):
+    plotly_colorscale = colorscale
+    if colorscale.lower() == "coolwarm":
+        cmap = colormaps["coolwarm"]
+        plotly_colorscale = [
+            [position, to_hex(cmap(position))] for position in np.linspace(0.0, 1.0, 11)
+        ]
     marker = {
         "size": marker_size,
         "opacity": opacity,
-        "colorscale": colorscale,
+        "colorscale": plotly_colorscale,
         "reversescale": reversescale,
     }
     if color is not None:
@@ -218,8 +225,21 @@ def build_plotly_3d(
     return fig
 
 
+MATPLOTLIB_CMAP_NAMES = {
+    "viridis": "viridis",
+    "plasma": "plasma",
+    "inferno": "inferno",
+    "magma": "magma",
+    "cividis": "cividis",
+    "greys": "Greys",
+    "coolwarm": "coolwarm",
+}
+
+
 def matplotlib_cmap_name(colorscale: str, reverse: bool = False) -> str:
-    name = colorscale.lower()
+    """Return the case-sensitive Matplotlib name for a UI color scale."""
+
+    name = MATPLOTLIB_CMAP_NAMES.get(colorscale.casefold(), colorscale)
     return f"{name}_r" if reverse else name
 
 
@@ -243,7 +263,7 @@ def render_static_plot(
         ax.hist(x, bins=style["bins_x"], weights=weights)
         ax.set_xlabel(x_label)
         ax.set_ylabel(
-            y_label or ("entries" if weights is None else f"weighted entries ({weight_branch})")
+            y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
         )
         if style.get("log_y", False):
             ax.set_yscale("log")

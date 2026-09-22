@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -35,12 +34,11 @@ from ..plotting.plots import (
 from .controls import (
     PLOT_TYPES,
     histogram_weight_selector,
-    label_export_controls,
+    label_controls,
     needs_y_variable,
     needs_z_variable,
     plot_style_controls,
     range_cut_controls,
-    selected_static_formats,
     supports_point_color,
     variable_selector,
 )
@@ -195,7 +193,7 @@ def _render_plot_controls(
         default_opacity_3d=default_opacity_3d,
         default_equal_aspect=False,
     )
-    labels = label_export_controls(prefix, plot_type, default_save_name=save_name)
+    labels = label_controls(prefix, plot_type)
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",
@@ -218,7 +216,7 @@ def _render_plot_controls(
             geometry=geometry,
             event_index=event_index,
             preview=is_event_plot,
-            save_name=labels["save_name"],
+            save_name=save_name,
         ),
         make_plot,
     )
@@ -240,12 +238,14 @@ def _generate_and_show(
             st.exception(exc)
     show_cached_plot_result(
         result_key,
-        Path(request.labels["save_directory"]),
+        export_prefix="event" if request.event_index is not None else "plot",
         save_button_key=save_button_key,
+        make_plot_label="Make event plot" if request.event_index is not None else "Make plot",
+        make_plot_shortcut="Shift + P" if request.event_index is not None else "P",
         empty_message=(
-            "Choose an event and variables, then click **Make event plot**."
+            "Choose an event and settings, then click Make event plot or press Shift + P."
             if request.event_index is not None
-            else "Configure variables on the left, then click **Make plot**."
+            else "Configure settings on the left, then click Make plot or press P."
         ),
     )
 
@@ -339,9 +339,10 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         summary_rows.append(describe_array(color_label or "color", color))
     summary = pd.DataFrame(summary_rows)
     x_label = request.labels["custom_x"] or axis_labels[0]
-    y_axis_label = request.labels["custom_y"] or (
-        axis_labels[1] if request.y_spec is not None else "entries"
-    )
+    default_y_label = axis_labels[1] if request.y_spec is not None else "entries"
+    if request.y_spec is None and request.weight_branch is not None:
+        default_y_label = f"sum weights ({request.weight_branch})"
+    y_axis_label = request.labels["custom_y"] or default_y_label
     z_axis_label = request.labels["custom_z"] or (
         axis_labels[2] if request.z_spec is not None else ""
     )
@@ -380,7 +381,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "preview": preview,
             "save_name": save_name,
-            "save_button_label": "Save 3D HTML",
+            "save_button_label": "Save HTML",
         }
     figure, axes = plt.subplots(figsize=(request.style["fig_width"], request.style["fig_height"]))
     render_static_plot(
@@ -405,7 +406,6 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "summary": summary,
         "preview": preview,
         "save_name": save_name,
-        "save_formats": selected_static_formats(request.labels),
         "save_button_label": "Save selected formats",
     }
 

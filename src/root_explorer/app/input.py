@@ -63,12 +63,12 @@ def render_data_input() -> DataContext:
         st.error("No TTrees or RNTuples containing event data were found.")
         st.stop()
 
-    event_container_name = st.selectbox("Event container", available_containers, index=0)
+    event_container_name = st.selectbox("Event dataset", available_containers, index=0)
     container_kind = event_container_kind(root_file[event_container_name])
     n_entries = get_entry_count(root_path, event_container_name)
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
-        st.warning("This event container has no entries to inspect.")
+        st.warning("This event dataset has no entries to inspect.")
         st.stop()
 
     st.subheader("Read range")

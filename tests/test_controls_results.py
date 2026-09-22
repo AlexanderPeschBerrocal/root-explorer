@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 
 from root_explorer.app.controls import (
+    COLOR_SCALES,
     needs_y_variable,
     needs_z_variable,
     selected_static_formats,
@@ -24,6 +25,7 @@ class _Upload:
 
 
 def test_control_predicates_and_static_formats() -> None:
+    assert COLOR_SCALES[-2:] == ["Greys", "coolwarm"]
     assert needs_y_variable("2D scatter")
     assert not needs_y_variable("1D histogram")
     assert needs_z_variable("3D scatter interactive")

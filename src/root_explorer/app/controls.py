@@ -20,7 +20,9 @@ def variable_selector(
     *,
     item_name: str,
     allow_event_reductions: bool = True,
+    display_prefix: str | None = None,
 ) -> VariableSpec:
+    display_prefix = display_prefix or prefix
     mode_labels = {
         "branch": f"Direct {item_name} values",
         "multiplicity": "Multiplicity per event",
@@ -37,6 +39,7 @@ def variable_selector(
         "sum_ab": "A + B",
         "product": "A * B",
         "delta_phi": "delta phi",
+        "delta_eta": "delta eta",
         "delta_r": "delta R",
     }
     if not allow_event_reductions:
@@ -51,7 +54,7 @@ def variable_selector(
             mode_labels.pop(mode)
 
     mode = st.selectbox(
-        f"{prefix}: variable type",
+        f"{display_prefix}: variable type",
         list(mode_labels),
         format_func=mode_labels.__getitem__,
         key=f"{prefix}_mode",
@@ -60,7 +63,7 @@ def variable_selector(
 
     if mode in {"branch", "multiplicity", "nth", "sum", "mean", "max", "min"}:
         branch = st.selectbox(
-            f"{prefix}: {item_name}",
+            f"{display_prefix}: {item_name}",
             options,
             index=choose_default(options, preferred),
             key=f"{prefix}_branch",
@@ -68,7 +71,7 @@ def variable_selector(
         index = 0
         if mode == "nth":
             index = st.number_input(
-                f"{prefix}: object index",
+                f"{display_prefix}: object index",
                 min_value=0,
                 max_value=1000,
                 value=0,
@@ -77,51 +80,93 @@ def variable_selector(
             )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
-    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product", "delta_phi"}:
+    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
         a = st.selectbox(
-            f"{prefix}: A / x / phi1",
+            f"{display_prefix}: A / x / phi1",
             options,
             index=choose_default(options, preferred),
             key=f"{prefix}_a",
         )
         b = st.selectbox(
-            f"{prefix}: B / y / phi2", options, index=min(1, len(options) - 1), key=f"{prefix}_b"
+            f"{display_prefix}: B / y / phi2",
+            options,
+            index=min(1, len(options) - 1),
+            key=f"{prefix}_b",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b)
 
     if mode == "eta_xyz":
         a = st.selectbox(
-            f"{prefix}: x", options, index=choose_default(options, ["x", "px"]), key=f"{prefix}_x"
+            f"{display_prefix}: x",
+            options,
+            index=choose_default(options, ["x", "px"]),
+            key=f"{prefix}_x",
         )
         b = st.selectbox(
-            f"{prefix}: y", options, index=choose_default(options, ["y", "py"]), key=f"{prefix}_y"
+            f"{display_prefix}: y",
+            options,
+            index=choose_default(options, ["y", "py"]),
+            key=f"{prefix}_y",
         )
         c = st.selectbox(
-            f"{prefix}: z", options, index=choose_default(options, ["z", "pz"]), key=f"{prefix}_z"
+            f"{display_prefix}: z",
+            options,
+            index=choose_default(options, ["z", "pz"]),
+            key=f"{prefix}_z",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
 
-    if mode == "delta_r":
+    if mode == "delta_phi":
         a = st.selectbox(
-            f"{prefix}: eta 1",
+            f"{display_prefix}: phi 1",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi1",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: phi 2",
+            options,
+            index=choose_default(options, ["phi"]),
+            key=f"{prefix}_phi2",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b)
+
+    if mode == "delta_eta":
+        a = st.selectbox(
+            f"{display_prefix}: eta 1",
             options,
             index=choose_default(options, ["eta"]),
             key=f"{prefix}_eta1",
         )
         b = st.selectbox(
-            f"{prefix}: phi 1",
+            f"{display_prefix}: eta 2",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta2",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b)
+
+    if mode == "delta_r":
+        a = st.selectbox(
+            f"{display_prefix}: eta 1",
+            options,
+            index=choose_default(options, ["eta"]),
+            key=f"{prefix}_eta1",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: phi 1",
             options,
             index=choose_default(options, ["phi"]),
             key=f"{prefix}_phi1",
         )
         c = st.selectbox(
-            f"{prefix}: eta 2",
+            f"{display_prefix}: eta 2",
             options,
             index=choose_default(options, ["eta"]),
             key=f"{prefix}_eta2",
         )
         d = st.selectbox(
-            f"{prefix}: phi 2",
+            f"{display_prefix}: phi 2",
             options,
             index=choose_default(options, ["phi"]),
             key=f"{prefix}_phi2",
@@ -132,7 +177,7 @@ def variable_selector(
 
 
 PLOT_TYPES = ["1D histogram", "2D histogram", "2D scatter", "3D scatter interactive"]
-COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Turbo", "Jet"]
+COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Greys", "coolwarm"]
 
 
 def needs_y_variable(plot_type: str) -> bool:
@@ -173,7 +218,7 @@ def range_cut_controls(
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts")
     n_cuts = st.number_input(
-        "Number of range cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
+        "Number of cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
     )
     cut_specs: list[VariableSpec] = []
     cut_bounds: list[tuple[float | None, float | None]] = []
@@ -186,6 +231,7 @@ def range_cut_controls(
                     ["pt", "eta", "mass"],
                     item_name=item_name,
                     allow_event_reductions=False,
+                    display_prefix=f"cut_{i + 1}",
                 )
             )
             lo = st.text_input(f"cut {i + 1} min", value="", key=f"{prefix}_cut_{i}_min")
@@ -240,7 +286,7 @@ def plot_style_controls(
             "marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d"
         )
         style["opacity_2d"] = st.slider(
-            "opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
+            "marker opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
         )
         style["max_points"] = st.number_input(
             "max scatter points",
@@ -273,7 +319,7 @@ def plot_style_controls(
             "marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d"
         )
         style["opacity_3d"] = st.slider(
-            "opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
+            "marker opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
         )
         style["max_points"] = st.number_input(
             "max scatter points",
@@ -303,10 +349,7 @@ def plot_style_controls(
     return style
 
 
-def label_export_controls(
-    prefix: str, plot_type: str, *, default_title: str = "", default_save_name: str = "plot"
-) -> dict[str, Any]:
-    st.markdown("### Labels")
+def label_controls(prefix: str, plot_type: str, *, default_title: str = "") -> dict[str, Any]:
     controls = {
         "title": st.text_input("title", value=default_title, key=f"{prefix}_title"),
         "custom_x": st.text_input("x label override", value="", key=f"{prefix}_custom_x"),
@@ -315,8 +358,14 @@ def label_export_controls(
     }
     if needs_z_variable(plot_type):
         controls["custom_z"] = st.text_input("z label override", value="", key=f"{prefix}_custom_z")
+    return controls
+
+
+def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> dict[str, Any]:
+    """Render all export settings beneath an already-generated plot."""
 
     st.markdown("### Export")
+    controls: dict[str, Any] = {}
     controls["save_directory"] = st.text_input(
         "save directory",
         value="root_explorer_plots",
@@ -327,7 +376,7 @@ def label_export_controls(
         value=default_save_name,
         key=f"{prefix}_save_name",
     )
-    if plot_type != "3D scatter interactive":
+    if plot_kind == "matplotlib":
         controls["save_png"] = st.checkbox("save PNG", value=True, key=f"{prefix}_save_png")
         controls["save_pdf"] = st.checkbox("save PDF", value=False, key=f"{prefix}_save_pdf")
         if not controls["save_png"] and not controls["save_pdf"]:
@@ -335,10 +384,10 @@ def label_export_controls(
     return controls
 
 
-def selected_static_formats(label_controls: dict[str, Any]) -> list[str]:
+def selected_static_formats(export_settings: dict[str, Any]) -> list[str]:
     formats: list[str] = []
-    if label_controls.get("save_png", True):
+    if export_settings.get("save_png", True):
         formats.append("png")
-    if label_controls.get("save_pdf", False):
+    if export_settings.get("save_pdf", False):
         formats.append("pdf")
     return formats

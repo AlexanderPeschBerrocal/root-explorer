@@ -15,26 +15,24 @@ def render_field_tab(context: DataContext) -> None:
     item_name = context.data_item_name
     item_plural = context.data_item_plural
     st.subheader(f"{item_name.title()} and collection browser")
-    collections, fields = st.columns([0.35, 0.65])
-    with collections:
-        st.markdown("#### Collections")
-        st.dataframe(
-            collection_summary(context.field_info, item_name=item_name), width="stretch", height=540
-        )
-    with fields:
-        st.markdown(f"#### {item_plural.title()}")
-        query = st.text_input(f"Filter {item_plural}", value="", key="field_table_filter")
-        dataframe = pd.DataFrame([field.__dict__ for field in context.field_info]).rename(
-            columns={"name": item_name, "field": f"{item_name} member"}
-        )
-        if query:
-            folded_query = query.casefold()
-            dataframe = dataframe[
-                dataframe.apply(
-                    lambda row: folded_query in " ".join(map(str, row.values)).casefold(), axis=1
-                )
-            ]
-        st.dataframe(dataframe, width="stretch", height=540)
+    st.markdown(f"#### {item_plural.title()}")
+    query = st.text_input(f"Filter {item_plural}", value="", key="field_table_filter")
+    dataframe = pd.DataFrame([field.__dict__ for field in context.field_info]).rename(
+        columns={"name": item_name, "field": f"{item_name} member"}
+    )
+    if query:
+        folded_query = query.casefold()
+        dataframe = dataframe[
+            dataframe.apply(
+                lambda row: folded_query in " ".join(map(str, row.values)).casefold(), axis=1
+            )
+        ]
+    st.dataframe(dataframe, width="stretch", height=540)
+
+    st.markdown("#### Collections")
+    st.dataframe(
+        collection_summary(context.field_info, item_name=item_name), width="stretch", height=540
+    )
 
 
 def render_help_tab(context: DataContext) -> None:
@@ -45,10 +43,10 @@ def render_help_tab(context: DataContext) -> None:
     st.markdown(
         f"""
 **Basic workflow**
-1. Choose a ROOT file, event container (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
+1. Choose a ROOT file, event dataset (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
-3. Use the **Event viewer** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
-4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, and `delta R`.
+3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
+4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
 5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one.
 
 **Jagged collections and cuts**

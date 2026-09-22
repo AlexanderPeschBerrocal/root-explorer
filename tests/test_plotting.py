@@ -15,6 +15,7 @@ from root_explorer.plotting.plots import (
     build_plotly_3d,
     describe_array,
     downsample_arrays,
+    matplotlib_cmap_name,
     matplotlib_figure_bytes,
     parse_optional_float,
     plotly_figure_html,
@@ -63,11 +64,72 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     plt.close(fig)
 
     interactive = build_plotly_3d(
-        [1], [2], [3], "x", "y", "z", color=[4], color_label="energy", title="event"
+        [1],
+        [2],
+        [3],
+        "x",
+        "y",
+        "z",
+        color=[4],
+        color_label="energy",
+        title="event",
+        colorscale="coolwarm",
     )
     assert interactive.layout.scene.xaxis.title.text == "x"
     assert interactive.data[0].marker.color[0] == 4
+    assert len(interactive.data[0].marker.colorscale) == 11
     html_path = save_plotly_figure(interactive, tmp_path, "event plot")
     assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()
     assert safe_filename("../bad name") == ".._bad_name"
+
+
+def test_weighted_histogram_uses_weighted_default_y_label() -> None:
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "1D histogram",
+        np.array([1.0, 2.0]),
+        None,
+        "pt",
+        "",
+        {"bins_x": 10, "log_y": False, "grid": False},
+        title="weighted",
+        weights=np.array([2.0, 3.0]),
+        weight_branch="genWeight",
+    )
+
+    assert ax.get_ylabel() == "sum weights (genWeight)"
+    plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("reverse", "expected_name"),
+    [(False, "Greys"), (True, "Greys_r")],
+)
+def test_greys_colormap_for_static_scatter(reverse: bool, expected_name: str) -> None:
+    assert matplotlib_cmap_name("Greys", reverse) == expected_name
+
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D scatter",
+        np.array([1.0, 2.0]),
+        np.array([3.0, 4.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "colorscale": "Greys",
+            "reverse_colorscale": reverse,
+            "grid": False,
+        },
+        title="Greys scatter",
+        color=np.array([0.0, 1.0]),
+    )
+
+    assert ax.collections[0].cmap.name == expected_name
+    plt.close(fig)

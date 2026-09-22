@@ -84,6 +84,7 @@ def evaluate_variable(
         "sum_ab",
         "product",
         "delta_phi",
+        "delta_eta",
         "delta_r",
     }:
         if not spec.branch_a or not spec.branch_b:
@@ -125,8 +126,6 @@ def evaluate_variable(
             return a + b, f"{spec.branch_a}+{spec.branch_b}"
         if mode == "product":
             return a * b, f"{spec.branch_a}*{spec.branch_b}"
-        if mode == "delta_phi":
-            return delta_phi(a, b), f"Δφ({spec.branch_a},{spec.branch_b})"
         if mode == "eta_xyz":
             c = aligned_values[2]
             r = np.sqrt(a * a + b * b)
@@ -134,6 +133,10 @@ def evaluate_variable(
             mask = np.isfinite(r) & np.isfinite(c) & (r > 0)
             out[mask] = np.arcsinh(c[mask] / r[mask])
             return out, f"eta({spec.branch_a},{spec.branch_b},{spec.branch_c})"
+        if mode == "delta_phi":
+            return delta_phi(a, b), f"Δφ({spec.branch_a},{spec.branch_b})"
+        if mode == "delta_eta":
+            return a - b, f"Δη({spec.branch_a},{spec.branch_b})"
         if mode == "delta_r":
             c, d = aligned_values[2:4]
             return np.sqrt(
