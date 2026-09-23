@@ -71,6 +71,25 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert code_download.label == "Download plot code"
 
 
+def test_new_single_particle_variable_controls_are_available(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    mode = at.selectbox(key="x_mode")
+
+    assert {
+        "Absolute value |A|",
+        "3D magnitude sqrt(A² + B² + C²)",
+        "Energy (massless)",
+        "Energy (with mass)",
+        "Invariant mass (single particle)",
+    }.issubset(mode.options)
+
+    mode.select("Energy (with mass)").run()
+    coordinate = at.selectbox(key="x_longitudinal_kind")
+    assert coordinate.options == ["eta (pseudorapidity)", "y (rapidity)"]
+    coordinate.select("y (rapidity)").run()
+    assert at.selectbox(key="x_longitudinal").label == "x: y"
+
+
 def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="x_branch").select("Muon_pt").run()

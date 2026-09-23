@@ -3,6 +3,7 @@ from __future__ import annotations
 import awkward as ak
 import numpy as np
 import pytest
+import uproot
 
 from root_explorer.analysis.arrays import (
     ArrayShapeMismatchError,
@@ -143,3 +144,152 @@ def test_delta_eta_is_signed_difference(request, fixture_name: str) -> None:
 
     assert label == "Δη(Muon_eta,Muon_eta)"
     np.testing.assert_allclose(delta_eta, np.zeros(len(delta_eta)))
+
+
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_single_particle_derived_quantities(request, fixture_name: str) -> None:
+    root_path = str(request.getfixturevalue(fixture_name))
+
+    def values(branch: str) -> np.ndarray:
+        return evaluate_variable(
+            VariableSpec(mode="branch", branch=branch), root_path, "Events", 0, 12
+        )[0]
+
+    px = values("Muon_px")
+    py = values("Muon_py")
+    pz = values("Muon_pz")
+    pt = values("Muon_pt")
+    eta = values("Muon_eta")
+    mass = values("Muon_mass")
+    energy = values("Muon_energy")
+    met_phi = values("MET_phi")
+
+    cases = [
+        (
+            VariableSpec(mode="absolute", branch_a="Muon_eta"),
+            np.abs(eta),
+            "|Muon_eta|",
+        ),
+        (
+            VariableSpec(mode="absolute", branch_a="MET_phi"),
+            np.abs(met_phi),
+            "|MET_phi|",
+        ),
+        (
+            VariableSpec(
+                mode="magnitude_3d",
+                branch_a="Muon_px",
+                branch_b="Muon_py",
+                branch_c="Muon_pz",
+            ),
+            np.hypot(np.hypot(px, py), pz),
+            "mag(Muon_px,Muon_py,Muon_pz)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massless",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                longitudinal_kind="eta",
+            ),
+            pt * np.cosh(eta),
+            "E_massless(Muon_pt,eta=Muon_eta)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massless",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                longitudinal_kind="y",
+            ),
+            pt * np.cosh(eta),
+            "E_massless(Muon_pt,y=Muon_eta)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massive",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                branch_c="Muon_mass",
+                longitudinal_kind="eta",
+            ),
+            np.sqrt(mass**2 + (pt * np.cosh(eta)) ** 2),
+            "E(Muon_pt,eta=Muon_eta,Muon_mass)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massive",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                branch_c="Muon_mass",
+                longitudinal_kind="y",
+            ),
+            np.hypot(mass, pt) * np.cosh(eta),
+            "E(Muon_pt,y=Muon_eta,Muon_mass)",
+        ),
+        (
+            VariableSpec(
+                mode="invariant_mass",
+                branch_a="Muon_energy",
+                branch_b="Muon_px",
+                branch_c="Muon_py",
+                branch_d="Muon_pz",
+            ),
+            np.sqrt(np.maximum(energy**2 - px**2 - py**2 - pz**2, 0.0)),
+            "m(Muon_energy,Muon_px,Muon_py,Muon_pz)",
+        ),
+    ]
+
+    for spec, expected, expected_label in cases:
+        actual, label = evaluate_variable(spec, root_path, "Events", 0, 12)
+        assert label == expected_label
+        np.testing.assert_allclose(actual, expected)
+
+
+def test_invariant_mass_clamps_tiny_negative_mass_squared(tmp_path) -> None:
+    root_path = tmp_path / "roundoff.root"
+    with uproot.recreate(root_path) as root_file:
+        root_file.mktree(
+            "Events",
+            {
+                "energy": ak.Array([[1.0]]),
+                "px": ak.Array([[np.nextafter(1.0, 2.0)]]),
+                "py": ak.Array([[0.0]]),
+                "pz": ak.Array([[0.0]]),
+            },
+        )
+
+    result, _ = evaluate_variable(
+        VariableSpec(
+            mode="invariant_mass",
+            branch_a="energy",
+            branch_b="px",
+            branch_c="py",
+            branch_d="pz",
+        ),
+        str(root_path),
+        "Events",
+        0,
+        1,
+    )
+
+    np.testing.assert_array_equal(result, [0.0])
+
+
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_new_derived_quantities_reject_mismatched_collections(request, fixture_name: str) -> None:
+    root_path = str(request.getfixturevalue(fixture_name))
+
+    with pytest.raises(ArrayShapeMismatchError, match=r"event|boundaries"):
+        evaluate_variable(
+            VariableSpec(
+                mode="magnitude_3d",
+                branch_a="Muon_px",
+                branch_b="Jet_py",
+                branch_c="Muon_pz",
+            ),
+            root_path,
+            "Events",
+            0,
+            12,
+        )

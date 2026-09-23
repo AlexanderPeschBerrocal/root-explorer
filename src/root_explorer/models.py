@@ -28,3 +28,4 @@ class VariableSpec:
     branch_c: str | None = None
     branch_d: str | None = None
     label: str = ""
+    longitudinal_kind: str = "eta"
