@@ -80,7 +80,7 @@ def variable_selector(
             )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
-    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
+    """if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
         a = st.selectbox(
             f"{display_prefix}: A / x / phi1",
             options,
@@ -89,6 +89,31 @@ def variable_selector(
         )
         b = st.selectbox(
             f"{display_prefix}: B / y / phi2",
+            options,
+            index=min(1, len(options) - 1),
+            key=f"{prefix}_b",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b)"""
+
+    if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
+        field_labels = {
+            "r_xy": ("x", "y"),
+            "phi_xy": ("x", "y"),
+            "ratio": ("A", "B"),
+            "difference": ("A", "B"),
+            "sum_ab": ("A", "B"),
+            "product": ("A", "B"),
+        }
+        label_a, label_b = field_labels[mode]
+
+        a = st.selectbox(
+            f"{display_prefix}: {label_a}",
+            options,
+            index=choose_default(options, preferred),
+            key=f"{prefix}_a",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: {label_b}",
             options,
             index=min(1, len(options) - 1),
             key=f"{prefix}_b",
@@ -372,7 +397,7 @@ def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> d
         key=f"{prefix}_save_directory",
     )
     controls["save_name"] = st.text_input(
-        "save name",
+        "filename",
         value=default_save_name,
         key=f"{prefix}_save_name",
     )
