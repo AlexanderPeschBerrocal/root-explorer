@@ -10,7 +10,7 @@ RUN python -m venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE THIRD_PARTY_NOTICES.md ./
 COPY src ./src
 
 RUN python -m pip install .
