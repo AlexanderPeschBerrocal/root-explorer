@@ -80,21 +80,6 @@ def variable_selector(
             )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
-    """if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
-        a = st.selectbox(
-            f"{display_prefix}: A / x / phi1",
-            options,
-            index=choose_default(options, preferred),
-            key=f"{prefix}_a",
-        )
-        b = st.selectbox(
-            f"{display_prefix}: B / y / phi2",
-            options,
-            index=min(1, len(options) - 1),
-            key=f"{prefix}_b",
-        )
-        return VariableSpec(mode=mode, branch_a=a, branch_b=b)"""
-
     if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
         field_labels = {
             "r_xy": ("x", "y"),

@@ -94,6 +94,7 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
             "min": np.nan,
             "median": np.nan,
             "mean": np.nan,
+            "std": np.nan,
             "max": np.nan,
         }
     values = arr.astype(float, copy=False)
@@ -103,6 +104,7 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
         "min": float(np.nanmin(values)),
         "median": float(np.nanmedian(values)),
         "mean": float(np.nanmean(values)),
+        "std": float(np.nanstd(values)),
         "max": float(np.nanmax(values)),
     }
 
