@@ -222,3 +222,7 @@ __marimo__/
 
 # General agent settings for developers
 AGENTS.md
+
+# Ignoring all root files to avoid committing them accidentally
+# If we ever need to add an example root file to the repo, we can add it to the .gitignore exceptions list.
+*.root
