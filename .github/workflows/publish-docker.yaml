@@ -44,22 +44,11 @@ jobs:
           PY
           )"
 
-          RUNTIME_VERSION="$(
-            PYTHONPATH=src python -c \
-              "import root_explorer; print(root_explorer.__version__)"
-          )"
-
           echo "Tag version:     ${TAG_VERSION}"
           echo "Project version: ${PROJECT_VERSION}"
-          echo "Runtime version: ${RUNTIME_VERSION}"
 
           if [[ "${TAG_VERSION}" != "${PROJECT_VERSION}" ]]; then
             echo "Tag version does not match pyproject.toml."
-            exit 1
-          fi
-
-          if [[ "${TAG_VERSION}" != "${RUNTIME_VERSION}" ]]; then
-            echo "Tag version does not match root_explorer.__version__."
             exit 1
           fi
 

@@ -125,6 +125,6 @@ message = "Release: {new_version}"
 calver_format = "{YYYY}.{MM}"
 
 [[tool.bumpversion.files]]
-filename = "src/root_explorer/__init__.py"
-search = '__version__ = "{current_version}"'
-replace = '__version__ = "{new_version}"'
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

@@ -125,7 +125,9 @@ This project uses calendar versioning (CalVer) in the form `YYYY.M.N`, where
 within that month (for example, `2026.9.0` or `2026.9.1`). Version changes are
 managed with [bump-my-version](https://callowayproject.github.io/bump-my-version/),
 which updates the package version, creates the release commit, and creates its
-annotated Git tag.
+annotated Git tag. The `[project].version` value in `pyproject.toml` is the
+single authoritative version literal; `root_explorer.__version__` is derived
+from the installed distribution metadata.
 
 Releases must be created from a clean, up-to-date `main` branch. Before creating
 a release, inspect the configured version and preview the change without modifying
@@ -148,8 +150,8 @@ git push --follow-tags
 
 Pushing a `vYYYY.M.N` tag triggers the release workflow. Before publishing, the
 workflow verifies that the tag follows the CalVer convention, that the tag version
-matches both `pyproject.toml` and `root_explorer.__version__`, and that the tagged
-commit is contained in `main`.
+matches the authoritative version in `pyproject.toml`, and that the tagged commit
+is contained in `main`.
 
 A successful release publishes the same container image to GHCR with two tags:
 
