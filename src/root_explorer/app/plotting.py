@@ -72,7 +72,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Global plot configuration")
+        st.subheader("Plot configuration")
         request, make_plot = _render_plot_controls(
             context,
             geometry,
@@ -95,7 +95,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Event plot configuration")
+        st.subheader("Plot configuration")
         request, make_plot = _render_plot_controls(
             context,
             geometry,
