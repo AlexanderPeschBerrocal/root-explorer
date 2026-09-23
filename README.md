@@ -159,3 +159,9 @@ A successful release publishes the same container image to GHCR with two tags:
 The workflow then creates the corresponding GitHub Release with automatically
 generated release notes. Python wheel or source-distribution artefacts are not
 published as part of this release process.
+
+## License
+
+ROOT Explorer is licensed under the [BSD 3-Clause License](LICENSE).
+Third-party dependencies retain their own licence terms; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for an overview.
