@@ -35,5 +35,5 @@ jobs:
       - name: Check installed dependencies
         run: python -m pip check
 
-      - name: Check installed package
-        run: python -c "import root_explorer; print(root_explorer.__version__)"
+      - name: Check installed package version
+        run: python -c "from importlib.metadata import version; import root_explorer; assert root_explorer.__version__ == version('root-explorer'); print(root_explorer.__version__)"

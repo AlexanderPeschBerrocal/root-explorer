@@ -11,11 +11,13 @@ authors = [
   { name = "Jan Lukas Späh", email = "janlukas.spaeh@physik.rwth-aachen.de" }
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+license = "BSD-3-Clause"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.12,<3.13"
 keywords = ["ROOT", "HEP", "TTrees", "RNTuples", "Streamlit"]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.12<3.13",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "awkward",
@@ -124,6 +126,6 @@ message = "Release: {new_version}"
 calver_format = "{YYYY}.{MM}"
 
 [[tool.bumpversion.files]]
-filename = "src/root_explorer/__init__.py"
-search = '__version__ = "{current_version}"'
-replace = '__version__ = "{new_version}"'
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
