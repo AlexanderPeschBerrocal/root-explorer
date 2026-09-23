@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
 
     strategy:
@@ -24,15 +24,14 @@ jobs:
         include:
           - platform: linux/amd64
             suffix: amd64
+            runner: ubuntu-24.04
           - platform: linux/arm64
             suffix: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -44,8 +43,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: root-explorer:ci-${{ matrix.suffix }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=docker-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.suffix }}
 
       - name: Start container
         run: |
