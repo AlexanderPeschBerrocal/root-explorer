@@ -219,3 +219,6 @@ __marimo__/
 
 # Streamlit agent skills (environment-specific symlinks)
 .agents/skills/developing-with-streamlit
+
+# General agent settings for developers
+AGENTS.md
