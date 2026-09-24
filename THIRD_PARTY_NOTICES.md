@@ -12,6 +12,7 @@ The direct runtime dependencies declared in `pyproject.toml` currently include:
 | NumPy | BSD-3-Clause and additional permissive licences for bundled components |
 | pandas | BSD-3-Clause |
 | Plotly | MIT |
+| SciPy | BSD-3-Clause |
 | Streamlit | Apache-2.0 |
 | uproot | BSD-3-Clause |
 

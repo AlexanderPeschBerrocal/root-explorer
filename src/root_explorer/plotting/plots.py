@@ -13,6 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import colormaps
 from matplotlib.colors import LogNorm, to_hex
+from scipy.stats import gaussian_kde
 
 from ..analysis.arrays import align_arrays
 
@@ -23,6 +24,15 @@ class InvalidAxisScaleError(ValueError):
 
 class ContourConfigurationError(ValueError):
     """Raised when highest-density contours cannot be configured for a histogram."""
+
+
+class KDEError(ValueError):
+    """Raised when a KDE overlay cannot be constructed without misleading output."""
+
+
+KDE_MAX_POINTS = 5_000
+KDE_1D_GRID_SIZE = 512
+KDE_2D_MAX_GRID_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,142 @@ def downsample_arrays(
     rng = np.random.default_rng(seed)
     idx = rng.choice(n, size=int(max_points), replace=False)
     return [a[idx] for a in arrays]
+
+
+def resolve_kde_bandwidth(method: str, custom_factor: object = 1.0) -> str | float:
+    """Return a SciPy KDE bandwidth method after validating UI configuration."""
+
+    normalized = str(method).casefold()
+    if normalized in {"scott", "silverman"}:
+        return normalized
+    if normalized != "custom":
+        raise KDEError(f"Unknown KDE bandwidth method: {method!r}.")
+    try:
+        factor = float(custom_factor)
+    except (TypeError, ValueError) as exc:
+        raise KDEError(
+            "The custom KDE bandwidth factor must be finite and greater than zero."
+        ) from exc
+    if not np.isfinite(factor) or factor <= 0:
+        raise KDEError("The custom KDE bandwidth factor must be finite and greater than zero.")
+    return factor
+
+
+def _prepare_kde_sample(
+    coordinates: Sequence[np.ndarray],
+    weights: np.ndarray | None,
+    *,
+    max_points: int = KDE_MAX_POINTS,
+) -> tuple[list[np.ndarray], np.ndarray | None, float]:
+    """Validate KDE inputs and deterministically cap construction cost."""
+
+    names = [f"coordinate {index + 1}" for index in range(len(coordinates))]
+    arrays = align_arrays(
+        [*coordinates, *([weights] if weights is not None else [])],
+        names=[*names, *(["weights"] if weights is not None else [])],
+        context="KDE values",
+    )
+    coordinate_values = [values.astype(float, copy=False) for values in arrays[: len(coordinates)]]
+    weight_values = arrays[-1].astype(float, copy=False) if weights is not None else None
+    finite = np.ones(len(coordinate_values[0]), dtype=bool)
+    for values in coordinate_values:
+        finite &= np.isfinite(values)
+    if weight_values is not None:
+        finite &= np.isfinite(weight_values)
+    coordinate_values = [values[finite] for values in coordinate_values]
+    if weight_values is not None:
+        weight_values = weight_values[finite]
+        if np.any(weight_values < 0):
+            raise KDEError(
+                "KDE is unavailable because the selected weights contain negative values."
+            )
+        total_weight = float(np.sum(weight_values))
+        if total_weight <= 0:
+            raise KDEError("KDE is unavailable because the total non-negative weight is zero.")
+        positive_weight = weight_values > 0
+        coordinate_values = [values[positive_weight] for values in coordinate_values]
+        weight_values = weight_values[positive_weight]
+    else:
+        total_weight = float(len(coordinate_values[0]))
+
+    minimum_points = len(coordinate_values) + 1
+    if len(coordinate_values[0]) < minimum_points:
+        raise KDEError(f"KDE requires at least {minimum_points} valid points for this plot.")
+    if any(np.ptp(values) == 0 for values in coordinate_values):
+        raise KDEError("KDE is unavailable for a constant variable.")
+
+    sample_arrays = [*coordinate_values, *([weight_values] if weight_values is not None else [])]
+    sample_arrays = downsample_arrays(sample_arrays, max_points)
+    sampled_coordinates = sample_arrays[: len(coordinate_values)]
+    sampled_weights = sample_arrays[-1] if weight_values is not None else None
+    return sampled_coordinates, sampled_weights, total_weight
+
+
+def _build_kde(
+    coordinates: Sequence[np.ndarray],
+    weights: np.ndarray | None,
+    bandwidth: str | float,
+):
+    try:
+        dataset = coordinates[0] if len(coordinates) == 1 else np.vstack(coordinates)
+        return gaussian_kde(dataset, bw_method=bandwidth, weights=weights)
+    except Exception as exc:
+        raise KDEError(f"KDE could not be calculated: {exc}") from exc
+
+
+def draw_kde_1d(
+    ax,
+    x: np.ndarray,
+    histogram_edges: np.ndarray,
+    *,
+    weights: np.ndarray | None = None,
+    bandwidth: str | float = "scott",
+):
+    """Overlay a KDE scaled to the histogram's count or summed-weight units."""
+
+    coordinates, sampled_weights, total_weight = _prepare_kde_sample([x], weights)
+    kde = _build_kde(coordinates, sampled_weights, bandwidth)
+    grid = np.linspace(float(histogram_edges[0]), float(histogram_edges[-1]), KDE_1D_GRID_SIZE)
+    bin_widths = np.diff(histogram_edges)
+    if not np.allclose(bin_widths, bin_widths[0]):
+        raise KDEError("KDE scaling requires equal-width histogram bins.")
+    curve = kde(grid) * total_weight * float(bin_widths[0])
+    return ax.plot(grid, curve, color="tab:orange", linewidth=2.0, label="KDE")[0]
+
+
+def draw_kde_2d(
+    ax,
+    x: np.ndarray,
+    y: np.ndarray,
+    xedges: np.ndarray,
+    yedges: np.ndarray,
+    *,
+    weights: np.ndarray | None = None,
+    bandwidth: str | float = "scott",
+):
+    """Overlay KDE contour lines on the visible 2D histogram range."""
+
+    coordinates, sampled_weights, _ = _prepare_kde_sample([x, y], weights)
+    kde = _build_kde(coordinates, sampled_weights, bandwidth)
+    x_grid = np.linspace(
+        float(xedges[0]), float(xedges[-1]), min(len(xedges) - 1, KDE_2D_MAX_GRID_SIZE)
+    )
+    y_grid = np.linspace(
+        float(yedges[0]), float(yedges[-1]), min(len(yedges) - 1, KDE_2D_MAX_GRID_SIZE)
+    )
+    grid_x, grid_y = np.meshgrid(x_grid, y_grid)
+    density = kde(np.vstack([grid_x.ravel(), grid_y.ravel()])).reshape(grid_x.shape)
+    if not np.any(np.isfinite(density) & (density > 0)):
+        raise KDEError("KDE produced no positive finite density values.")
+    return ax.contour(
+        grid_x,
+        grid_y,
+        density,
+        levels=6,
+        colors="tab:orange",
+        linestyles="dashed",
+        linewidths=1.2,
+    )
 
 
 def calculate_correlations(x: np.ndarray, y: np.ndarray) -> CorrelationResult:
@@ -469,7 +615,18 @@ def render_static_plot(
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
-        histogram_counts, _, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
+        histogram_counts, histogram_edges, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
+        if style.get("show_kde", False):
+            try:
+                bandwidth = resolve_kde_bandwidth(
+                    style.get("kde_bandwidth", "scott"),
+                    style.get("kde_custom_factor", 1.0),
+                )
+                draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth)
+            except Exception as exc:
+                warnings.append(
+                    str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
+                )
         ax.set_xlabel(x_label)
         ax.set_ylabel(
             y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
@@ -490,6 +647,25 @@ def render_static_plot(
                 )
             except ContourConfigurationError as exc:
                 warnings.append(str(exc))
+        if style.get("show_kde", False):
+            try:
+                bandwidth = resolve_kde_bandwidth(
+                    style.get("kde_bandwidth", "scott"),
+                    style.get("kde_custom_factor", 1.0),
+                )
+                draw_kde_2d(
+                    ax,
+                    x,
+                    y,
+                    xedges,
+                    yedges,
+                    weights=weights,
+                    bandwidth=bandwidth,
+                )
+            except Exception as exc:
+                warnings.append(
+                    str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
+                )
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         fig.colorbar(

@@ -11,14 +11,18 @@ import matplotlib.pyplot as plt
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
+    KDE_MAX_POINTS,
     ContourConfigurationError,
     InvalidAxisScaleError,
+    KDEError,
     apply_range_cuts,
     build_plotly_3d,
     calculate_correlations,
     describe_array,
     downsample_arrays,
     draw_highest_density_contours,
+    draw_kde_1d,
+    draw_kde_2d,
     highest_density_contour_thresholds,
     matplotlib_cmap_name,
     matplotlib_figure_bytes,
@@ -26,10 +30,166 @@ from root_explorer.plotting.plots import (
     parse_optional_float,
     plotly_figure_html,
     render_static_plot,
+    resolve_kde_bandwidth,
     safe_filename,
     save_matplotlib_figure,
     save_plotly_figure,
 )
+
+
+def test_kde_bandwidth_options_and_validation() -> None:
+    assert resolve_kde_bandwidth("Scott") == "scott"
+    assert resolve_kde_bandwidth("SILVERMAN") == "silverman"
+    assert resolve_kde_bandwidth("custom", 0.4) == 0.4
+
+    for method, factor in [
+        ("unknown", 1.0),
+        ("custom", 0.0),
+        ("custom", np.nan),
+        ("custom", "invalid"),
+    ]:
+        with pytest.raises(KDEError):
+            resolve_kde_bandwidth(method, factor)
+
+
+@pytest.mark.parametrize("bandwidth", ["scott", "silverman", 0.5])
+def test_1d_kde_is_scaled_to_histogram_units(bandwidth: str | float) -> None:
+    rng = np.random.default_rng(17)
+    finite_values = rng.normal(size=1_000)
+    finite_weights = rng.uniform(0.5, 2.0, size=len(finite_values))
+    values = np.append(finite_values, np.nan)
+    weights = np.append(finite_weights, 1_000.0)
+    edges = np.linspace(-5.0, 5.0, 41)
+    figure, axes = plt.subplots()
+
+    line = draw_kde_1d(axes, values, edges, weights=weights, bandwidth=bandwidth)
+
+    represented_weight = np.trapezoid(line.get_ydata(), line.get_xdata()) / np.diff(edges)[0]
+    assert represented_weight == pytest.approx(finite_weights.sum(), rel=0.01)
+    assert line.get_label() == "KDE"
+    plt.close(figure)
+
+
+def test_unweighted_1d_kde_is_scaled_to_entry_counts() -> None:
+    rng = np.random.default_rng(23)
+    values = rng.normal(size=500)
+    edges = np.linspace(-5.0, 5.0, 26)
+    figure, axes = plt.subplots()
+
+    line = draw_kde_1d(axes, values, edges)
+
+    represented_entries = np.trapezoid(line.get_ydata(), line.get_xdata()) / np.diff(edges)[0]
+    assert represented_entries == pytest.approx(len(values), rel=0.01)
+    plt.close(figure)
+
+
+def test_2d_weighted_kde_creates_contour_lines() -> None:
+    rng = np.random.default_rng(29)
+    x = rng.normal(size=500)
+    y = 0.4 * x + rng.normal(size=500)
+    weights = rng.uniform(0.1, 2.0, size=len(x))
+    edges = np.linspace(-5.0, 5.0, 31)
+    figure, axes = plt.subplots()
+
+    contours = draw_kde_2d(axes, x, y, edges, edges, weights=weights, bandwidth="silverman")
+
+    assert any(segment.size for segments in contours.allsegs for segment in segments)
+    plt.close(figure)
+
+
+def test_kde_sampling_is_deterministic_and_bounded(monkeypatch) -> None:
+    captured: list[np.ndarray] = []
+
+    class FakeKDE:
+        def __init__(self, dataset, **_kwargs):
+            captured.append(np.asarray(dataset).copy())
+
+        def __call__(self, grid):
+            return np.ones(np.asarray(grid).shape[-1])
+
+    monkeypatch.setattr("root_explorer.plotting.plots.gaussian_kde", FakeKDE)
+    values = np.linspace(-2.0, 2.0, KDE_MAX_POINTS + 100)
+    edges = np.linspace(-3.0, 3.0, 20)
+
+    for _ in range(2):
+        figure, axes = plt.subplots()
+        draw_kde_1d(axes, values, edges)
+        plt.close(figure)
+
+    assert captured[0].shape == (KDE_MAX_POINTS,)
+    assert np.array_equal(captured[0], captured[1])
+
+
+@pytest.mark.parametrize(
+    ("values", "weights", "message"),
+    [
+        (np.array([1.0]), None, "at least 2"),
+        (np.ones(3), None, "constant variable"),
+        (np.array([1.0, 2.0, 3.0]), np.array([1.0, -1.0, 1.0]), "negative values"),
+        (np.array([1.0, 2.0, 3.0]), np.zeros(3), "weight is zero"),
+    ],
+)
+def test_pathological_1d_kde_samples_fail_clearly(values, weights, message) -> None:
+    figure, axes = plt.subplots()
+    with pytest.raises(KDEError, match=message):
+        draw_kde_1d(axes, values, np.linspace(0.0, 4.0, 5), weights=weights)
+    plt.close(figure)
+
+
+def test_kde_failure_warns_without_hiding_histogram() -> None:
+    figure, axes = plt.subplots()
+
+    warnings = render_static_plot(
+        figure,
+        axes,
+        "1D histogram",
+        np.array([1.0, 2.0, 3.0]),
+        None,
+        "x",
+        "entries",
+        {
+            "bins_x": 3,
+            "show_kde": True,
+            "kde_bandwidth": "scott",
+            "log_y": False,
+            "grid": False,
+        },
+        title="signed weights",
+        weights=np.array([1.0, -1.0, 2.0]),
+    )
+
+    assert warnings == ["KDE is unavailable because the selected weights contain negative values."]
+    assert axes.patches
+    plt.close(figure)
+
+
+def test_singular_2d_kde_warns_without_hiding_histogram() -> None:
+    figure, axes = plt.subplots()
+    x = np.arange(5, dtype=float)
+
+    warnings = render_static_plot(
+        figure,
+        axes,
+        "2D histogram",
+        x,
+        2.0 * x,
+        "x",
+        "y",
+        {
+            "bins_x": 5,
+            "bins_y": 5,
+            "log_z": False,
+            "show_kde": True,
+            "kde_bandwidth": "scott",
+            "grid": False,
+        },
+        title="singular KDE",
+    )
+
+    assert len(warnings) == 1
+    assert "KDE could not be calculated" in warnings[0]
+    assert axes.collections
+    plt.close(figure)
 
 
 def test_correlations_cover_linear_rank_and_non_finite_behaviour() -> None:

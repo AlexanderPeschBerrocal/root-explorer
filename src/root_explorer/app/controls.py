@@ -398,6 +398,31 @@ def plot_style_controls(
         style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
 
+    if plot_type in {"1D histogram", "2D histogram"}:
+        style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
+        style["kde_bandwidth"] = "scott"
+        style["kde_custom_factor"] = 1.0
+        if style["show_kde"]:
+            bandwidth_label = st.selectbox(
+                "KDE bandwidth",
+                ["Scott", "Silverman", "Custom factor"],
+                key=f"{prefix}_kde_bandwidth",
+                help=(
+                    "KDE construction uses at most 5,000 deterministically selected points "
+                    "to keep large plots responsive."
+                ),
+            )
+            style["kde_bandwidth"] = bandwidth_label.casefold().split()[0]
+            if style["kde_bandwidth"] == "custom":
+                style["kde_custom_factor"] = st.number_input(
+                    "KDE bandwidth factor",
+                    min_value=0.001,
+                    value=1.0,
+                    step=0.1,
+                    format="%.3f",
+                    key=f"{prefix}_kde_custom_factor",
+                )
+
     if plot_type == "1D histogram":
         style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")

@@ -114,6 +114,19 @@ def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
     assert axes.get_ylabel() == "sum weights (genWeight)"
 
 
+def test_histogram_kde_controls_offer_all_bandwidth_modes(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+
+    at.checkbox(key="plot_show_kde").check().run()
+    bandwidth = at.selectbox(key="plot_kde_bandwidth")
+    assert bandwidth.options == ["Scott", "Silverman", "Custom factor"]
+    bandwidth.select("Custom factor").run()
+    assert at.number_input(key="plot_kde_custom_factor").value == 1.0
+
+    at.selectbox(key="plot_type").select("2D histogram").run()
+    assert at.checkbox(key="plot_show_kde").label == "Show KDE"
+
+
 def test_scatter_correlations_use_full_filtered_sample_before_downsampling(tmp_path) -> None:
     root_path = tmp_path / "correlations.root"
     x = np.linspace(-5.0, 5.0, 3_000)
