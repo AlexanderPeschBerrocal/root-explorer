@@ -19,7 +19,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
-from ..analysis.statistics import calculate_threshold_result
+from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
@@ -43,7 +43,7 @@ from .controls import (
     plot_style_controls,
     range_cut_controls,
     supports_point_color,
-    threshold_calculator_controls,
+    distribution_calculator_controls,
     variable_selector,
 )
 from .results import show_cached_plot_result
@@ -70,6 +70,7 @@ class PlotRequest:
     preview: bool
     save_name: str
     threshold: float | None = None
+    quantile_percentile: float | None = None
 
 
 def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
@@ -184,7 +185,7 @@ def _render_plot_controls(
     weight_branch = histogram_weight_selector(
         prefix, plot_type, context.fields, item_name=context.data_item_name
     )
-    threshold = threshold_calculator_controls(prefix, plot_type)
+    threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
     cut_specs, cut_bounds = range_cut_controls(
         prefix, context.fields, item_name=context.data_item_name
     )
@@ -224,6 +225,7 @@ def _render_plot_controls(
             preview=is_event_plot,
             save_name=save_name,
             threshold=threshold,
+            quantile_percentile=quantile_percentile,
         ),
         make_plot,
     )
@@ -339,8 +341,20 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_color=request.color_spec is not None,
     )
     threshold_result = None
+    quantile_result = None
+    reference_x = None
+    reference_label = None
     if request.plot_type == "1D histogram" and request.threshold is not None:
         threshold_result = calculate_threshold_result(x, request.threshold, weights)
+        reference_x = request.threshold
+        reference_label = f"threshold = {request.threshold:g}"
+    elif request.plot_type == "1D histogram" and request.quantile_percentile is not None:
+        quantile_result = calculate_quantile_result(x, request.quantile_percentile, weights)
+        if quantile_result.value is not None:
+            reference_x = quantile_result.value
+            reference_label = (
+                f"{request.quantile_percentile:g}% quantile = {quantile_result.value:g}"
+            )
 
     summary_rows = [describe_array(axis_labels[0], x)]
     if request.y_spec is not None:
@@ -400,6 +414,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "preview": preview,
             "threshold_result": threshold_result,
+            "quantile_result": quantile_result,
             "correlation_result": correlation_result,
             "save_name": save_name,
             "save_button_label": "Save HTML",
@@ -419,6 +434,8 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         weight_branch=request.weight_branch,
         color=color,
         color_label=color_label,
+        reference_x=reference_x,
+        reference_label=reference_label,
     )
     return {
         "kind": "matplotlib",

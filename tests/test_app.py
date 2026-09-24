@@ -187,7 +187,8 @@ def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
 def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="x_branch").select("Muon_pt").run()
-    at.checkbox(key="plot_threshold_enabled").check().run()
+    at.checkbox(key="plot_distribution_enabled").check().run()
+    at.selectbox(key="plot_distribution_mode").select("Threshold fractions").run()
     at.number_input(key="plot_threshold").set_value(50.0).run()
     at.button(key="plot_make").click().run()
 
@@ -290,3 +291,19 @@ def test_app_loads_geometry_path(tiny_gdml_path, root_path) -> None:
 
     assert not at.exception
     assert any("Loaded geometry" in success.value for success in at.success)
+
+
+def test_app_calculates_quantile_and_marks_histogram(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.checkbox(key="plot_distribution_enabled").check().run()
+    at.selectbox(key="plot_distribution_mode").select("Quantile").run()
+    at.number_input(key="plot_quantile_percentile").set_value(50.0).run()
+    at.button(key="plot_make").click().run()
+
+    result = at.session_state["plot_result"]
+    quantile = result["quantile_result"]
+    assert quantile is not None
+    assert quantile.value is not None
+    axes = result["figure"].axes[0]
+    assert axes.lines[-1].get_xdata()[0] == pytest.approx(quantile.value)

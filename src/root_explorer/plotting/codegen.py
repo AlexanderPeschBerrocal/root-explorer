@@ -455,6 +455,34 @@ def _plot_lines(
         )
         if style.get("show_kde", False):
             lines.extend(_kde_1d_lines(style))
+        if request.threshold is not None:
+            lines.extend(
+                [
+                    f"    reference_x = {request.threshold!r}",
+                    f"    axes.axvline(reference_x, color='tab:red', linestyle='--', linewidth=1.5, label='threshold = {request.threshold:g}')",
+                    "    axes.legend()",
+                ]
+            )
+        elif request.quantile_percentile is not None:
+            percentile = request.quantile_percentile
+            lines.extend(
+                [
+                    "    reference_x = None",
+                    "    if weights is None:",
+                    f"        reference_x = float(np.quantile(x, {percentile / 100.0!r})) if len(x) else None",
+                    "    elif len(x) and not np.any(weights < 0) and np.sum(weights) > 0:",
+                    "        order = np.argsort(x)",
+                    "        sorted_x = x[order]",
+                    "        sorted_weights = weights[order]",
+                    "        cumulative = np.cumsum(sorted_weights)",
+                    f"        target = {percentile / 100.0!r} * cumulative[-1]",
+                    '        index = int(np.searchsorted(cumulative, target, side="left"))',
+                    "        reference_x = float(sorted_x[min(index, len(sorted_x) - 1)])",
+                    "    if reference_x is not None:",
+                    f"        axes.axvline(reference_x, color='tab:red', linestyle='--', linewidth=1.5, label=f'{percentile:g}% quantile = {{reference_x:g}}')",
+                    "        axes.legend()",
+                ]
+            )
     elif request.plot_type == "2D histogram":
         lines.extend(
             [

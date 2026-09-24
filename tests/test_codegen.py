@@ -352,3 +352,33 @@ def test_generated_scatter_code_preserves_greys_case(reverse: bool, expected_nam
 
     compile(source, "greys_scatter.py", "exec")
     assert f"cmap={expected_name!r}" in source
+
+
+def test_generated_histogram_code_marks_quantile(root_path) -> None:
+    request = PlotRequest(
+        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None,
+        z_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_y": False,
+            "grid": False,
+        },
+        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+        quantile_percentile=50.0,
+    )
+    source = generate_static_plot_code(request)
+    assert "np.quantile(x, 0.5)" in source
+    assert "50% quantile" in source

@@ -538,3 +538,23 @@ def test_greys_colormap_for_static_scatter(reverse: bool, expected_name: str) ->
 
     assert ax.collections[0].cmap.name == expected_name
     plt.close(fig)
+
+
+def test_1d_reference_line_is_drawn_at_requested_value() -> None:
+    figure, axes = plt.subplots()
+    render_static_plot(
+        figure,
+        axes,
+        "1D histogram",
+        np.array([1.0, 2.0, 3.0]),
+        None,
+        "x",
+        "entries",
+        {"bins_x": 3, "log_y": False, "grid": False},
+        title="reference",
+        reference_x=2.0,
+        reference_label="threshold = 2",
+    )
+    assert axes.lines[-1].get_xdata()[0] == pytest.approx(2.0)
+    assert axes.lines[-1].get_label() == "threshold = 2"
+    plt.close(figure)

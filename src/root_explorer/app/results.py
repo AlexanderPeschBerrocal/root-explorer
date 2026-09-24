@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from ..analysis.statistics import ThresholdResult
+from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
     CorrelationResult,
@@ -63,6 +63,10 @@ def show_cached_plot_result(
     threshold_result = result.get("threshold_result")
     if isinstance(threshold_result, ThresholdResult):
         _show_threshold_result(threshold_result)
+
+    quantile_result = result.get("quantile_result")
+    if isinstance(quantile_result, QuantileResult):
+        _show_quantile_result(quantile_result)
 
     for warning in result.get("warnings", []):
         st.warning(warning)
@@ -190,6 +194,31 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         )
     elif result.weighted and result.has_negative_weights:
         st.caption("Weighted fractions use signed sums of weights and may lie outside 0 to 1.")
+
+
+def _show_quantile_result(result: QuantileResult) -> None:
+    """Display one cached quantile calculation."""
+
+    st.markdown("#### Quantile calculator")
+    value_text = "unavailable" if result.value is None else f"{result.value:g}"
+    dataframe = pd.DataFrame(
+        [{"percentile (%)": result.percentile, "quantile": value_text}]
+    )
+    st.dataframe(
+        dataframe,
+        width="stretch",
+        hide_index=True,
+        column_config=_centered_column_config(dataframe),
+    )
+    if result.total_count == 0:
+        st.warning("The selected sample is empty; the quantile is unavailable.")
+    elif result.weighted and result.has_negative_weights:
+        st.warning(
+            "Weighted quantiles are unavailable for signed weights because the signed "
+            "cumulative weight is not a monotonic empirical distribution."
+        )
+    elif result.weighted and result.value is None:
+        st.warning("The total non-negative weight is zero; the weighted quantile is unavailable.")
 
 
 def _show_correlation_result(result: CorrelationResult) -> None:

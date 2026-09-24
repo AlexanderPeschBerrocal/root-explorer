@@ -612,6 +612,8 @@ def render_static_plot(
     weight_branch: str | None = None,
     color: np.ndarray | None = None,
     color_label: str | None = None,
+    reference_x: float | None = None,
+    reference_label: str | None = None,
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
@@ -632,6 +634,15 @@ def render_static_plot(
             y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
         )
         apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
+        if reference_x is not None:
+            ax.axvline(
+                reference_x,
+                color="tab:red",
+                linestyle="--",
+                linewidth=1.5,
+                label=reference_label or f"x = {reference_x:g}",
+            )
+            ax.legend()
 
     elif plot_type == "2D histogram":
         if y is None:

@@ -321,25 +321,39 @@ def histogram_weight_selector(
     )
 
 
-def threshold_calculator_controls(prefix: str, plot_type: str) -> float | None:
-    """Return a threshold when the optional 1D calculator is enabled."""
+def distribution_calculator_controls(
+    prefix: str, plot_type: str
+) -> tuple[float | None, float | None]:
+    """Return an optional threshold or quantile percentile for a 1D histogram."""
 
     if plot_type != "1D histogram":
-        return None
-    st.markdown("### Threshold calculator")
+        return None, None
+    st.markdown("### Distribution calculator")
     enabled = st.checkbox(
-        "Calculate threshold fractions", value=False, key=f"{prefix}_threshold_enabled"
+        "Calculate threshold / quantile", value=False, key=f"{prefix}_distribution_enabled"
     )
     if not enabled:
-        return None
-    return float(
-        st.number_input(
-            "threshold",
-            value=0.0,
-            format="%.6g",
-            key=f"{prefix}_threshold",
-        )
+        return None, None
+    mode = st.selectbox(
+        "calculator mode",
+        ["Threshold fractions", "Quantile"],
+        key=f"{prefix}_distribution_mode",
     )
+    if mode == "Threshold fractions":
+        threshold = st.number_input(
+            "threshold", value=0.0, format="%.6g", key=f"{prefix}_threshold"
+        )
+        return float(threshold), None
+    percentile = st.number_input(
+        "quantile percentile (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=50.0,
+        step=1.0,
+        format="%.3g",
+        key=f"{prefix}_quantile_percentile",
+    )
+    return None, float(percentile)
 
 
 def range_cut_controls(
