@@ -24,6 +24,7 @@ from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
 from ..plotting.plots import (
+    InvalidAxisScaleError,
     apply_range_cuts,
     build_plotly_3d,
     describe_array,
@@ -229,6 +230,9 @@ def _generate_and_show(
         try:
             st.session_state[result_key] = _build_plot_result(request)
         except ArrayShapeMismatchError as exc:
+            st.session_state.pop(result_key, None)
+            st.warning(str(exc))
+        except InvalidAxisScaleError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:

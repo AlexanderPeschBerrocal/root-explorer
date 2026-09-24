@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
+    InvalidAxisScaleError,
     apply_range_cuts,
     build_plotly_3d,
     describe_array,
@@ -102,6 +103,133 @@ def test_weighted_histogram_uses_weighted_default_y_label() -> None:
 
     assert ax.get_ylabel() == "sum weights (genWeight)"
     plt.close(fig)
+
+
+def test_logarithmic_axes_for_histogram_and_scatter() -> None:
+    histogram_figure, histogram_axes = plt.subplots()
+    render_static_plot(
+        histogram_figure,
+        histogram_axes,
+        "1D histogram",
+        np.array([1.0, 2.0, 4.0]),
+        None,
+        "x",
+        "entries",
+        {"bins_x": 3, "log_x": True, "log_y": True, "grid": False},
+        title="log histogram",
+    )
+    assert histogram_axes.get_xscale() == "log"
+    assert histogram_axes.get_yscale() == "log"
+    plt.close(histogram_figure)
+
+    scatter_figure, scatter_axes = plt.subplots()
+    render_static_plot(
+        scatter_figure,
+        scatter_axes,
+        "2D scatter",
+        np.array([1.0, 2.0]),
+        np.array([3.0, 4.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "log_x": True,
+            "log_y": True,
+            "grid": False,
+        },
+        title="log scatter",
+    )
+    assert scatter_axes.get_xscale() == "log"
+    assert scatter_axes.get_yscale() == "log"
+    plt.close(scatter_figure)
+
+
+@pytest.mark.parametrize(
+    ("x", "y", "style", "expected_axis"),
+    [
+        (np.array([0.0, 1.0]), np.array([1.0, 2.0]), {"log_x": True}, "x-axis"),
+        (np.array([1.0, 2.0]), np.array([-1.0, 2.0]), {"log_y": True}, "y-axis"),
+    ],
+)
+def test_scatter_rejects_non_positive_log_coordinates(x, y, style, expected_axis) -> None:
+    figure, axes = plt.subplots()
+    scatter_style = {
+        "marker_size_2d": 3.0,
+        "opacity_2d": 0.5,
+        "grid": False,
+        **style,
+    }
+
+    with pytest.raises(InvalidAxisScaleError, match=expected_axis):
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            x,
+            y,
+            "x",
+            "y",
+            scatter_style,
+            title="invalid log scatter",
+        )
+    plt.close(figure)
+
+
+def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> None:
+    invalid_x_figure, invalid_x_axes = plt.subplots()
+    with pytest.raises(InvalidAxisScaleError, match="x-axis"):
+        render_static_plot(
+            invalid_x_figure,
+            invalid_x_axes,
+            "1D histogram",
+            np.array([0.0, 1.0]),
+            None,
+            "x",
+            "entries",
+            {"bins_x": 2, "log_x": True, "grid": False},
+            title="invalid log-x histogram",
+        )
+    plt.close(invalid_x_figure)
+
+    histogram_figure, histogram_axes = plt.subplots()
+    with pytest.raises(InvalidAxisScaleError, match="no positive bin contents"):
+        render_static_plot(
+            histogram_figure,
+            histogram_axes,
+            "1D histogram",
+            np.array([1.0, 2.0]),
+            None,
+            "x",
+            "weighted entries",
+            {"bins_x": 2, "log_y": True, "grid": False},
+            title="invalid weighted log histogram",
+            weights=np.array([-1.0, -1.0]),
+        )
+    plt.close(histogram_figure)
+
+    histogram_2d_figure, histogram_2d_axes = plt.subplots()
+    render_static_plot(
+        histogram_2d_figure,
+        histogram_2d_axes,
+        "2D histogram",
+        np.array([1.0, 2.0, 2.0]),
+        np.array([1.0, 2.0, 2.0]),
+        "x",
+        "y",
+        {
+            "bins_x": 2,
+            "bins_y": 2,
+            "log_x": False,
+            "log_y": False,
+            "log_z": True,
+            "grid": False,
+        },
+        title="log color only",
+    )
+    assert histogram_2d_axes.get_xscale() == "linear"
+    assert histogram_2d_axes.get_yscale() == "linear"
+    plt.close(histogram_2d_figure)
 
 
 @pytest.mark.parametrize(

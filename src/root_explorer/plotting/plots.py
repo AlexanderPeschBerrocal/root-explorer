@@ -15,6 +15,51 @@ from matplotlib.colors import LogNorm, to_hex
 from ..analysis.arrays import align_arrays
 
 
+class InvalidAxisScaleError(ValueError):
+    """Raised when selected values cannot be displayed on a requested axis scale."""
+
+
+def apply_log_axis_scales(
+    ax: Any,
+    style: dict[str, Any],
+    *,
+    x: np.ndarray,
+    y: np.ndarray | None = None,
+    histogram_counts: np.ndarray | None = None,
+) -> None:
+    """Validate and apply logarithmic axis scales without modifying plot data."""
+
+    if style.get("log_x", False):
+        _require_positive_axis_values(x, "x")
+        ax.set_xscale("log")
+
+    if not style.get("log_y", False):
+        return
+
+    if histogram_counts is not None:
+        counts = np.asarray(histogram_counts, dtype=float)
+        if not np.any(np.isfinite(counts) & (counts > 0)):
+            raise InvalidAxisScaleError(
+                "Cannot use a logarithmic y-axis: the histogram has no positive bin contents."
+            )
+    else:
+        if y is None:
+            raise InvalidAxisScaleError(
+                "Cannot use a logarithmic y-axis: no y coordinates are available."
+            )
+        _require_positive_axis_values(y, "y")
+    ax.set_yscale("log")
+
+
+def _require_positive_axis_values(values: np.ndarray, axis_name: str) -> None:
+    coordinates = np.asarray(values, dtype=float)
+    if coordinates.size == 0 or np.any(~np.isfinite(coordinates)) or np.any(coordinates <= 0):
+        raise InvalidAxisScaleError(
+            f"Cannot use a logarithmic {axis_name}-axis: all plotted {axis_name} coordinates "
+            "must be finite and strictly positive."
+        )
+
+
 def downsample_arrays(
     arrays: Sequence[np.ndarray], max_points: int, seed: int = 12345
 ) -> list[np.ndarray]:
@@ -262,13 +307,12 @@ def render_static_plot(
     color_label: str | None = None,
 ):
     if plot_type == "1D histogram":
-        ax.hist(x, bins=style["bins_x"], weights=weights)
+        histogram_counts, _, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
         ax.set_xlabel(x_label)
         ax.set_ylabel(
             y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
         )
-        if style.get("log_y", False):
-            ax.set_yscale("log")
+        apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
 
     elif plot_type == "2D histogram":
         if y is None:
@@ -281,6 +325,7 @@ def render_static_plot(
         fig.colorbar(
             mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
         )
+        apply_log_axis_scales(ax, style, x=x, y=y)
 
     elif plot_type == "2D scatter":
         if y is None:
@@ -305,6 +350,7 @@ def render_static_plot(
             ax.scatter(x, y, s=style["marker_size_2d"], alpha=style["opacity_2d"])
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
+        apply_log_axis_scales(ax, style, x=x, y=y)
 
     else:
         raise ValueError(f"Unsupported static plot type: {plot_type}")
