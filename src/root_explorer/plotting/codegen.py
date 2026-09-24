@@ -38,6 +38,8 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         "import numpy as np",
         "import uproot",
     ]
+    if request.plot_type == "2D histogram" and style.get("show_contours", False):
+        lines.append("import warnings")
     if request.plot_type == "2D histogram" and style.get("log_z", False):
         lines.append("from matplotlib.colors import LogNorm")
     lines.extend(
@@ -424,6 +426,51 @@ def _plot_lines(
                 f"    figure.colorbar(mesh, ax=axes, label={colorbar_label!r})",
             ]
         )
+        if style.get("show_contours", False):
+            percentages = style.get("contour_levels", [])
+            lines.extend(
+                [
+                    f"    contour_percentages = {percentages!r}",
+                    "    if np.any(~np.isfinite(histogram)):",
+                    '        warnings.warn("Contours require finite histogram bin contents.")',
+                    "    elif np.any(histogram < 0):",
+                    '        warnings.warn("Contours are unavailable because signed weights produced negative bin contents.")',
+                    "    else:",
+                    "        positive = np.sort(histogram[histogram > 0])[::-1]",
+                    "        if len(positive) == 0:",
+                    '            warnings.warn("Contours are unavailable because the histogram has no positive bin contents.")',
+                    "        else:",
+                    "            cumulative = np.cumsum(positive)",
+                    "            contour_groups = {}",
+                    "            for percentage in contour_percentages:",
+                    "                index = np.searchsorted(",
+                    '                    cumulative, percentage / 100.0 * cumulative[-1], side="left"',
+                    "                )",
+                    "                threshold = float(positive[min(index, len(positive) - 1)])",
+                    "                contour_groups.setdefault(threshold, []).append(percentage)",
+                    "            contour_levels = sorted(",
+                    "                threshold",
+                    "                for threshold in contour_groups",
+                    "                if histogram.min() < threshold < histogram.max()",
+                    "            )",
+                    "            if not contour_levels:",
+                    '                warnings.warn("No meaningful contour can be drawn for these levels and histogram bins.")',
+                    "            else:",
+                    "                xcenters = (xedges[:-1] + xedges[1:]) / 2.0",
+                    "                ycenters = (yedges[:-1] + yedges[1:]) / 2.0",
+                    "                contours = axes.contour(",
+                    "                    xcenters, ycenters, histogram.T, levels=contour_levels,",
+                    '                    colors="white", linewidths=1.0,',
+                    "                )",
+                    "                contour_labels = {",
+                    '                    threshold: "/".join(f"{level:g}%" for level in contour_groups[threshold])',
+                    "                    for threshold in contour_levels",
+                    "                }",
+                    "                axes.clabel(",
+                    "                    contours, contours.levels, fmt=contour_labels, fontsize=8",
+                    "                )",
+                ]
+            )
     elif request.plot_type == "2D scatter":
         if request.color_spec is None:
             lines.append(

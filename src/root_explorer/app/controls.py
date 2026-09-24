@@ -10,7 +10,7 @@ import streamlit as st
 from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
 from ..models import VariableSpec
-from ..plotting.plots import parse_optional_float
+from ..plotting.plots import ContourConfigurationError, parse_contour_levels, parse_optional_float
 
 
 def variable_selector(
@@ -406,6 +406,22 @@ def plot_style_controls(
         style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
         style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
         style["log_z"] = st.checkbox("log color scale", value=True, key=f"{prefix}_log_z")
+        style["show_contours"] = st.checkbox(
+            "show contours", value=False, key=f"{prefix}_show_contours"
+        )
+        style["contour_levels"] = []
+        if style["show_contours"]:
+            contour_text = st.text_input(
+                "contour levels (%)",
+                value="68, 95, 99",
+                key=f"{prefix}_contour_levels",
+                help="Highest-density regions enclosing these percentages of the histogram content.",
+            )
+            try:
+                style["contour_levels"] = parse_contour_levels(contour_text)
+            except ContourConfigurationError as exc:
+                style["show_contours"] = False
+                st.warning(str(exc))
         style["equal_aspect"] = st.checkbox(
             "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )

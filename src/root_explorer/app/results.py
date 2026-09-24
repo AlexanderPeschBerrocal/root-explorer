@@ -55,6 +55,9 @@ def show_cached_plot_result(
     if isinstance(threshold_result, ThresholdResult):
         _show_threshold_result(threshold_result)
 
+    for warning in result.get("warnings", []):
+        st.warning(warning)
+
     preview = result.get("preview")
     if preview is not None and len(preview) > 0:
         st.markdown("#### Data preview")

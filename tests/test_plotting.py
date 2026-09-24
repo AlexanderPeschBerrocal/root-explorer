@@ -11,13 +11,17 @@ import matplotlib.pyplot as plt
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
+    ContourConfigurationError,
     InvalidAxisScaleError,
     apply_range_cuts,
     build_plotly_3d,
     describe_array,
     downsample_arrays,
+    draw_highest_density_contours,
+    highest_density_contour_thresholds,
     matplotlib_cmap_name,
     matplotlib_figure_bytes,
+    parse_contour_levels,
     parse_optional_float,
     plotly_figure_html,
     render_static_plot,
@@ -25,6 +29,83 @@ from root_explorer.plotting.plots import (
     save_matplotlib_figure,
     save_plotly_figure,
 )
+
+
+def test_contour_levels_are_validated_sorted_and_deduplicated() -> None:
+    assert parse_contour_levels("95, 68 95, 99") == [68.0, 95.0, 99.0]
+
+    for invalid in ["", "0", "100", "68, nope", [np.nan]]:
+        with pytest.raises(ContourConfigurationError):
+            parse_contour_levels(invalid)
+
+
+def test_highest_density_thresholds_use_cumulative_bin_content() -> None:
+    histogram = np.array([[4.0, 3.0], [2.0, 1.0]])
+
+    thresholds = highest_density_contour_thresholds(histogram, [90, 50, 80])
+
+    assert thresholds == {3.0: (50.0,), 2.0: (80.0, 90.0)}
+
+
+def test_weighted_contour_thresholds_and_invalid_bin_contents() -> None:
+    weighted = np.array([[5.5, 2.5], [1.5, 0.5]])
+    assert highest_density_contour_thresholds(weighted, [60, 90]) == {
+        2.5: (60.0,),
+        1.5: (90.0,),
+    }
+
+    with pytest.raises(ContourConfigurationError, match="negative bin contents"):
+        highest_density_contour_thresholds(np.array([[2.0, -0.1]]), [68])
+    with pytest.raises(ContourConfigurationError, match="no positive bin contents"):
+        highest_density_contour_thresholds(np.zeros((2, 2)), [68])
+
+
+def test_highest_density_contours_create_contour_artists() -> None:
+    figure, axes = plt.subplots()
+    histogram = np.array(
+        [
+            [0.0, 1.0, 0.0],
+            [1.0, 8.0, 1.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+    edges = np.arange(4, dtype=float)
+
+    contours = draw_highest_density_contours(axes, histogram, edges, edges, [90])
+
+    assert contours.levels.tolist() == [1.0]
+    assert any(segment.size for segments in contours.allsegs for segment in segments)
+    plt.close(figure)
+
+
+def test_negative_weighted_bins_warn_without_hiding_the_histogram() -> None:
+    figure, axes = plt.subplots()
+
+    warnings = render_static_plot(
+        figure,
+        axes,
+        "2D histogram",
+        np.array([0.0, 1.0]),
+        np.array([0.0, 1.0]),
+        "x",
+        "y",
+        {
+            "bins_x": 2,
+            "bins_y": 2,
+            "log_z": False,
+            "show_contours": True,
+            "contour_levels": [68.0],
+            "grid": False,
+        },
+        title="signed weights",
+        weights=np.array([-1.0, 2.0]),
+    )
+
+    assert warnings == [
+        "Contours are unavailable because signed weights produced negative bin contents."
+    ]
+    assert axes.collections
+    plt.close(figure)
 
 
 def test_filters_downsampling_and_descriptions() -> None:
