@@ -28,6 +28,7 @@ from ..plotting.plots import (
     InvalidAxisScaleError,
     apply_range_cuts,
     build_plotly_3d,
+    calculate_correlations,
     describe_array,
     downsample_arrays,
     parse_optional_float,
@@ -340,7 +341,6 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     threshold_result = None
     if request.plot_type == "1D histogram" and request.threshold is not None:
         threshold_result = calculate_threshold_result(x, request.threshold, weights)
-    x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
 
     summary_rows = [describe_array(axis_labels[0], x)]
     if request.y_spec is not None:
@@ -350,6 +350,13 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if color is not None:
         summary_rows.append(describe_array(color_label or "color", color))
     summary = pd.DataFrame(summary_rows)
+    correlation_result = None
+    if request.plot_type == "2D scatter":
+        if y is None:
+            raise ValueError("2D scatter requires a y variable.")
+        correlation_result = calculate_correlations(x, y)
+
+    x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     x_label = request.labels["custom_x"] or axis_labels[0]
     default_y_label = axis_labels[1] if request.y_spec is not None else "entries"
     if request.y_spec is None and request.weight_branch is not None:
@@ -393,6 +400,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "preview": preview,
             "threshold_result": threshold_result,
+            "correlation_result": correlation_result,
             "save_name": save_name,
             "save_button_label": "Save HTML",
         }
@@ -419,6 +427,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "summary": summary,
         "preview": preview,
         "threshold_result": threshold_result,
+        "correlation_result": correlation_result,
         "warnings": plot_warnings,
         "save_name": save_name,
         "save_button_label": "Save selected formats",

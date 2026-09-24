@@ -15,6 +15,7 @@ from root_explorer.plotting.plots import (
     InvalidAxisScaleError,
     apply_range_cuts,
     build_plotly_3d,
+    calculate_correlations,
     describe_array,
     downsample_arrays,
     draw_highest_density_contours,
@@ -29,6 +30,41 @@ from root_explorer.plotting.plots import (
     save_matplotlib_figure,
     save_plotly_figure,
 )
+
+
+def test_correlations_cover_linear_rank_and_non_finite_behaviour() -> None:
+    positive = calculate_correlations(np.array([1.0, 2.0, 3.0]), np.array([2.0, 4.0, 6.0]))
+    negative = calculate_correlations(np.array([1.0, 2.0, 3.0]), np.array([6.0, 4.0, 2.0]))
+    nonlinear = calculate_correlations(
+        np.array([1.0, 2.0, 3.0, 4.0]), np.array([1.0, 4.0, 9.0, 16.0])
+    )
+    filtered = calculate_correlations(
+        np.array([1.0, np.nan, 2.0, 3.0]), np.array([2.0, 100.0, 4.0, np.inf])
+    )
+
+    assert positive.pearson_r == pytest.approx(1.0)
+    assert positive.spearman_rho == pytest.approx(1.0)
+    assert negative.pearson_r == pytest.approx(-1.0)
+    assert negative.spearman_rho == pytest.approx(-1.0)
+    assert nonlinear.pearson_r < nonlinear.spearman_rho
+    assert nonlinear.spearman_rho == pytest.approx(1.0)
+    assert filtered.n_pairs == 2
+    assert filtered.pearson_r == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("x", "y"),
+    [
+        (np.array([1.0]), np.array([2.0])),
+        (np.array([1.0, 1.0]), np.array([2.0, 3.0])),
+        (np.array([1.0, 2.0]), np.array([3.0, 3.0])),
+    ],
+)
+def test_undefined_correlations_return_nan(x: np.ndarray, y: np.ndarray) -> None:
+    result = calculate_correlations(x, y)
+
+    assert np.isnan(result.pearson_r)
+    assert np.isnan(result.spearman_rho)
 
 
 def test_contour_levels_are_validated_sorted_and_deduplicated() -> None:
