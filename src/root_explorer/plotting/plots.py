@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import io
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import colormaps
 from matplotlib.colors import LogNorm, to_hex
@@ -21,6 +23,15 @@ class InvalidAxisScaleError(ValueError):
 
 class ContourConfigurationError(ValueError):
     """Raised when highest-density contours cannot be configured for a histogram."""
+
+
+@dataclass(frozen=True)
+class CorrelationResult:
+    """Pairwise correlation statistics for a finite, aligned x/y sample."""
+
+    n_pairs: int
+    pearson_r: float
+    spearman_rho: float
 
 
 def apply_log_axis_scales(
@@ -76,6 +87,38 @@ def downsample_arrays(
     rng = np.random.default_rng(seed)
     idx = rng.choice(n, size=int(max_points), replace=False)
     return [a[idx] for a in arrays]
+
+
+def calculate_correlations(x: np.ndarray, y: np.ndarray) -> CorrelationResult:
+    """Calculate Pearson and Spearman correlations for finite aligned pairs."""
+
+    x_values, y_values = align_arrays([x, y], names=["x", "y"], context="correlation values")
+    x_values = x_values.astype(float, copy=False)
+    y_values = y_values.astype(float, copy=False)
+    finite = np.isfinite(x_values) & np.isfinite(y_values)
+    x_values = x_values[finite]
+    y_values = y_values[finite]
+    n_pairs = len(x_values)
+    if n_pairs < 2:
+        return CorrelationResult(n_pairs, np.nan, np.nan)
+
+    pearson_r = _pearson_correlation(x_values, y_values)
+    x_ranks = pd.Series(x_values).rank(method="average").to_numpy(dtype=float)
+    y_ranks = pd.Series(y_values).rank(method="average").to_numpy(dtype=float)
+    spearman_rho = _pearson_correlation(x_ranks, y_ranks)
+    return CorrelationResult(n_pairs, pearson_r, spearman_rho)
+
+
+def _pearson_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """Return a stable Pearson coefficient, or NaN when it is undefined."""
+
+    x_centered = x - np.mean(x)
+    y_centered = y - np.mean(y)
+    denominator = np.linalg.norm(x_centered) * np.linalg.norm(y_centered)
+    if denominator == 0 or not np.isfinite(denominator):
+        return np.nan
+    coefficient = float(np.dot(x_centered, y_centered) / denominator)
+    return float(np.clip(coefficient, -1.0, 1.0))
 
 
 def apply_range_cuts(

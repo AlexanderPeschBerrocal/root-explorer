@@ -12,6 +12,7 @@ import streamlit as st
 from ..analysis.statistics import ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
+    CorrelationResult,
     matplotlib_figure_bytes,
     plotly_figure_html,
     safe_filename,
@@ -50,6 +51,10 @@ def show_cached_plot_result(
     summary = result.get("summary")
     if summary is not None:
         st.dataframe(summary, width="stretch")
+
+    correlation_result = result.get("correlation_result")
+    if isinstance(correlation_result, CorrelationResult):
+        _show_correlation_result(correlation_result)
 
     threshold_result = result.get("threshold_result")
     if isinstance(threshold_result, ThresholdResult):
@@ -175,6 +180,25 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         )
     elif result.weighted and result.has_negative_weights:
         st.caption("Weighted fractions use signed sums of weights and may lie outside 0 to 1.")
+
+
+def _show_correlation_result(result: CorrelationResult) -> None:
+    """Display pairwise statistics for the full filtered 2D-scatter sample."""
+
+    st.markdown("#### Correlations")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "valid pairs": result.n_pairs,
+                    "Pearson r": result.pearson_r,
+                    "Spearman \u03c1": result.spearman_rho,
+                }
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:

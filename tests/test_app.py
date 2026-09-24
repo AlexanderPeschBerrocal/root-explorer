@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
+import uproot
 from streamlit.testing.v1 import AppTest
 
 from root_explorer.app.main import APP_ICON
@@ -110,6 +112,41 @@ def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
     assert not at.exception
     axes = at.session_state["plot_result"]["figure"].axes[0]
     assert axes.get_ylabel() == "sum weights (genWeight)"
+
+
+def test_scatter_correlations_use_full_filtered_sample_before_downsampling(tmp_path) -> None:
+    root_path = tmp_path / "correlations.root"
+    x = np.linspace(-5.0, 5.0, 3_000)
+    y = x**3
+    y[-1] = np.nan
+    with uproot.recreate(root_path) as root_file:
+        root_file.mktree("Events", {"x": x, "y": y})
+
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    at.selectbox(key="x_branch").select("x")
+    at.selectbox(key="y_branch").select("y")
+    at.number_input(key="plot_n_cuts").set_value(1).run()
+    at.selectbox(key="plot_cut_0_branch").select("x")
+    at.text_input(key="plot_cut_0_min").input("0").run()
+    at.number_input(key="plot_max_points_2d").set_value(1_000).run()
+    at.button(key="plot_make").click().run()
+
+    limited = at.session_state["plot_result"]
+    limited_correlation = limited["correlation_result"]
+    assert limited_correlation.n_pairs == 1_499
+    assert limited["summary"].iloc[0]["n"] == 1_499
+    assert len(limited["figure"].axes[0].collections[0].get_offsets()) == 1_000
+    assert any(markdown.value == "#### Correlations" for markdown in at.markdown)
+
+    at.number_input(key="plot_max_points_2d").set_value(2_000).run()
+    at.button(key="plot_make").click().run()
+    full = at.session_state["plot_result"]
+    full_correlation = full["correlation_result"]
+
+    assert len(full["figure"].axes[0].collections[0].get_offsets()) == 1_499
+    assert full_correlation.pearson_r == pytest.approx(limited_correlation.pearson_r)
+    assert full_correlation.spearman_rho == pytest.approx(limited_correlation.spearman_rho)
 
 
 def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
