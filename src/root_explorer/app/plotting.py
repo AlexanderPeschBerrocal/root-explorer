@@ -37,6 +37,7 @@ from ..plotting.plots import (
 )
 from .controls import (
     PLOT_TYPES,
+    distribution_calculator_controls,
     histogram_weight_selector,
     label_controls,
     needs_y_variable,
@@ -44,7 +45,6 @@ from .controls import (
     plot_style_controls,
     range_cut_controls,
     supports_point_color,
-    distribution_calculator_controls,
     variable_selector,
 )
 from .results import show_cached_plot_result
