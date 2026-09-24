@@ -25,12 +25,18 @@ def variable_selector(
     display_prefix = display_prefix or prefix
     mode_labels = {
         "branch": f"Direct {item_name} values",
+        "absolute": "|A|",
         "multiplicity": "Multiplicity per event",
         "nth": "nth object per event",
         "sum": "Sum per event",
         "mean": "Mean per event",
         "max": "Max per event",
         "min": "Min per event",
+        "sum_ab": "A + B",
+        "difference": "A - B",
+        "ratio": "A / B",
+        "product": "A * B",
+        "magnitude_3d": "sqrt(A² + B² + C²)",
         "r_xy": "r = sqrt(x² + y²)",
         "phi_xy": "phi = atan2(y, x)",
         "eta_xyz": "eta = asinh(z / sqrt(x²+y²))",
@@ -40,12 +46,6 @@ def variable_selector(
         "delta_phi": "delta phi",
         "delta_eta": "delta eta",
         "delta_r": "delta R",
-        "absolute": "|A|",
-        "ratio": "A / B",
-        "difference": "A - B",
-        "sum_ab": "A + B",
-        "product": "A * B",
-        "magnitude_3d": "sqrt(A² + B² + C²)",
     }
     if not allow_event_reductions:
         for mode in [

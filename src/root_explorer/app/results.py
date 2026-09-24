@@ -50,7 +50,11 @@ def show_cached_plot_result(
 
     summary = result.get("summary")
     if summary is not None:
-        st.dataframe(summary, width="stretch")
+        st.dataframe(
+            summary,
+            width="stretch",
+            column_config=_centered_column_config(summary),
+        )
 
     correlation_result = result.get("correlation_result")
     if isinstance(correlation_result, CorrelationResult):
@@ -169,7 +173,13 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         rows[1]["sum of weights"] = result.above_weight
         rows[0]["weighted fraction"] = rows[0].pop("fraction")
         rows[1]["weighted fraction"] = rows[1].pop("fraction")
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    dataframe = pd.DataFrame(rows)
+    st.dataframe(
+        dataframe,
+        width="stretch",
+        hide_index=True,
+        column_config=_centered_column_config(dataframe),
+    )
 
     if result.total_count == 0:
         st.warning("The selected sample is empty; threshold fractions are unavailable.")
@@ -186,19 +196,29 @@ def _show_correlation_result(result: CorrelationResult) -> None:
     """Display pairwise statistics for the full filtered 2D-scatter sample."""
 
     st.markdown("#### Correlations")
+    dataframe = pd.DataFrame(
+        [
+            {
+                "Pearson r": result.pearson_r,
+                "Spearman \u03c1": result.spearman_rho,
+            }
+        ]
+    )
     st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "valid pairs": result.n_pairs,
-                    "Pearson r": result.pearson_r,
-                    "Spearman \u03c1": result.spearman_rho,
-                }
-            ]
-        ),
+        dataframe,
         width="stretch",
         hide_index=True,
+        column_config=_centered_column_config(dataframe),
     )
+
+
+def _centered_column_config(dataframe: pd.DataFrame) -> dict[str, object]:
+    """Return centered Streamlit column configuration for compact result tables."""
+
+    return {
+        str(column): st.column_config.Column(alignment="center")
+        for column in dataframe.columns
+    }
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:

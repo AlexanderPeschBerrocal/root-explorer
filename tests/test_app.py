@@ -88,7 +88,18 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     mode = at.selectbox(key="x_mode")
 
+    assert mode.options[:8] == [
+        "Direct branch values",
+        "|A|",
+        "Multiplicity per event",
+        "nth object per event",
+        "Sum per event",
+        "Mean per event",
+        "Max per event",
+        "Min per event",
+    ]
     assert {
+
         "|A|",
         "sqrt(A² + B² + C²)",
         "Energy (massless)",

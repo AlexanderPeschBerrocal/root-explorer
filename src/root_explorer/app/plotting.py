@@ -77,7 +77,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Plot configuration")
+        st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
             context,
             geometry,
@@ -91,7 +91,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
             save_name="root_explorer_plot",
         )
     with output:
-        st.subheader("Output")
+        st.subheader("Output", anchor=False)
         _generate_and_show(request, make_plot, "plot_result", "plot_save_cached")
 
 
@@ -100,7 +100,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Plot configuration")
+        st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
             context,
             geometry,
@@ -114,7 +114,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
             save_name="root_explorer_event_plot",
         )
     with output:
-        st.subheader(f"Output: event {event_index}")
+        st.subheader(f"Output: event {event_index}", anchor=False)
         _generate_and_show(request, make_plot, "event_plot_result", "event_save_cached")
 
 
