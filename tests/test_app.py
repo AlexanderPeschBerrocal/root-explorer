@@ -111,6 +111,17 @@ def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
     assert axes.get_ylabel() == "sum weights (genWeight)"
 
 
+def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_eta").run()
+    at.checkbox(key="plot_log_x").check().run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    assert "plot_result" not in at.session_state
+    assert any("strictly positive" in warning.value for warning in at.warning)
+
+
 def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     at = _load_root_file(make_app_test(), rntuple_path)
 

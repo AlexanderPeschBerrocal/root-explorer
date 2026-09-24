@@ -40,6 +40,7 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
             "fig_width": 11.0,
             "fig_height": 5.0,
             "bins_x": 37,
+            "log_x": True,
             "log_y": True,
             "grid": False,
         },
@@ -69,6 +70,7 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
     assert "'genWeight'" in source
     assert "mask &= cut_0 >= -2.1" in source
     assert "axes.hist(x, bins=37, weights=weights)" in source
+    assert 'axes.set_xscale("log")' in source
     assert 'axes.set_yscale("log")' in source
     assert "figure = plt.figure(figsize=(11.0, 5.0))" in source
     assert "Muon transverse momentum [GeV]" in source
@@ -78,6 +80,8 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
     namespace["plt"].show = lambda: None
     namespace["main"]()
     assert plt.get_fignums()
+    assert namespace["plt"].gcf().axes[0].get_xscale() == "log"
+    assert namespace["plt"].gcf().axes[0].get_yscale() == "log"
     plt.close("all")
 
     delta_eta_request = replace(

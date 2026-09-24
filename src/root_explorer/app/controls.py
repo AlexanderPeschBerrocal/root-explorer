@@ -374,10 +374,11 @@ def plot_style_controls(
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
         style["fig_width"] = st.slider("figure width", 4.0, 16.0, 8.0, key=f"{prefix}_fig_width")
         style["fig_height"] = st.slider("figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
+        style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
+        style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
 
     if plot_type == "1D histogram":
         style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
-        style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":

@@ -397,9 +397,9 @@ def _plot_lines(
     style = request.style
     lines: list[str] = []
     if request.plot_type == "1D histogram":
-        lines.append(f"    axes.hist(x, bins={style['bins_x']!r}, weights=weights)")
-        if style.get("log_y", False):
-            lines.append('    axes.set_yscale("log")')
+        lines.append(
+            f"    histogram_values, _, _ = axes.hist(x, bins={style['bins_x']!r}, weights=weights)"
+        )
     elif request.plot_type == "2D histogram":
         lines.extend(
             [
@@ -452,6 +452,30 @@ def _plot_lines(
             f"    axes.set_title({title!r})",
         ]
     )
+    if style.get("log_x", False):
+        lines.extend(
+            [
+                "    if len(x) == 0 or np.any(x <= 0):",
+                '        raise ValueError("Logarithmic x-axis requires strictly positive x coordinates.")',
+                '    axes.set_xscale("log")',
+            ]
+        )
+    if style.get("log_y", False):
+        if request.plot_type == "1D histogram":
+            lines.extend(
+                [
+                    "    if not np.any(histogram_values > 0):",
+                    '        raise ValueError("Logarithmic y-axis requires at least one positive histogram bin.")',
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "    if len(y) == 0 or np.any(y <= 0):",
+                    '        raise ValueError("Logarithmic y-axis requires strictly positive y coordinates.")',
+                ]
+            )
+        lines.append('    axes.set_yscale("log")')
     if style.get("equal_aspect", False):
         lines.append('    axes.set_aspect("equal", adjustable="box")')
     if style.get("grid", False):
