@@ -34,13 +34,18 @@ def variable_selector(
         "r_xy": "r = sqrt(x² + y²)",
         "phi_xy": "phi = atan2(y, x)",
         "eta_xyz": "eta = asinh(z / sqrt(x²+y²))",
+        "energy_massless": "Energy (massless)",
+        "energy_massive": "Energy (with mass)",
+        "invariant_mass": "Invariant mass (single particle)",
+        "delta_phi": "delta phi",
+        "delta_eta": "delta eta",
+        "delta_r": "delta R",
+        "absolute": "|A|",
         "ratio": "A / B",
         "difference": "A - B",
         "sum_ab": "A + B",
         "product": "A * B",
-        "delta_phi": "delta phi",
-        "delta_eta": "delta eta",
-        "delta_r": "delta R",
+        "magnitude_3d": "sqrt(A² + B² + C²)",
     }
     if not allow_event_reductions:
         for mode in [
@@ -79,6 +84,15 @@ def variable_selector(
                 key=f"{prefix}_index",
             )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
+
+    if mode == "absolute":
+        a = st.selectbox(
+            f"{display_prefix}: A",
+            options,
+            index=choose_default(options, preferred),
+            key=f"{prefix}_a",
+        )
+        return VariableSpec(mode=mode, branch_a=a)
 
     if mode in {"r_xy", "phi_xy", "ratio", "difference", "sum_ab", "product"}:
         field_labels = {
@@ -125,6 +139,90 @@ def variable_selector(
             key=f"{prefix}_z",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
+
+    if mode == "magnitude_3d":
+        a = st.selectbox(
+            f"{display_prefix}: A",
+            options,
+            index=choose_default(options, ["px", "x"]),
+            key=f"{prefix}_a",
+        )
+        b = st.selectbox(
+            f"{display_prefix}: B",
+            options,
+            index=choose_default(options, ["py", "y"]),
+            key=f"{prefix}_b",
+        )
+        c = st.selectbox(
+            f"{display_prefix}: C",
+            options,
+            index=choose_default(options, ["pz", "z"]),
+            key=f"{prefix}_c",
+        )
+        return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
+
+    if mode in {"energy_massless", "energy_massive"}:
+        pt = st.selectbox(
+            f"{display_prefix}: pT",
+            options,
+            index=choose_default(options, ["pt"]),
+            key=f"{prefix}_pt",
+        )
+        longitudinal_labels = {"eta": "eta (pseudorapidity)", "y": "y (rapidity)"}
+        longitudinal_kind = st.selectbox(
+            f"{display_prefix}: longitudinal coordinate",
+            list(longitudinal_labels),
+            format_func=longitudinal_labels.__getitem__,
+            key=f"{prefix}_longitudinal_kind",
+        )
+        longitudinal = st.selectbox(
+            f"{display_prefix}: {longitudinal_kind}",
+            options,
+            index=choose_default(
+                options,
+                ["eta"] if longitudinal_kind == "eta" else ["rapidity", "y"],
+            ),
+            key=f"{prefix}_longitudinal",
+        )
+        mass = None
+        if mode == "energy_massive":
+            mass = st.selectbox(
+                f"{display_prefix}: mass",
+                options,
+                index=choose_default(options, ["mass", "m"]),
+                key=f"{prefix}_mass",
+            )
+        return VariableSpec(
+            mode=mode,
+            branch_a=pt,
+            branch_b=longitudinal,
+            branch_c=mass,
+            longitudinal_kind=longitudinal_kind,
+        )
+
+    if mode == "invariant_mass":
+        branches = []
+        for component, preferred_components in [
+            ("E", ["energy", "E"]),
+            ("px", ["px"]),
+            ("py", ["py"]),
+            ("pz", ["pz"]),
+        ]:
+            branches.append(
+                st.selectbox(
+                    f"{display_prefix}: {component}",
+                    options,
+                    index=choose_default(options, preferred_components),
+                    key=f"{prefix}_{component.lower()}",
+                )
+            )
+        return VariableSpec(
+            mode=mode,
+            branch_a=branches[0],
+            branch_b=branches[1],
+            branch_c=branches[2],
+            branch_d=branches[3],
+        )
 
     if mode == "delta_phi":
         a = st.selectbox(

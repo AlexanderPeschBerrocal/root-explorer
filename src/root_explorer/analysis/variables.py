@@ -76,9 +76,14 @@ def evaluate_variable(
         return np.array([reduced], dtype=float), f"{mode}({spec.branch})"
 
     if mode in {
+        "absolute",
+        "magnitude_3d",
         "r_xy",
         "phi_xy",
         "eta_xyz",
+        "energy_massless",
+        "energy_massive",
+        "invariant_mass",
         "ratio",
         "difference",
         "sum_ab",
@@ -87,17 +92,21 @@ def evaluate_variable(
         "delta_eta",
         "delta_r",
     }:
-        if not spec.branch_a or not spec.branch_b:
-            raise ValueError("This derived variable needs at least two fields.")
+        if not spec.branch_a:
+            raise ValueError("This derived variable needs at least one field.")
 
-        branches = [spec.branch_a, spec.branch_b]
-        if mode == "eta_xyz":
+        branches = [spec.branch_a]
+        if mode != "absolute":
+            if not spec.branch_b:
+                raise ValueError("This derived variable needs at least two fields.")
+            branches.append(spec.branch_b)
+        if mode in {"eta_xyz", "magnitude_3d", "energy_massive"}:
             if not spec.branch_c:
-                raise ValueError("eta needs x, y, and z fields.")
+                raise ValueError(f"Derived variable {mode!r} needs three fields.")
             branches.append(spec.branch_c)
-        elif mode == "delta_r":
+        elif mode in {"delta_r", "invariant_mass"}:
             if not spec.branch_c or not spec.branch_d:
-                raise ValueError("delta-R needs eta1, phi1, eta2, and phi2 fields.")
+                raise ValueError(f"Derived variable {mode!r} needs four fields.")
             branches.extend([spec.branch_c, spec.branch_d])
 
         aligned_values = read_aligned_branch_values(
@@ -109,7 +118,12 @@ def evaluate_variable(
             event_index,
             context=f"derived variable {mode!r}",
         )
-        a, b = aligned_values[:2]
+        a = aligned_values[0]
+
+        if mode == "absolute":
+            return np.abs(a), f"|{spec.branch_a}|"
+
+        b = aligned_values[1]
 
         if mode == "r_xy":
             return np.sqrt(a * a + b * b), f"r({spec.branch_a},{spec.branch_b})"
@@ -133,6 +147,34 @@ def evaluate_variable(
             mask = np.isfinite(r) & np.isfinite(c) & (r > 0)
             out[mask] = np.arcsinh(c[mask] / r[mask])
             return out, f"eta({spec.branch_a},{spec.branch_b},{spec.branch_c})"
+        if mode == "magnitude_3d":
+            c = aligned_values[2]
+            return np.hypot(
+                np.hypot(a, b), c
+            ), f"mag({spec.branch_a},{spec.branch_b},{spec.branch_c})"
+        if mode in {"energy_massless", "energy_massive"}:
+            if spec.longitudinal_kind not in {"eta", "y"}:
+                raise ValueError("Energy longitudinal coordinate must be 'eta' or 'y'.")
+            if mode == "energy_massless":
+                energy = a * np.cosh(b)
+                return (
+                    energy,
+                    f"E_massless({spec.branch_a},{spec.longitudinal_kind}={spec.branch_b})",
+                )
+            c = aligned_values[2]
+            if spec.longitudinal_kind == "eta":
+                energy = np.sqrt(c * c + (a * np.cosh(b)) ** 2)
+            else:
+                energy = np.hypot(c, a) * np.cosh(b)
+            return energy, (
+                f"E({spec.branch_a},{spec.longitudinal_kind}={spec.branch_b},{spec.branch_c})"
+            )
+        if mode == "invariant_mass":
+            c, d = aligned_values[2:4]
+            mass_squared = a * a - b * b - c * c - d * d
+            return np.sqrt(np.maximum(mass_squared, 0.0)), (
+                f"m({spec.branch_a},{spec.branch_b},{spec.branch_c},{spec.branch_d})"
+            )
         if mode == "delta_phi":
             return delta_phi(a, b), f"Δφ({spec.branch_a},{spec.branch_b})"
         if mode == "delta_eta":

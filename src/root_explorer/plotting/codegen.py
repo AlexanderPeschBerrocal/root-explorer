@@ -264,6 +264,15 @@ def _emit_variable(lines: list[str], target: str, spec: VariableSpec) -> str:
         return f"{spec.mode}({branch})"
 
     branches = _spec_branches(spec)
+    if spec.mode == "absolute":
+        _require_branch_count(spec, branches, 1)
+        lines.extend(
+            [
+                f"    {target}_a = flatten(data[{branches[0]!r}])",
+                f"    {target} = np.abs({target}_a)",
+            ]
+        )
+        return f"|{branches[0]}|"
     if len(branches) < 2:
         raise ValueError(f"Variable mode {spec.mode!r} needs at least two branches.")
     for suffix, branch in zip(["a", "b", "c", "d"], branches, strict=False):
@@ -308,6 +317,33 @@ def _emit_variable(lines: list[str], target: str, spec: VariableSpec) -> str:
             ]
         )
         return f"eta({branches[0]},{branches[1]},{branches[2]})"
+    if spec.mode == "magnitude_3d":
+        _require_branch_count(spec, branches, 3)
+        lines.append(f"    {target} = np.hypot(np.hypot({target}_a, {target}_b), {target}_c)")
+        return f"mag({branches[0]},{branches[1]},{branches[2]})"
+    if spec.mode in {"energy_massless", "energy_massive"}:
+        if spec.longitudinal_kind not in {"eta", "y"}:
+            raise ValueError("Energy longitudinal coordinate must be 'eta' or 'y'.")
+        if spec.mode == "energy_massless":
+            lines.append(f"    {target} = {target}_a * np.cosh({target}_b)")
+            return f"E_massless({branches[0]},{spec.longitudinal_kind}={branches[1]})"
+        _require_branch_count(spec, branches, 3)
+        if spec.longitudinal_kind == "eta":
+            lines.append(
+                f"    {target} = np.sqrt({target}_c**2 + ({target}_a * np.cosh({target}_b))**2)"
+            )
+        else:
+            lines.append(f"    {target} = np.hypot({target}_c, {target}_a) * np.cosh({target}_b)")
+        return f"E({branches[0]},{spec.longitudinal_kind}={branches[1]},{branches[2]})"
+    if spec.mode == "invariant_mass":
+        _require_branch_count(spec, branches, 4)
+        lines.extend(
+            [
+                f"    {target}_mass_squared = {target}_a**2 - {target}_b**2 - {target}_c**2 - {target}_d**2",
+                f"    {target} = np.sqrt(np.maximum({target}_mass_squared, 0.0))",
+            ]
+        )
+        return f"m({branches[0]},{branches[1]},{branches[2]},{branches[3]})"
     if spec.mode == "delta_phi":
         lines.append(
             f"    {target} = np.arctan2(np.sin({target}_a - {target}_b), np.cos({target}_a - {target}_b))"

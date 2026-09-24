@@ -1,5 +1,17 @@
-# root-explorer
-A general-purpose Streamlit app for interactive plotting and event inspection of HEP ROOT TTrees and RNTuples in the web browser.
+<p align="center">
+  <img
+    src="src/root_explorer/assets/root-explorer-app-icon-transparent-edges.png"
+    alt="ROOT Explorer app icon"
+    width="160"
+  >
+</p>
+
+<h1 align="left">ROOT Explorer</h1>
+
+<p align="left">
+  A general-purpose Streamlit app for interactive inspection and plotting of
+  HEP ROOT TTrees and RNTuples in the web browser.
+</p>
 
 ## Run the app
 

@@ -142,6 +142,95 @@ def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(
     plt.close("all")
 
 
+@pytest.mark.parametrize(
+    ("spec", "formula"),
+    [
+        (VariableSpec(mode="absolute", branch_a="Muon_eta"), "x = np.abs(x_a)"),
+        (
+            VariableSpec(
+                mode="magnitude_3d",
+                branch_a="Muon_px",
+                branch_b="Muon_py",
+                branch_c="Muon_pz",
+            ),
+            "x = np.hypot(np.hypot(x_a, x_b), x_c)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massless",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                longitudinal_kind="eta",
+            ),
+            "x = x_a * np.cosh(x_b)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massive",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                branch_c="Muon_mass",
+                longitudinal_kind="eta",
+            ),
+            "x = np.sqrt(x_c**2 + (x_a * np.cosh(x_b))**2)",
+        ),
+        (
+            VariableSpec(
+                mode="energy_massive",
+                branch_a="Muon_pt",
+                branch_b="Muon_eta",
+                branch_c="Muon_mass",
+                longitudinal_kind="y",
+            ),
+            "x = np.hypot(x_c, x_a) * np.cosh(x_b)",
+        ),
+        (
+            VariableSpec(
+                mode="invariant_mass",
+                branch_a="Muon_energy",
+                branch_b="Muon_px",
+                branch_c="Muon_py",
+                branch_d="Muon_pz",
+            ),
+            "x = np.sqrt(np.maximum(x_mass_squared, 0.0))",
+        ),
+    ],
+)
+def test_generated_code_reproduces_single_particle_quantities(root_path, spec, formula) -> None:
+    request = PlotRequest(
+        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
+        plot_type="1D histogram",
+        x_spec=spec,
+        y_spec=None,
+        z_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_y": False,
+            "grid": False,
+        },
+        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+    )
+
+    source = generate_static_plot_code(request)
+    assert formula in source
+    namespace = {"__name__": "generated_single_particle_quantity"}
+    exec(source, namespace)
+    namespace["plt"].show = lambda: None
+    namespace["main"]()
+    assert namespace["plt"].gcf().axes[0].patches
+    plt.close("all")
+
+
 def test_generated_code_rejects_interactive_3d_request() -> None:
     request = PlotRequest(
         context=DataContext("events.root", "Events", 1, 0, 1, [], []),
