@@ -382,3 +382,39 @@ def test_generated_histogram_code_marks_quantile(root_path) -> None:
     source = generate_static_plot_code(request)
     assert "np.quantile(x, 0.5)" in source
     assert "50% quantile" in source
+
+
+def test_generated_scatter_code_supports_log_color_scale() -> None:
+    request = PlotRequest(
+        context=DataContext("events.root", "Events", 1, 0, 1, [], []),
+        plot_type="2D scatter",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        y_spec=VariableSpec(mode="branch", branch="y"),
+        z_spec=None,
+        color_spec=VariableSpec(mode="branch", branch="energy"),
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "max_points": 100_000,
+            "colorscale": "Viridis",
+            "reverse_colorscale": False,
+            "log_color": True,
+            "color_min_text": "1",
+            "color_max_text": "100",
+            "equal_aspect": False,
+            "grid": False,
+        },
+        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+    )
+    source = generate_static_plot_code(request)
+    assert "from matplotlib.colors import LogNorm" in source
+    assert "color_norm = LogNorm" in source

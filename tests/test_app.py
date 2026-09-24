@@ -307,3 +307,10 @@ def test_app_calculates_quantile_and_marks_histogram(root_path) -> None:
     assert quantile.value is not None
     axes = result["figure"].axes[0]
     assert axes.lines[-1].get_xdata()[0] == pytest.approx(quantile.value)
+
+
+def test_2d_scatter_offers_log_color_scale(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    at.checkbox(key="plot_color_points").check().run()
+    assert at.checkbox(key="plot_log_color_2d").label == "log color scale"

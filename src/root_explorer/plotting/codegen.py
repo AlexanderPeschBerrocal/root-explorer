@@ -45,7 +45,11 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         lines.append("import warnings")
     if show_kde:
         lines.append("from scipy.stats import gaussian_kde")
-    if request.plot_type == "2D histogram" and style.get("log_z", False):
+    if (
+        request.plot_type == "2D histogram" and style.get("log_z", False)
+    ) or (
+        request.plot_type == "2D scatter" and style.get("log_color", False)
+    ):
         lines.append("from matplotlib.colors import LogNorm")
     if show_kde:
         lines.extend(
@@ -566,15 +570,37 @@ def _plot_lines(
             )
             color_min = _optional_float(style.get("color_min_text", ""))
             color_max = _optional_float(style.get("color_max_text", ""))
-            lines.extend(
-                [
-                    "    scatter = axes.scatter(",
-                    f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
-                    f"        c=color, cmap={cmap!r}, vmin={color_min!r}, vmax={color_max!r},",
-                    "    )",
-                    f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
-                ]
-            )
+            if style.get("log_color", False):
+                lines.extend(
+                    [
+                        "    if len(color) == 0 or np.any(color <= 0):",
+                        '        raise ValueError("Logarithmic color scale requires strictly positive color values.")',
+                        f"    color_min = {color_min!r}",
+                        f"    color_max = {color_max!r}",
+                        "    resolved_color_min = color_min if color_min is not None else float(np.min(color))",
+                        "    resolved_color_max = color_max if color_max is not None else float(np.max(color))",
+                        "    if resolved_color_min <= 0 or resolved_color_max <= 0 or resolved_color_min >= resolved_color_max:",
+                        '        raise ValueError("Invalid logarithmic color range.")',
+                        "    color_norm = LogNorm(vmin=resolved_color_min, vmax=resolved_color_max)",
+                        "    scatter = axes.scatter(",
+                        f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
+                        f"        c=color, cmap={cmap!r}, norm=color_norm,",
+                        "    )",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
+                    ]
+                )
+            else:
+                if color_min is not None and color_max is not None and color_min >= color_max:
+                    lines.append('    raise ValueError("color min must be smaller than color max.")')
+                lines.extend(
+                    [
+                        "    scatter = axes.scatter(",
+                        f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
+                        f"        c=color, cmap={cmap!r}, vmin={color_min!r}, vmax={color_max!r},",
+                        "    )",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
+                    ]
+                )
     lines.extend(
         [
             f"    axes.set_xlabel({x_label!r})",

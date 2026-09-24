@@ -26,6 +26,7 @@ from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
 from ..plotting.plots import (
     InvalidAxisScaleError,
+    InvalidColorScaleError,
     apply_range_cuts,
     build_plotly_3d,
     calculate_correlations,
@@ -240,7 +241,7 @@ def _generate_and_show(
         except ArrayShapeMismatchError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
-        except InvalidAxisScaleError as exc:
+        except (InvalidAxisScaleError, InvalidColorScaleError) as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:

@@ -488,6 +488,9 @@ def plot_style_controls(
             style["reverse_colorscale"] = st.checkbox(
                 "reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
             )
+            style["log_color"] = st.checkbox(
+                "log color scale", value=False, key=f"{prefix}_log_color_2d"
+            )
             style["color_min_text"] = st.text_input(
                 "color min", value="", key=f"{prefix}_color_min_2d"
             )

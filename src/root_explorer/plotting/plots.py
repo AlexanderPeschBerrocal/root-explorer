@@ -22,6 +22,10 @@ class InvalidAxisScaleError(ValueError):
     """Raised when selected values cannot be displayed on a requested axis scale."""
 
 
+class InvalidColorScaleError(ValueError):
+    """Raised when scatter colour normalization is invalid."""
+
+
 class ContourConfigurationError(ValueError):
     """Raised when highest-density contours cannot be configured for a histogram."""
 
@@ -312,6 +316,45 @@ def apply_range_cut(
     if cut_var is None:
         return align_arrays(arrays)
     return apply_range_cuts(arrays, [(cut_var, lo, hi)])
+
+
+def scatter_color_scale(
+    color: np.ndarray, style: dict[str, Any]
+) -> tuple[LogNorm | None, float | None, float | None]:
+    """Validate and resolve 2D-scatter colour normalization."""
+
+    cmin_text = style.get("color_min_text", "")
+    cmax_text = style.get("color_max_text", "")
+    cmin = parse_optional_float(cmin_text)
+    cmax = parse_optional_float(cmax_text)
+    for label, raw, value in [
+        ("color min", cmin_text, cmin),
+        ("color max", cmax_text, cmax),
+    ]:
+        if str(raw).strip() and (value is None or not np.isfinite(value)):
+            raise InvalidColorScaleError(f"{label} must be a finite number.")
+    if cmin is not None and cmax is not None and cmin >= cmax:
+        raise InvalidColorScaleError("color min must be smaller than color max.")
+
+    values = np.asarray(color, dtype=float)
+    if not style.get("log_color", False):
+        return None, cmin, cmax
+
+    if values.size == 0 or np.any(~np.isfinite(values)) or np.any(values <= 0):
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires all color values to be finite and strictly positive."
+        )
+    vmin = cmin if cmin is not None else float(np.min(values))
+    vmax = cmax if cmax is not None else float(np.max(values))
+    if vmin <= 0 or vmax <= 0:
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires positive color min and color max."
+        )
+    if vmin >= vmax:
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires color min to be smaller than color max."
+        )
+    return LogNorm(vmin=vmin, vmax=vmax), None, None
 
 
 def parse_optional_float(text: str) -> float | None:
@@ -688,8 +731,7 @@ def render_static_plot(
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         if color is not None:
-            cmin = parse_optional_float(style.get("color_min_text", ""))
-            cmax = parse_optional_float(style.get("color_max_text", ""))
+            color_norm, cmin, cmax = scatter_color_scale(color, style)
             scatter = ax.scatter(
                 x,
                 y,
@@ -699,6 +741,7 @@ def render_static_plot(
                 cmap=matplotlib_cmap_name(
                     style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
                 ),
+                norm=color_norm,
                 vmin=cmin,
                 vmax=cmax,
             )

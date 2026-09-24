@@ -14,6 +14,7 @@ from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
     InvalidAxisScaleError,
+    InvalidColorScaleError,
     KDEError,
     apply_range_cuts,
     build_plotly_3d,
@@ -557,4 +558,78 @@ def test_1d_reference_line_is_drawn_at_requested_value() -> None:
     )
     assert axes.lines[-1].get_xdata()[0] == pytest.approx(2.0)
     assert axes.lines[-1].get_label() == "threshold = 2"
+    plt.close(figure)
+
+
+def test_scatter_color_limits_and_log_normalization() -> None:
+    linear_figure, linear_axes = plt.subplots()
+    render_static_plot(
+        linear_figure,
+        linear_axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.0, 2.0, 3.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "color_min_text": "2",
+            "color_max_text": "50",
+            "grid": False,
+        },
+        title="linear color",
+        color=np.array([1.0, 10.0, 100.0]),
+    )
+    assert linear_axes.collections[0].norm.vmin == pytest.approx(2.0)
+    assert linear_axes.collections[0].norm.vmax == pytest.approx(50.0)
+    plt.close(linear_figure)
+
+    log_figure, log_axes = plt.subplots()
+    render_static_plot(
+        log_figure,
+        log_axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.0, 2.0, 3.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "log_color": True,
+            "color_min_text": "1",
+            "color_max_text": "100",
+            "grid": False,
+        },
+        title="log color",
+        color=np.array([1.0, 10.0, 100.0]),
+    )
+    assert isinstance(log_axes.collections[0].norm, LogNorm)
+    assert log_axes.collections[0].norm.vmin == pytest.approx(1.0)
+    assert log_axes.collections[0].norm.vmax == pytest.approx(100.0)
+    plt.close(log_figure)
+
+
+def test_scatter_rejects_invalid_color_limits() -> None:
+    figure, axes = plt.subplots()
+    with pytest.raises(InvalidColorScaleError, match="smaller"):
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            np.array([1.0, 2.0]),
+            np.array([1.0, 2.0]),
+            "x",
+            "y",
+            {
+                "marker_size_2d": 3.0,
+                "opacity_2d": 0.5,
+                "color_min_text": "10",
+                "color_max_text": "2",
+                "grid": False,
+            },
+            title="bad color",
+            color=np.array([1.0, 2.0]),
+        )
     plt.close(figure)
