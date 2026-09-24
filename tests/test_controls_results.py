@@ -12,9 +12,10 @@ from root_explorer.app.controls import (
     supports_histogram_weights,
     supports_point_color,
 )
-from root_explorer.app.results import collection_summary, store_uploaded_file
+from root_explorer.app.results import color_clipping_summary, collection_summary, store_uploaded_file
 from root_explorer.app.state import DataContext
 from root_explorer.models import FieldInfo
+from root_explorer.plotting.plots import ColorClippingResult
 
 
 class _Upload:
@@ -66,3 +67,25 @@ def test_data_context_cache_key_uses_the_selected_range() -> None:
     )
 
     assert context.cache_key == ("events.root", "Events", 10, 50)
+
+
+def test_color_clipping_summary_handles_counts_and_optional_weights() -> None:
+    unweighted = ColorClippingResult(1.0, 10.0, 2, 3)
+    assert color_clipping_summary(unweighted) == (
+        "Color clipping: 2 points below color min 1 · 3 points above color max 10"
+    )
+
+    weighted = ColorClippingResult(
+        1.0,
+        10.0,
+        2,
+        3,
+        below_weight=-0.25,
+        above_weight=4.5,
+    )
+    assert color_clipping_summary(weighted) == (
+        "Color clipping: 2 points below color min 1 (sum of weights: -0.25) · "
+        "3 points above color max 10 (sum of weights: 4.5)"
+    )
+
+    assert color_clipping_summary(ColorClippingResult(1.0, 10.0, 0, 0)) is None

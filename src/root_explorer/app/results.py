@@ -12,6 +12,7 @@ import streamlit as st
 from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
+    ColorClippingResult,
     CorrelationResult,
     matplotlib_figure_bytes,
     plotly_figure_html,
@@ -87,6 +88,10 @@ def show_cached_plot_result(
         st.error(f"Unknown cached plot kind: {kind}")
         return
 
+    color_clipping_result = result.get("color_clipping_result")
+    if isinstance(color_clipping_result, ColorClippingResult):
+        _show_color_clipping_result(color_clipping_result)
+
     export = export_controls(export_prefix, kind, default_save_name=result["save_name"])
     outdir = Path(export["save_directory"])
     save_name = export["save_name"]
@@ -149,6 +154,31 @@ def show_cached_plot_result(
                     on_click="ignore",
                     width="stretch",
                 )
+
+
+def color_clipping_summary(result: ColorClippingResult) -> str | None:
+    """Return a concise description of actually clipped scatter colour values."""
+
+    parts: list[str] = []
+    if result.below_count > 0 and result.color_min is not None:
+        noun = "point" if result.below_count == 1 else "points"
+        text = f"{result.below_count} {noun} below color min {result.color_min:g}"
+        if result.below_weight is not None:
+            text += f" (sum of weights: {result.below_weight:g})"
+        parts.append(text)
+    if result.above_count > 0 and result.color_max is not None:
+        noun = "point" if result.above_count == 1 else "points"
+        text = f"{result.above_count} {noun} above color max {result.color_max:g}"
+        if result.above_weight is not None:
+            text += f" (sum of weights: {result.above_weight:g})"
+        parts.append(text)
+    return "Color clipping: " + " · ".join(parts) if parts else None
+
+
+def _show_color_clipping_result(result: ColorClippingResult) -> None:
+    summary = color_clipping_summary(result)
+    if summary is not None:
+        st.caption(summary)
 
 
 def _show_threshold_result(result: ThresholdResult) -> None:

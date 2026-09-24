@@ -29,6 +29,7 @@ from ..plotting.plots import (
     InvalidColorScaleError,
     apply_range_cuts,
     build_plotly_3d,
+    calculate_color_clipping,
     calculate_correlations,
     describe_array,
     downsample_arrays,
@@ -366,10 +367,13 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         summary_rows.append(describe_array(color_label or "color", color))
     summary = pd.DataFrame(summary_rows)
     correlation_result = None
+    color_clipping_result = None
     if request.plot_type == "2D scatter":
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         correlation_result = calculate_correlations(x, y)
+        if color is not None:
+            color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     x_label = request.labels["custom_x"] or axis_labels[0]
@@ -437,6 +441,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         color_label=color_label,
         reference_x=reference_x,
         reference_label=reference_label,
+        colorbar_extend=(
+            color_clipping_result.extend if color_clipping_result is not None else "neither"
+        ),
     )
     return {
         "kind": "matplotlib",
@@ -445,7 +452,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "summary": summary,
         "preview": preview,
         "threshold_result": threshold_result,
+        "quantile_result": quantile_result,
         "correlation_result": correlation_result,
+        "color_clipping_result": color_clipping_result,
         "warnings": plot_warnings,
         "save_name": save_name,
         "save_button_label": "Save selected formats",

@@ -223,6 +223,19 @@ def generate_static_plot_code(request: PlotRequest) -> str:
     if request.color_spec is not None:
         lines.append("    color = color[mask]")
 
+    if request.plot_type == "2D scatter" and request.color_spec is not None:
+        color_min = _optional_float(style.get("color_min_text", ""))
+        color_max = _optional_float(style.get("color_max_text", ""))
+        lines.extend(
+            [
+                f"    color_below = bool({color_min!r} is not None and np.any(color < {color_min!r}))",
+                f"    color_above = bool({color_max!r} is not None and np.any(color > {color_max!r}))",
+                "    colorbar_extend = (",
+                '        "both" if color_below and color_above else',
+                '        "min" if color_below else "max" if color_above else "neither"',
+                "    )",
+            ]
+        )
     if request.plot_type == "2D scatter":
         lines.extend(_scatter_downsampling_lines(request))
 
@@ -586,7 +599,7 @@ def _plot_lines(
                         f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
                         f"        c=color, cmap={cmap!r}, norm=color_norm,",
                         "    )",
-                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r}, extend=colorbar_extend)",
                     ]
                 )
             else:
@@ -598,7 +611,7 @@ def _plot_lines(
                         f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
                         f"        c=color, cmap={cmap!r}, vmin={color_min!r}, vmax={color_max!r},",
                         "    )",
-                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r}, extend=colorbar_extend)",
                     ]
                 )
     lines.extend(
