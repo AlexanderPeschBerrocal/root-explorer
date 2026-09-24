@@ -146,6 +146,50 @@ def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(
     plt.close("all")
 
 
+def test_generated_2d_histogram_code_reproduces_highest_density_contours(root_path) -> None:
+    request = PlotRequest(
+        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        z_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=[],
+        cut_bounds=[],
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 5,
+            "bins_y": 5,
+            "log_x": False,
+            "log_y": False,
+            "log_z": False,
+            "show_contours": True,
+            "contour_levels": [68.0, 95.0, 99.0],
+            "equal_aspect": False,
+            "grid": False,
+        },
+        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+    )
+
+    source = generate_static_plot_code(request)
+
+    compile(source, "contour_plot.py", "exec")
+    assert "contour_percentages = [68.0, 95.0, 99.0]" in source
+    assert "contours = axes.contour(" in source
+    namespace = {"__name__": "generated_contour_plot"}
+    exec(source, namespace)
+    namespace["plt"].show = lambda: None
+    namespace["main"]()
+    assert len(namespace["plt"].gcf().axes[0].collections) > 1
+    plt.close("all")
+
+
 @pytest.mark.parametrize(
     ("spec", "formula"),
     [

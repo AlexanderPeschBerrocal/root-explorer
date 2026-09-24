@@ -397,7 +397,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "save_button_label": "Save HTML",
         }
     figure, axes = plt.subplots(figsize=(request.style["fig_width"], request.style["fig_height"]))
-    render_static_plot(
+    plot_warnings = render_static_plot(
         figure,
         axes,
         request.plot_type,
@@ -419,6 +419,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "summary": summary,
         "preview": preview,
         "threshold_result": threshold_result,
+        "warnings": plot_warnings,
         "save_name": save_name,
         "save_button_label": "Save selected formats",
     }
