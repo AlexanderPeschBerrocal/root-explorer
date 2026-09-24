@@ -125,6 +125,9 @@ def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(
             "fig_height": 6.0,
             "bins_x": 3,
             "log_y": False,
+            "show_kde": True,
+            "kde_bandwidth": "silverman",
+            "kde_custom_factor": 1.0,
             "grid": False,
         },
         labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
@@ -143,6 +146,7 @@ def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(
     axes = namespace["plt"].gcf().axes[0]
     assert sum(patch.get_height() for patch in axes.patches) == pytest.approx(9.0)
     assert axes.get_ylabel() == "sum weights (genWeight)"
+    assert axes.lines[0].get_label() == "KDE"
     plt.close("all")
 
 
@@ -167,6 +171,9 @@ def test_generated_2d_histogram_code_reproduces_highest_density_contours(root_pa
             "log_z": False,
             "show_contours": True,
             "contour_levels": [68.0, 95.0, 99.0],
+            "show_kde": True,
+            "kde_bandwidth": "custom",
+            "kde_custom_factor": 0.7,
             "equal_aspect": False,
             "grid": False,
         },
@@ -182,6 +189,8 @@ def test_generated_2d_histogram_code_reproduces_highest_density_contours(root_pa
     compile(source, "contour_plot.py", "exec")
     assert "contour_percentages = [68.0, 95.0, 99.0]" in source
     assert "contours = axes.contour(" in source
+    assert "from scipy.stats import gaussian_kde" in source
+    assert "bandwidth = kde_bandwidth('custom', 0.7)" in source
     namespace = {"__name__": "generated_contour_plot"}
     exec(source, namespace)
     namespace["plt"].show = lambda: None

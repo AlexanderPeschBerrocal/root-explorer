@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..models import VariableSpec
-from .plots import matplotlib_cmap_name
+from .plots import KDE_1D_GRID_SIZE, KDE_2D_MAX_GRID_SIZE, KDE_MAX_POINTS, matplotlib_cmap_name
 
 if TYPE_CHECKING:
     from ..app.plotting import PlotRequest
@@ -38,10 +38,61 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         "import numpy as np",
         "import uproot",
     ]
-    if request.plot_type == "2D histogram" and style.get("show_contours", False):
+    show_kde = request.plot_type in {"1D histogram", "2D histogram"} and style.get(
+        "show_kde", False
+    )
+    if show_kde or (request.plot_type == "2D histogram" and style.get("show_contours", False)):
         lines.append("import warnings")
+    if show_kde:
+        lines.append("from scipy.stats import gaussian_kde")
     if request.plot_type == "2D histogram" and style.get("log_z", False):
         lines.append("from matplotlib.colors import LogNorm")
+    if show_kde:
+        lines.extend(
+            [
+                "",
+                f"KDE_MAX_POINTS = {KDE_MAX_POINTS}",
+                "",
+                "",
+                "def prepare_kde_sample(coordinates, weights):",
+                "    if weights is not None:",
+                "        if np.any(weights < 0):",
+                '            raise ValueError("the selected weights contain negative values")',
+                "        total_weight = float(np.sum(weights))",
+                "        if total_weight <= 0:",
+                '            raise ValueError("the total non-negative weight is zero")',
+                "        positive_weight = weights > 0",
+                "        coordinates = [values[positive_weight] for values in coordinates]",
+                "        weights = weights[positive_weight]",
+                "    else:",
+                "        total_weight = float(len(coordinates[0]))",
+                "    minimum_points = len(coordinates) + 1",
+                "    if len(coordinates[0]) < minimum_points:",
+                '        raise ValueError(f"at least {minimum_points} valid points are required")',
+                "    if any(np.ptp(values) == 0 for values in coordinates):",
+                '        raise ValueError("a selected variable is constant")',
+                "    if len(coordinates[0]) > KDE_MAX_POINTS:",
+                "        rng = np.random.default_rng(12345)",
+                "        indices = rng.choice(",
+                "            len(coordinates[0]), size=KDE_MAX_POINTS, replace=False",
+                "        )",
+                "        coordinates = [values[indices] for values in coordinates]",
+                "        if weights is not None:",
+                "            weights = weights[indices]",
+                "    return coordinates, weights, total_weight",
+                "",
+                "",
+                "def kde_bandwidth(method, custom_factor):",
+                '    if method in {"scott", "silverman"}:',
+                "        return method",
+                '    if method != "custom":',
+                '        raise ValueError(f"unknown bandwidth method: {method!r}")',
+                "    factor = float(custom_factor)",
+                "    if not np.isfinite(factor) or factor <= 0:",
+                '        raise ValueError("the custom bandwidth factor must be finite and positive")',
+                "    return factor",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -400,8 +451,10 @@ def _plot_lines(
     lines: list[str] = []
     if request.plot_type == "1D histogram":
         lines.append(
-            f"    histogram_values, _, _ = axes.hist(x, bins={style['bins_x']!r}, weights=weights)"
+            f"    histogram_values, histogram_edges, _ = axes.hist(x, bins={style['bins_x']!r}, weights=weights)"
         )
+        if style.get("show_kde", False):
+            lines.extend(_kde_1d_lines(style))
     elif request.plot_type == "2D histogram":
         lines.extend(
             [
@@ -471,6 +524,8 @@ def _plot_lines(
                     "                )",
                 ]
             )
+        if style.get("show_kde", False):
+            lines.extend(_kde_2d_lines(style))
     elif request.plot_type == "2D scatter":
         if request.color_spec is None:
             lines.append(
@@ -528,6 +583,62 @@ def _plot_lines(
     if style.get("grid", False):
         lines.append("    axes.grid(alpha=0.3)")
     return lines
+
+
+def _kde_bandwidth_line(style: dict) -> str:
+    return (
+        "        bandwidth = kde_bandwidth("
+        f"{style.get('kde_bandwidth', 'scott')!r}, "
+        f"{style.get('kde_custom_factor', 1.0)!r})"
+    )
+
+
+def _kde_1d_lines(style: dict) -> list[str]:
+    return [
+        "    try:",
+        _kde_bandwidth_line(style),
+        "        coordinates, kde_weights, total_weight = prepare_kde_sample([x], weights)",
+        "        kde = gaussian_kde(coordinates[0], bw_method=bandwidth, weights=kde_weights)",
+        "        kde_grid = np.linspace(",
+        f"            histogram_edges[0], histogram_edges[-1], {KDE_1D_GRID_SIZE}",
+        "        )",
+        "        bin_widths = np.diff(histogram_edges)",
+        "        if not np.allclose(bin_widths, bin_widths[0]):",
+        '            raise ValueError("histogram bins do not have equal widths")',
+        "        kde_curve = kde(kde_grid) * total_weight * bin_widths[0]",
+        '        axes.plot(kde_grid, kde_curve, color="tab:orange", linewidth=2.0, label="KDE")',
+        "    except Exception as exc:",
+        '        warnings.warn(f"KDE could not be calculated: {exc}")',
+    ]
+
+
+def _kde_2d_lines(style: dict) -> list[str]:
+    return [
+        "    try:",
+        _kde_bandwidth_line(style),
+        "        coordinates, kde_weights, _ = prepare_kde_sample([x, y], weights)",
+        "        kde = gaussian_kde(",
+        "            np.vstack(coordinates), bw_method=bandwidth, weights=kde_weights",
+        "        )",
+        "        kde_x = np.linspace(",
+        f"            xedges[0], xedges[-1], min(len(xedges) - 1, {KDE_2D_MAX_GRID_SIZE})",
+        "        )",
+        "        kde_y = np.linspace(",
+        f"            yedges[0], yedges[-1], min(len(yedges) - 1, {KDE_2D_MAX_GRID_SIZE})",
+        "        )",
+        "        kde_grid_x, kde_grid_y = np.meshgrid(kde_x, kde_y)",
+        "        kde_density = kde(",
+        "            np.vstack([kde_grid_x.ravel(), kde_grid_y.ravel()])",
+        "        ).reshape(kde_grid_x.shape)",
+        "        if not np.any(np.isfinite(kde_density) & (kde_density > 0)):",
+        '            raise ValueError("KDE produced no positive finite density values")',
+        "        axes.contour(",
+        "            kde_grid_x, kde_grid_y, kde_density, levels=6,",
+        '            colors="tab:orange", linestyles="dashed", linewidths=1.2,',
+        "        )",
+        "    except Exception as exc:",
+        '        warnings.warn(f"KDE could not be calculated: {exc}")',
+    ]
 
 
 def _optional_float(value: object) -> float | None:

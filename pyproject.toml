@@ -25,6 +25,7 @@ dependencies = [
     "numpy",
     "pandas",
     "plotly",
+    "scipy",
     "streamlit~=1.62.0",
     "uproot>=5.7.0",
 ]
