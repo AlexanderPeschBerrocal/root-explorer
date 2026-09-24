@@ -48,7 +48,17 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     ]
     assert len(at.dataframe) >= 2
     assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
-    assert at.selectbox(key="x_mode").options[-3:] == ["delta phi", "delta eta", "delta R"]
+    assert at.selectbox(key="x_mode").options[-9:] == [
+        "delta phi",
+        "delta eta",
+        "delta R",
+        "|A|",
+        "A / B",
+        "A - B",
+        "A + B",
+        "A * B",
+        "sqrt(A² + B² + C²)",
+    ]
     assert at.selectbox(key="x_branch").label == "x: branch"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
@@ -76,8 +86,8 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     mode = at.selectbox(key="x_mode")
 
     assert {
-        "Absolute value |A|",
-        "3D magnitude sqrt(A² + B² + C²)",
+        "|A|",
+        "sqrt(A² + B² + C²)",
         "Energy (massless)",
         "Energy (with mass)",
         "Invariant mass (single particle)",
