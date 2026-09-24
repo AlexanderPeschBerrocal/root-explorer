@@ -19,6 +19,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
+from ..analysis.statistics import calculate_threshold_result
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
@@ -41,6 +42,7 @@ from .controls import (
     plot_style_controls,
     range_cut_controls,
     supports_point_color,
+    threshold_calculator_controls,
     variable_selector,
 )
 from .results import show_cached_plot_result
@@ -66,6 +68,7 @@ class PlotRequest:
     event_index: int | None
     preview: bool
     save_name: str
+    threshold: float | None = None
 
 
 def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
@@ -180,6 +183,7 @@ def _render_plot_controls(
     weight_branch = histogram_weight_selector(
         prefix, plot_type, context.fields, item_name=context.data_item_name
     )
+    threshold = threshold_calculator_controls(prefix, plot_type)
     cut_specs, cut_bounds = range_cut_controls(
         prefix, context.fields, item_name=context.data_item_name
     )
@@ -218,6 +222,7 @@ def _render_plot_controls(
             event_index=event_index,
             preview=is_event_plot,
             save_name=save_name,
+            threshold=threshold,
         ),
         make_plot,
     )
@@ -332,6 +337,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_weights=request.weight_branch is not None,
         has_color=request.color_spec is not None,
     )
+    threshold_result = None
+    if request.plot_type == "1D histogram" and request.threshold is not None:
+        threshold_result = calculate_threshold_result(x, request.threshold, weights)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
 
     summary_rows = [describe_array(axis_labels[0], x)]
@@ -384,6 +392,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             ),
             "summary": summary,
             "preview": preview,
+            "threshold_result": threshold_result,
             "save_name": save_name,
             "save_button_label": "Save HTML",
         }
@@ -409,6 +418,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "code": generate_static_plot_code(request),
         "summary": summary,
         "preview": preview,
+        "threshold_result": threshold_result,
         "save_name": save_name,
         "save_button_label": "Save selected formats",
     }

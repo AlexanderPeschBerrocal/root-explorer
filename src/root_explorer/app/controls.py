@@ -321,6 +321,27 @@ def histogram_weight_selector(
     )
 
 
+def threshold_calculator_controls(prefix: str, plot_type: str) -> float | None:
+    """Return a threshold when the optional 1D calculator is enabled."""
+
+    if plot_type != "1D histogram":
+        return None
+    st.markdown("### Threshold calculator")
+    enabled = st.checkbox(
+        "Calculate threshold fractions", value=False, key=f"{prefix}_threshold_enabled"
+    )
+    if not enabled:
+        return None
+    return float(
+        st.number_input(
+            "threshold",
+            value=0.0,
+            format="%.6g",
+            key=f"{prefix}_threshold",
+        )
+    )
+
+
 def range_cut_controls(
     prefix: str, fields: list[str], *, item_name: str
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
