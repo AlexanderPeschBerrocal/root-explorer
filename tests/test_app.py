@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from root_explorer.app.main import APP_ICON
@@ -120,6 +121,37 @@ def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
     assert not at.exception
     assert "plot_result" not in at.session_state
     assert any("strictly positive" in warning.value for warning in at.warning)
+
+
+def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.checkbox(key="plot_threshold_enabled").check().run()
+    at.number_input(key="plot_threshold").set_value(50.0).run()
+    at.button(key="plot_make").click().run()
+
+    result = at.session_state["plot_result"]
+    threshold = result["threshold_result"]
+    assert threshold is not None
+    assert not threshold.weighted
+    assert threshold.below_count + threshold.above_count == threshold.total_count
+    assert threshold.total_count == result["summary"].iloc[0]["n"]
+    assert threshold.below_fraction + threshold.above_fraction == pytest.approx(1.0)
+
+    at.number_input(key="plot_n_cuts").set_value(1).run()
+    at.selectbox(key="plot_cut_0_branch").select("Muon_pt").run()
+    at.text_input(key="plot_cut_0_min").input("40").run()
+    at.button(key="plot_make").click().run()
+    cut_result = at.session_state["plot_result"]
+    cut_threshold = cut_result["threshold_result"]
+    assert cut_threshold.total_count == cut_result["summary"].iloc[0]["n"]
+    assert cut_threshold.total_count < threshold.total_count
+
+    at.checkbox(key="plot_use_weights").check().run()
+    at.button(key="plot_make").click().run()
+    weighted = at.session_state["plot_result"]["threshold_result"]
+    assert weighted.weighted
+    assert weighted.total_weight == pytest.approx(weighted.below_weight + weighted.above_weight)
 
 
 def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:

@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from ..analysis.statistics import ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
     matplotlib_figure_bytes,
@@ -49,6 +50,10 @@ def show_cached_plot_result(
     summary = result.get("summary")
     if summary is not None:
         st.dataframe(summary, width="stretch")
+
+    threshold_result = result.get("threshold_result")
+    if isinstance(threshold_result, ThresholdResult):
+        _show_threshold_result(threshold_result)
 
     preview = result.get("preview")
     if preview is not None and len(preview) > 0:
@@ -128,6 +133,45 @@ def show_cached_plot_result(
                     on_click="ignore",
                     width="stretch",
                 )
+
+
+def _show_threshold_result(result: ThresholdResult) -> None:
+    """Display one cached threshold calculation next to the plot summary."""
+
+    st.markdown("#### Threshold calculator")
+    total_text = f"Selected values: {result.total_count}"
+    if result.weighted:
+        assert result.total_weight is not None
+        total_text += f" · Total sum of weights: {result.total_weight:g}"
+    st.caption(total_text)
+    rows: list[dict[str, object]] = [
+        {
+            "selection": f"x ≤ {result.threshold:g}",
+            "count": result.below_count,
+            "fraction": result.below_fraction,
+        },
+        {
+            "selection": f"x > {result.threshold:g}",
+            "count": result.above_count,
+            "fraction": result.above_fraction,
+        },
+    ]
+    if result.weighted:
+        rows[0]["sum of weights"] = result.below_weight
+        rows[1]["sum of weights"] = result.above_weight
+        rows[0]["weighted fraction"] = rows[0].pop("fraction")
+        rows[1]["weighted fraction"] = rows[1].pop("fraction")
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+    if result.total_count == 0:
+        st.warning("The selected sample is empty; threshold fractions are unavailable.")
+    elif result.weighted and result.below_fraction is None:
+        st.warning(
+            "The total sum of weights is zero; weighted fractions are unavailable. "
+            "Counts and signed sums of weights are still shown."
+        )
+    elif result.weighted and result.has_negative_weights:
+        st.caption("Weighted fractions use signed sums of weights and may lie outside 0 to 1.")
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
