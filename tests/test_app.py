@@ -99,7 +99,6 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
         "Min per event",
     ]
     assert {
-
         "|A|",
         "sqrt(A² + B² + C²)",
         "Energy (massless)",

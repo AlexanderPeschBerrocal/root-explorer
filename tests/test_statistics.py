@@ -77,16 +77,12 @@ def test_quantiles_support_unweighted_and_nonnegative_weighted_samples() -> None
     assert unweighted.value == pytest.approx(2.5)
     assert not unweighted.weighted
 
-    weighted = calculate_quantile_result(
-        np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, 1.0, 8.0])
-    )
+    weighted = calculate_quantile_result(np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, 1.0, 8.0]))
     assert weighted.value == pytest.approx(3.0)
     assert weighted.weighted
 
 
 def test_signed_weighted_quantile_is_explicitly_unavailable() -> None:
-    result = calculate_quantile_result(
-        np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, -0.5, 1.0])
-    )
+    result = calculate_quantile_result(np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, -0.5, 1.0]))
     assert result.value is None
     assert result.has_negative_weights

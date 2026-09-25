@@ -379,12 +379,8 @@ def calculate_color_clipping(
 
     below = values < cmin if cmin is not None else np.zeros(len(values), dtype=bool)
     above = values > cmax if cmax is not None else np.zeros(len(values), dtype=bool)
-    below_weight = (
-        float(np.sum(selected_weights[below])) if selected_weights is not None else None
-    )
-    above_weight = (
-        float(np.sum(selected_weights[above])) if selected_weights is not None else None
-    )
+    below_weight = float(np.sum(selected_weights[below])) if selected_weights is not None else None
+    above_weight = float(np.sum(selected_weights[above])) if selected_weights is not None else None
     return ColorClippingResult(
         color_min=cmin,
         color_max=cmax,

@@ -222,9 +222,7 @@ def _show_quantile_result(result: QuantileResult) -> None:
 
     st.markdown("#### Quantile calculator", anchors=False)
     value_text = "unavailable" if result.value is None else f"{result.value:g}"
-    dataframe = pd.DataFrame(
-        [{"percentile (%)": result.percentile, "quantile": value_text}]
-    )
+    dataframe = pd.DataFrame([{"percentile (%)": result.percentile, "quantile": value_text}])
     _show_centered_table(dataframe)
     if result.total_count == 0:
         st.warning("The selected sample is empty; the quantile is unavailable.")

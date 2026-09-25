@@ -45,9 +45,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         lines.append("import warnings")
     if show_kde:
         lines.append("from scipy.stats import gaussian_kde")
-    if (
-        request.plot_type == "2D histogram" and style.get("log_z", False)
-    ) or (
+    if (request.plot_type == "2D histogram" and style.get("log_z", False)) or (
         request.plot_type == "2D scatter" and style.get("log_color", False)
     ):
         lines.append("from matplotlib.colors import LogNorm")
@@ -604,7 +602,9 @@ def _plot_lines(
                 )
             else:
                 if color_min is not None and color_max is not None and color_min >= color_max:
-                    lines.append('    raise ValueError("color min must be smaller than color max.")')
+                    lines.append(
+                        '    raise ValueError("color min must be smaller than color max.")'
+                    )
                 lines.extend(
                     [
                         "    scatter = axes.scatter(",
