@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict
+from types import ModuleType
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -90,37 +94,61 @@ def _assert_prepared_parity(actual, expected) -> None:
     )
 
 
+@contextmanager
+def _executed_generated_module(source: str) -> Iterator[ModuleType]:
+    """Execute generated code in a real, temporarily registered module.
+
+    Executing into only a dictionary with a synthetic __name__ does not create a
+    registered Python module. Generated exports use postponed annotations, and
+    dataclasses may resolve those annotations through sys.modules[cls.__module__]
+    while defining vendored classes. Registering a ModuleType mirrors normal Python
+    script/import execution, while a non-__main__ name prevents main() from running
+    eagerly so the parity tests can inspect the generated helpers first.
+    """
+
+    module_name = "standalone_root_explorer_export"
+    module = ModuleType(module_name)
+    previous_module = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    try:
+        exec(compile(source, "root_explorer_export.py", "exec"), module.__dict__)
+        yield module
+    finally:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
+
+
 def _execute_export(request: PlotRequest):
     source = generate_static_plot_code(request)
-    compile(source, "root_explorer_export.py", "exec")
 
     assert "from root_explorer" not in source
     assert "import root_explorer" not in source
     assert "import streamlit" not in source
 
-    # Give the generated code a unique name to avoid firing up as main immediately since we want to investigate the generated functions and not run the script as a whole
-    namespace = {"__name__": "standalone_root_explorer_export"}
-    exec(source, namespace)
-    namespace["plt"].show = lambda: None
+    with _executed_generated_module(source) as module:
+        namespace = module.__dict__
+        namespace["plt"].show = lambda: None
 
-    namespace["main"]()
-    main_figure = namespace["plt"].gcf()
-    assert main_figure.axes
-    plt.close(main_figure)
+        namespace["main"]()
+        main_figure = namespace["plt"].gcf()
+        assert main_figure.axes
+        plt.close(main_figure)
 
-    canonical_spec = request.to_static_spec()
-    canonical_prepared = prepare_static_plot(canonical_spec)
-    generated_prepared = namespace["prepare_static_plot"](namespace["PLOT"])
-    _assert_prepared_parity(generated_prepared, canonical_prepared)
+        canonical_spec = request.to_static_spec()
+        canonical_prepared = prepare_static_plot(canonical_spec)
+        generated_prepared = namespace["prepare_static_plot"](namespace["PLOT"])
+        _assert_prepared_parity(generated_prepared, canonical_prepared)
 
-    canonical_figure, canonical_warnings = render_prepared_static_plot(
-        canonical_spec, canonical_prepared
-    )
-    generated_figure, generated_warnings = namespace["render_prepared_static_plot"](
-        namespace["PLOT"], generated_prepared
-    )
-    assert generated_warnings == canonical_warnings
-    return canonical_prepared, canonical_figure, generated_figure
+        canonical_figure, canonical_warnings = render_prepared_static_plot(
+            canonical_spec, canonical_prepared
+        )
+        generated_figure, generated_warnings = namespace["render_prepared_static_plot"](
+            namespace["PLOT"], generated_prepared
+        )
+        assert generated_warnings == canonical_warnings
+        return canonical_prepared, canonical_figure, generated_figure
 
 
 def _histogram_heights(figure) -> np.ndarray:
