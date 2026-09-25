@@ -15,7 +15,7 @@ from root_explorer.app.controls import (
     supports_point_color,
 )
 from root_explorer.app.results import (
-    _centered_table_styler,
+    _centered_table_html,
     color_clipping_summary,
     collection_summary,
     store_uploaded_file,
@@ -98,10 +98,12 @@ def test_color_clipping_summary_handles_counts_and_optional_weights() -> None:
     assert color_clipping_summary(ColorClippingResult(1.0, 10.0, 0, 0)) is None
 
 
-def test_centered_table_styler_centres_headers_and_cells() -> None:
-    styler = _centered_table_styler(pd.DataFrame({"variable": ["x"], "n": [1]}), hide_index=True)
-    html = styler.to_html()
+def test_centered_table_html_centres_headers_and_cells_and_escapes_values() -> None:
+    html = _centered_table_html(pd.DataFrame({"variable": ["<unsafe>"], "n": [1]}))
 
-    assert "th {" in html
-    assert "td {" in html
-    assert "text-align: center;" in html
+    assert "text-align: center !important;" in html
+    assert "<th>variable</th>" in html
+    assert "<th>n</th>" in html
+    assert "&lt;unsafe&gt;" in html
+    assert "<unsafe>" not in html
+    assert "<th></th>" not in html
