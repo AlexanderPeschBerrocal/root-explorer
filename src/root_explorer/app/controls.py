@@ -24,7 +24,7 @@ def variable_selector(
 ) -> VariableSpec:
     display_prefix = display_prefix or prefix
     mode_labels = {
-        "branch": f"Direct {item_name} values",
+        "branch": f"Direct {item_name} values: A",
         "absolute": "|A|",
         "multiplicity": "Multiplicity per event",
         "nth": "nth object per event",
