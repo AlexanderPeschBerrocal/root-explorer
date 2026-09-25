@@ -11,7 +11,6 @@ import numpy as np
 from ..analysis.arrays import (
     apply_finite_filter,
     array_length,
-    cut_values_for_values,
     histogram_weights_for_values,
     validate_variable_event_shapes,
     variable_values_for_values,
@@ -106,9 +105,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         spec.entry_stop,
         spec.event_index,
         context=(
-            "event plot-axis variables"
-            if spec.event_index is not None
-            else "plot-axis variables"
+            "event plot-axis variables" if spec.event_index is not None else "plot-axis variables"
         ),
     )
 
@@ -198,9 +195,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         quantile_result = calculate_quantile_result(x, spec.quantile_percentile, weights)
         if quantile_result.value is not None:
             reference_x = quantile_result.value
-            reference_label = (
-                f"{spec.quantile_percentile:g}% quantile = {quantile_result.value:g}"
-            )
+            reference_label = f"{spec.quantile_percentile:g}% quantile = {quantile_result.value:g}"
 
     color_clipping_result = None
     if spec.plot_type == "2D scatter" and color is not None:
@@ -239,9 +234,7 @@ def render_prepared_static_plot(
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
     x, y, color = prepared.render_arrays(spec.plot_type)
-    figure, axes = plt.subplots(
-        figsize=(spec.style["fig_width"], spec.style["fig_height"])
-    )
+    figure, axes = plt.subplots(figsize=(spec.style["fig_width"], spec.style["fig_height"]))
     warnings = render_static_plot(
         figure,
         axes,

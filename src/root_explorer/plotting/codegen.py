@@ -41,7 +41,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         "    prepared = prepare_static_plot(PLOT)\n"
         "    figure, plot_warnings = render_prepared_static_plot(PLOT, prepared)\n"
         "    for warning in plot_warnings:\n"
-        "        print(f\"ROOT Explorer warning: {warning}\")\n"
+        '        print(f"ROOT Explorer warning: {warning}")\n'
         "    plt.show()\n\n\n"
         'if __name__ == "__main__":\n'
         "    main()\n"

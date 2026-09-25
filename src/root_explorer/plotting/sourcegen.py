@@ -145,8 +145,7 @@ def bundle_python_source(
                         f"Cannot reconstruct import for module global {name!r} in {module_name!r}."
                     )
                 if any(
-                    dependency.__name__.startswith(prefix)
-                    for prefix in forbidden_module_prefixes
+                    dependency.__name__.startswith(prefix) for prefix in forbidden_module_prefixes
                 ):
                     raise SourceBundleError(
                         f"Export helper {object_name!r} depends on forbidden module "
@@ -248,11 +247,7 @@ def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
     }
-    return {
-        name
-        for name in loaded
-        if name in module.__dict__ and not hasattr(builtins, name)
-    }
+    return {name for name in loaded if name in module.__dict__ and not hasattr(builtins, name)}
 
 
 def _module_import_map(module: ModuleType) -> dict[str, str]:
@@ -293,7 +288,6 @@ def _is_source_constant(value: Any) -> bool:
         return all(_is_source_constant(item) for item in value)
     if isinstance(value, dict):
         return all(
-            _is_source_constant(key) and _is_source_constant(item)
-            for key, item in value.items()
+            _is_source_constant(key) and _is_source_constant(item) for key, item in value.items()
         )
     return False
