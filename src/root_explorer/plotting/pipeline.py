@@ -1,0 +1,285 @@
+"""Streamlit-independent preparation and rendering for static plots."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from ..analysis.arrays import (
+    apply_finite_filter,
+    array_length,
+    cut_values_for_values,
+    histogram_weights_for_values,
+    validate_variable_event_shapes,
+    variable_values_for_values,
+)
+from ..analysis.statistics import (
+    QuantileResult,
+    ThresholdResult,
+    calculate_quantile_result,
+    calculate_threshold_result,
+)
+from ..analysis.variables import evaluate_variable
+from ..models import VariableSpec
+from .plots import (
+    ColorClippingResult,
+    apply_range_cuts,
+    calculate_color_clipping,
+    downsample_arrays,
+    render_static_plot,
+)
+
+STATIC_PLOT_TYPES = frozenset({"1D histogram", "2D histogram", "2D scatter"})
+
+
+@dataclass(frozen=True)
+class StaticPlotSpec:
+    """Complete, Streamlit-independent configuration for one static plot."""
+
+    root_path: str
+    tree_name: str
+    entry_start: int
+    entry_stop: int | None
+    plot_type: str
+    x_spec: VariableSpec
+    y_spec: VariableSpec | None
+    color_spec: VariableSpec | None
+    weight_branch: str | None
+    cut_specs: tuple[VariableSpec, ...]
+    cut_bounds: tuple[tuple[float | None, float | None], ...]
+    style: dict[str, Any]
+    labels: dict[str, Any]
+    event_index: int | None = None
+    threshold: float | None = None
+    quantile_percentile: float | None = None
+
+
+@dataclass(frozen=True)
+class PreparedStaticPlot:
+    """Finite, aligned plot values plus resolved labels and annotations."""
+
+    x: np.ndarray
+    y: np.ndarray | None
+    weights: np.ndarray | None
+    color: np.ndarray | None
+    x_label: str
+    y_label: str
+    color_label: str | None
+    title: str
+    reference_x: float | None
+    reference_label: str | None
+    threshold_result: ThresholdResult | None
+    quantile_result: QuantileResult | None
+    color_clipping_result: ColorClippingResult | None
+    max_points: int
+
+    def render_arrays(
+        self, plot_type: str
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
+        """Return plot arrays after deterministic scatter downsampling."""
+
+        if plot_type != "2D scatter" or self.y is None:
+            return self.x, self.y, self.color
+        arrays = [self.x, self.y, *([self.color] if self.color is not None else [])]
+        sampled = downsample_arrays(arrays, self.max_points)
+        color = sampled[2] if self.color is not None else None
+        return sampled[0], sampled[1], color
+
+
+def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
+    """Read, align, filter, and annotate values for a static plot."""
+
+    if spec.plot_type not in STATIC_PLOT_TYPES:
+        raise ValueError(f"Unsupported static plot type: {spec.plot_type}")
+    if spec.plot_type in {"2D histogram", "2D scatter"} and spec.y_spec is None:
+        raise ValueError(f"{spec.plot_type} requires a y variable.")
+
+    axis_specs = [candidate for candidate in (spec.x_spec, spec.y_spec) if candidate is not None]
+    validate_variable_event_shapes(
+        axis_specs,
+        spec.root_path,
+        spec.tree_name,
+        spec.entry_start,
+        spec.entry_stop,
+        spec.event_index,
+        context=(
+            "event plot-axis variables"
+            if spec.event_index is not None
+            else "plot-axis variables"
+        ),
+    )
+
+    x, default_x_label = evaluate_variable(
+        spec.x_spec,
+        spec.root_path,
+        spec.tree_name,
+        spec.entry_start,
+        spec.entry_stop,
+        spec.event_index,
+    )
+    y = None
+    default_y_label = "entries"
+    arrays: list[np.ndarray] = [x]
+    if spec.y_spec is not None:
+        y, default_y_label = evaluate_variable(
+            spec.y_spec,
+            spec.root_path,
+            spec.tree_name,
+            spec.entry_start,
+            spec.entry_stop,
+            spec.event_index,
+        )
+        arrays.append(y)
+
+    value_count = array_length(x)
+    weights = None
+    if spec.weight_branch is not None:
+        weights = histogram_weights_for_values(
+            spec.root_path,
+            spec.tree_name,
+            spec.weight_branch,
+            spec.x_spec,
+            value_count,
+            spec.entry_start,
+            spec.entry_stop,
+            spec.event_index,
+        )
+        arrays.append(weights)
+
+    color = None
+    color_label = None
+    if spec.color_spec is not None:
+        color, color_label = variable_values_for_values(
+            spec.color_spec,
+            spec.x_spec,
+            value_count,
+            spec.root_path,
+            spec.tree_name,
+            spec.entry_start,
+            spec.entry_stop,
+            spec.event_index,
+        )
+        arrays.append(color)
+
+    cuts: list[tuple[np.ndarray, float | None, float | None]] = []
+    for cut_spec, bounds in zip(spec.cut_specs, spec.cut_bounds, strict=True):
+        cut_values, _ = variable_values_for_values(
+            cut_spec,
+            spec.x_spec,
+            value_count,
+            spec.root_path,
+            spec.tree_name,
+            spec.entry_start,
+            spec.entry_stop,
+            spec.event_index,
+        )
+        cuts.append((cut_values, bounds[0], bounds[1]))
+
+    arrays = apply_finite_filter(apply_range_cuts(arrays, cuts))
+    x, y, weights, color = _unpack_prepared_arrays(
+        arrays,
+        has_y=spec.y_spec is not None,
+        has_weights=spec.weight_branch is not None,
+        has_color=spec.color_spec is not None,
+    )
+
+    threshold_result = None
+    quantile_result = None
+    reference_x = None
+    reference_label = None
+    if spec.plot_type == "1D histogram" and spec.threshold is not None:
+        threshold_result = calculate_threshold_result(x, spec.threshold, weights)
+        reference_x = spec.threshold
+        reference_label = f"threshold = {spec.threshold:g}"
+    elif spec.plot_type == "1D histogram" and spec.quantile_percentile is not None:
+        quantile_result = calculate_quantile_result(x, spec.quantile_percentile, weights)
+        if quantile_result.value is not None:
+            reference_x = quantile_result.value
+            reference_label = (
+                f"{spec.quantile_percentile:g}% quantile = {quantile_result.value:g}"
+            )
+
+    color_clipping_result = None
+    if spec.plot_type == "2D scatter" and color is not None:
+        color_clipping_result = calculate_color_clipping(color, spec.style, weights)
+
+    x_label = spec.labels.get("custom_x") or default_x_label
+    if spec.y_spec is None and spec.weight_branch is not None:
+        default_y_label = f"sum weights ({spec.weight_branch})"
+    y_label = spec.labels.get("custom_y") or default_y_label
+    title = spec.labels.get("title") or (
+        f"Event {spec.event_index}" if spec.event_index is not None else spec.plot_type
+    )
+
+    return PreparedStaticPlot(
+        x=x,
+        y=y,
+        weights=weights,
+        color=color,
+        x_label=x_label,
+        y_label=y_label,
+        color_label=color_label,
+        title=title,
+        reference_x=reference_x,
+        reference_label=reference_label,
+        threshold_result=threshold_result,
+        quantile_result=quantile_result,
+        color_clipping_result=color_clipping_result,
+        max_points=int(spec.style.get("max_points", 100_000)),
+    )
+
+
+def render_prepared_static_plot(
+    spec: StaticPlotSpec,
+    prepared: PreparedStaticPlot,
+):
+    """Render a prepared static plot with the canonical Matplotlib implementation."""
+
+    x, y, color = prepared.render_arrays(spec.plot_type)
+    figure, axes = plt.subplots(
+        figsize=(spec.style["fig_width"], spec.style["fig_height"])
+    )
+    warnings = render_static_plot(
+        figure,
+        axes,
+        spec.plot_type,
+        x,
+        y,
+        prepared.x_label,
+        prepared.y_label,
+        spec.style,
+        title=prepared.title,
+        weights=prepared.weights,
+        weight_branch=spec.weight_branch,
+        color=color,
+        color_label=prepared.color_label,
+        reference_x=prepared.reference_x,
+        reference_label=prepared.reference_label,
+        colorbar_extend=(
+            prepared.color_clipping_result.extend
+            if prepared.color_clipping_result is not None
+            else "neither"
+        ),
+    )
+    return figure, warnings
+
+
+def _unpack_prepared_arrays(
+    arrays: list[np.ndarray],
+    *,
+    has_y: bool,
+    has_weights: bool,
+    has_color: bool,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    index = 0
+    x = arrays[index]
+    index += 1
+    y = arrays[index] if has_y else None
+    index += int(has_y)
+    weights = arrays[index] if has_weights else None
+    index += int(has_weights)
+    color = arrays[index] if has_color else None
+    return x, y, weights, color
