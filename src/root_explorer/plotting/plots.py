@@ -22,6 +22,10 @@ class InvalidAxisScaleError(ValueError):
     """Raised when selected values cannot be displayed on a requested axis scale."""
 
 
+class InvalidColorScaleError(ValueError):
+    """Raised when scatter colour normalization is invalid."""
+
+
 class ContourConfigurationError(ValueError):
     """Raised when highest-density contours cannot be configured for a histogram."""
 
@@ -33,6 +37,30 @@ class KDEError(ValueError):
 KDE_MAX_POINTS = 5_000
 KDE_1D_GRID_SIZE = 512
 KDE_2D_MAX_GRID_SIZE = 100
+
+
+@dataclass(frozen=True)
+class ColorClippingResult:
+    """Counts and optional signed weight sums outside explicit scatter colour limits."""
+
+    color_min: float | None
+    color_max: float | None
+    below_count: int
+    above_count: int
+    below_weight: float | None = None
+    above_weight: float | None = None
+
+    @property
+    def extend(self) -> str:
+        below = self.color_min is not None and self.below_count > 0
+        above = self.color_max is not None and self.above_count > 0
+        if below and above:
+            return "both"
+        if below:
+            return "min"
+        if above:
+            return "max"
+        return "neither"
 
 
 @dataclass(frozen=True)
@@ -312,6 +340,82 @@ def apply_range_cut(
     if cut_var is None:
         return align_arrays(arrays)
     return apply_range_cuts(arrays, [(cut_var, lo, hi)])
+
+
+def _scatter_color_limits(style: dict[str, Any]) -> tuple[float | None, float | None]:
+    """Parse and validate explicit 2D-scatter colour limits."""
+
+    cmin_text = style.get("color_min_text", "")
+    cmax_text = style.get("color_max_text", "")
+    cmin = parse_optional_float(cmin_text)
+    cmax = parse_optional_float(cmax_text)
+    for label, raw, value in [
+        ("color min", cmin_text, cmin),
+        ("color max", cmax_text, cmax),
+    ]:
+        if str(raw).strip() and (value is None or not np.isfinite(value)):
+            raise InvalidColorScaleError(f"{label} must be a finite number.")
+    if cmin is not None and cmax is not None and cmin >= cmax:
+        raise InvalidColorScaleError("color min must be smaller than color max.")
+    return cmin, cmax
+
+
+def calculate_color_clipping(
+    color: np.ndarray,
+    style: dict[str, Any],
+    weights: np.ndarray | None = None,
+) -> ColorClippingResult:
+    """Summarize values clipped by explicit 2D-scatter colour limits."""
+
+    cmin, cmax = _scatter_color_limits(style)
+    arrays = [np.asarray(color, dtype=float)]
+    names = ["color"]
+    if weights is not None:
+        arrays.append(np.asarray(weights, dtype=float))
+        names.append("weights")
+    aligned = align_arrays(arrays, names=names, context="scatter color clipping")
+    values = aligned[0]
+    selected_weights = aligned[1] if weights is not None else None
+
+    below = values < cmin if cmin is not None else np.zeros(len(values), dtype=bool)
+    above = values > cmax if cmax is not None else np.zeros(len(values), dtype=bool)
+    below_weight = float(np.sum(selected_weights[below])) if selected_weights is not None else None
+    above_weight = float(np.sum(selected_weights[above])) if selected_weights is not None else None
+    return ColorClippingResult(
+        color_min=cmin,
+        color_max=cmax,
+        below_count=int(np.count_nonzero(below)),
+        above_count=int(np.count_nonzero(above)),
+        below_weight=below_weight,
+        above_weight=above_weight,
+    )
+
+
+def scatter_color_scale(
+    color: np.ndarray, style: dict[str, Any]
+) -> tuple[LogNorm | None, float | None, float | None]:
+    """Validate and resolve 2D-scatter colour normalization."""
+
+    cmin, cmax = _scatter_color_limits(style)
+    values = np.asarray(color, dtype=float)
+    if not style.get("log_color", False):
+        return None, cmin, cmax
+
+    if values.size == 0 or np.any(~np.isfinite(values)) or np.any(values <= 0):
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires all color values to be finite and strictly positive."
+        )
+    vmin = cmin if cmin is not None else float(np.min(values))
+    vmax = cmax if cmax is not None else float(np.max(values))
+    if vmin <= 0 or vmax <= 0:
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires positive color min and color max."
+        )
+    if vmin >= vmax:
+        raise InvalidColorScaleError(
+            "Logarithmic color scale requires color min to be smaller than color max."
+        )
+    return LogNorm(vmin=vmin, vmax=vmax), None, None
 
 
 def parse_optional_float(text: str) -> float | None:
@@ -612,6 +716,9 @@ def render_static_plot(
     weight_branch: str | None = None,
     color: np.ndarray | None = None,
     color_label: str | None = None,
+    reference_x: float | None = None,
+    reference_label: str | None = None,
+    colorbar_extend: str = "neither",
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
@@ -632,6 +739,15 @@ def render_static_plot(
             y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
         )
         apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
+        if reference_x is not None:
+            ax.axvline(
+                reference_x,
+                color="tab:red",
+                linestyle="--",
+                linewidth=1.5,
+                label=reference_label or f"x = {reference_x:g}",
+            )
+            ax.legend()
 
     elif plot_type == "2D histogram":
         if y is None:
@@ -677,8 +793,7 @@ def render_static_plot(
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         if color is not None:
-            cmin = parse_optional_float(style.get("color_min_text", ""))
-            cmax = parse_optional_float(style.get("color_max_text", ""))
+            color_norm, cmin, cmax = scatter_color_scale(color, style)
             scatter = ax.scatter(
                 x,
                 y,
@@ -688,10 +803,16 @@ def render_static_plot(
                 cmap=matplotlib_cmap_name(
                     style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
                 ),
+                norm=color_norm,
                 vmin=cmin,
                 vmax=cmax,
             )
-            fig.colorbar(scatter, ax=ax, label=color_label or "color")
+            fig.colorbar(
+                scatter,
+                ax=ax,
+                label=color_label or "color",
+                extend=colorbar_extend,
+            )
         else:
             ax.scatter(x, y, s=style["marker_size_2d"], alpha=style["opacity_2d"])
         ax.set_xlabel(x_label)

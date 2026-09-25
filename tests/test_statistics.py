@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
-from root_explorer.analysis.statistics import calculate_threshold_result
+from root_explorer.analysis.statistics import calculate_quantile_result, calculate_threshold_result
 
 
 def test_unweighted_threshold_uses_complementary_boundary_convention() -> None:
@@ -70,3 +70,19 @@ def test_threshold_calculator_rejects_misaligned_or_nonfinite_inputs() -> None:
 
     with pytest.raises(ValueError, match="Threshold must be finite"):
         calculate_threshold_result(np.array([1.0]), np.nan)
+
+
+def test_quantiles_support_unweighted_and_nonnegative_weighted_samples() -> None:
+    unweighted = calculate_quantile_result(np.array([1.0, 2.0, 3.0, 4.0]), 50.0)
+    assert unweighted.value == pytest.approx(2.5)
+    assert not unweighted.weighted
+
+    weighted = calculate_quantile_result(np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, 1.0, 8.0]))
+    assert weighted.value == pytest.approx(3.0)
+    assert weighted.weighted
+
+
+def test_signed_weighted_quantile_is_explicitly_unavailable() -> None:
+    result = calculate_quantile_result(np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, -0.5, 1.0]))
+    assert result.value is None
+    assert result.has_negative_weights

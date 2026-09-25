@@ -12,7 +12,7 @@ from .state import DataContext
 def render_event_selection(context: DataContext) -> int:
     """Render event index and ranking controls, returning the selected event."""
 
-    st.subheader("Event inspection")
+    st.subheader("Event inspection", anchor=False)
     if "event_index" not in st.session_state:
         st.session_state["event_index"] = 0
     event_index = st.number_input(

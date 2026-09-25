@@ -45,7 +45,9 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         lines.append("import warnings")
     if show_kde:
         lines.append("from scipy.stats import gaussian_kde")
-    if request.plot_type == "2D histogram" and style.get("log_z", False):
+    if (request.plot_type == "2D histogram" and style.get("log_z", False)) or (
+        request.plot_type == "2D scatter" and style.get("log_color", False)
+    ):
         lines.append("from matplotlib.colors import LogNorm")
     if show_kde:
         lines.extend(
@@ -219,6 +221,19 @@ def generate_static_plot_code(request: PlotRequest) -> str:
     if request.color_spec is not None:
         lines.append("    color = color[mask]")
 
+    if request.plot_type == "2D scatter" and request.color_spec is not None:
+        color_min = _optional_float(style.get("color_min_text", ""))
+        color_max = _optional_float(style.get("color_max_text", ""))
+        lines.extend(
+            [
+                f"    color_below = bool({color_min!r} is not None and np.any(color < {color_min!r}))",
+                f"    color_above = bool({color_max!r} is not None and np.any(color > {color_max!r}))",
+                "    colorbar_extend = (",
+                '        "both" if color_below and color_above else',
+                '        "min" if color_below else "max" if color_above else "neither"',
+                "    )",
+            ]
+        )
     if request.plot_type == "2D scatter":
         lines.extend(_scatter_downsampling_lines(request))
 
@@ -455,6 +470,34 @@ def _plot_lines(
         )
         if style.get("show_kde", False):
             lines.extend(_kde_1d_lines(style))
+        if request.threshold is not None:
+            lines.extend(
+                [
+                    f"    reference_x = {request.threshold!r}",
+                    f"    axes.axvline(reference_x, color='tab:red', linestyle='--', linewidth=1.5, label='threshold = {request.threshold:g}')",
+                    "    axes.legend()",
+                ]
+            )
+        elif request.quantile_percentile is not None:
+            percentile = request.quantile_percentile
+            lines.extend(
+                [
+                    "    reference_x = None",
+                    "    if weights is None:",
+                    f"        reference_x = float(np.quantile(x, {percentile / 100.0!r})) if len(x) else None",
+                    "    elif len(x) and not np.any(weights < 0) and np.sum(weights) > 0:",
+                    "        order = np.argsort(x)",
+                    "        sorted_x = x[order]",
+                    "        sorted_weights = weights[order]",
+                    "        cumulative = np.cumsum(sorted_weights)",
+                    f"        target = {percentile / 100.0!r} * cumulative[-1]",
+                    '        index = int(np.searchsorted(cumulative, target, side="left"))',
+                    "        reference_x = float(sorted_x[min(index, len(sorted_x) - 1)])",
+                    "    if reference_x is not None:",
+                    f"        axes.axvline(reference_x, color='tab:red', linestyle='--', linewidth=1.5, label=f'{percentile:g}% quantile = {{reference_x:g}}')",
+                    "        axes.legend()",
+                ]
+            )
     elif request.plot_type == "2D histogram":
         lines.extend(
             [
@@ -538,15 +581,39 @@ def _plot_lines(
             )
             color_min = _optional_float(style.get("color_min_text", ""))
             color_max = _optional_float(style.get("color_max_text", ""))
-            lines.extend(
-                [
-                    "    scatter = axes.scatter(",
-                    f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
-                    f"        c=color, cmap={cmap!r}, vmin={color_min!r}, vmax={color_max!r},",
-                    "    )",
-                    f"    figure.colorbar(scatter, ax=axes, label={color_label!r})",
-                ]
-            )
+            if style.get("log_color", False):
+                lines.extend(
+                    [
+                        "    if len(color) == 0 or np.any(color <= 0):",
+                        '        raise ValueError("Logarithmic color scale requires strictly positive color values.")',
+                        f"    color_min = {color_min!r}",
+                        f"    color_max = {color_max!r}",
+                        "    resolved_color_min = color_min if color_min is not None else float(np.min(color))",
+                        "    resolved_color_max = color_max if color_max is not None else float(np.max(color))",
+                        "    if resolved_color_min <= 0 or resolved_color_max <= 0 or resolved_color_min >= resolved_color_max:",
+                        '        raise ValueError("Invalid logarithmic color range.")',
+                        "    color_norm = LogNorm(vmin=resolved_color_min, vmax=resolved_color_max)",
+                        "    scatter = axes.scatter(",
+                        f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
+                        f"        c=color, cmap={cmap!r}, norm=color_norm,",
+                        "    )",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r}, extend=colorbar_extend)",
+                    ]
+                )
+            else:
+                if color_min is not None and color_max is not None and color_min >= color_max:
+                    lines.append(
+                        '    raise ValueError("color min must be smaller than color max.")'
+                    )
+                lines.extend(
+                    [
+                        "    scatter = axes.scatter(",
+                        f"        x, y, s={style['marker_size_2d']!r}, alpha={style['opacity_2d']!r},",
+                        f"        c=color, cmap={cmap!r}, vmin={color_min!r}, vmax={color_max!r},",
+                        "    )",
+                        f"    figure.colorbar(scatter, ax=axes, label={color_label!r}, extend=colorbar_extend)",
+                    ]
+                )
     lines.extend(
         [
             f"    axes.set_xlabel({x_label!r})",

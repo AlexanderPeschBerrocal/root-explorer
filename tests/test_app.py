@@ -50,17 +50,29 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "Help",
     ]
     assert len(at.dataframe) >= 2
-    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
-    assert at.selectbox(key="x_mode").options[-9:] == [
+    assert at.selectbox(key="x_mode").options == [
+        "Direct branch values: A",
+        "|A|",
+        "Multiplicity per event",
+        "nth object per event",
+        "Sum per event",
+        "Mean per event",
+        "Max per event",
+        "Min per event",
+        "A + B",
+        "A - B",
+        "A / B",
+        "A * B",
+        "sqrt(A² + B² + C²)",
+        "r = sqrt(x² + y²)",
+        "phi = atan2(y, x)",
+        "eta = asinh(z / sqrt(x²+y²))",
+        "Energy (massless)",
+        "Energy (with mass)",
+        "Invariant mass (single particle)",
         "delta phi",
         "delta eta",
         "delta R",
-        "|A|",
-        "A / B",
-        "A - B",
-        "A + B",
-        "A * B",
-        "sqrt(A² + B² + C²)",
     ]
     assert at.selectbox(key="x_branch").label == "x: branch"
     at.selectbox(key="x_branch").select("Muon_pt").run()
@@ -88,6 +100,16 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     mode = at.selectbox(key="x_mode")
 
+    assert mode.options[:8] == [
+        "Direct branch values: A",
+        "|A|",
+        "Multiplicity per event",
+        "nth object per event",
+        "Sum per event",
+        "Mean per event",
+        "Max per event",
+        "Min per event",
+    ]
     assert {
         "|A|",
         "sqrt(A² + B² + C²)",
@@ -176,7 +198,8 @@ def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
 def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="x_branch").select("Muon_pt").run()
-    at.checkbox(key="plot_threshold_enabled").check().run()
+    at.checkbox(key="plot_distribution_enabled").check().run()
+    at.selectbox(key="plot_distribution_mode").select("Threshold fractions").run()
     at.number_input(key="plot_threshold").set_value(50.0).run()
     at.button(key="plot_make").click().run()
 
@@ -211,7 +234,7 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     assert (
         next(widget for widget in at.selectbox if widget.label == "Event dataset").value == "Events"
     )
-    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.button(key="plot_make").click().run()
@@ -229,12 +252,12 @@ def test_app_updates_data_item_terminology_for_the_selected_container(
     container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
 
     container.select("ntuples/Events").run()
-    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
 
     container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
     container.select("trees/Events").run()
-    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct branch values: A"
     assert at.selectbox(key="x_branch").label == "x: branch"
 
 
@@ -279,3 +302,26 @@ def test_app_loads_geometry_path(tiny_gdml_path, root_path) -> None:
 
     assert not at.exception
     assert any("Loaded geometry" in success.value for success in at.success)
+
+
+def test_app_calculates_quantile_and_marks_histogram(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.checkbox(key="plot_distribution_enabled").check().run()
+    at.selectbox(key="plot_distribution_mode").select("Quantile").run()
+    at.number_input(key="plot_quantile_percentile").set_value(50.0).run()
+    at.button(key="plot_make").click().run()
+
+    result = at.session_state["plot_result"]
+    quantile = result["quantile_result"]
+    assert quantile is not None
+    assert quantile.value is not None
+    axes = result["figure"].axes[0]
+    assert axes.lines[-1].get_xdata()[0] == pytest.approx(quantile.value)
+
+
+def test_2d_scatter_offers_log_color_scale(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    at.checkbox(key="plot_color_points").check().run()
+    assert at.checkbox(key="plot_log_color_2d").label == "log color scale"

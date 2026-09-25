@@ -19,15 +19,17 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
-from ..analysis.statistics import calculate_threshold_result
+from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
 from ..plotting.plots import (
     InvalidAxisScaleError,
+    InvalidColorScaleError,
     apply_range_cuts,
     build_plotly_3d,
+    calculate_color_clipping,
     calculate_correlations,
     describe_array,
     downsample_arrays,
@@ -36,6 +38,7 @@ from ..plotting.plots import (
 )
 from .controls import (
     PLOT_TYPES,
+    distribution_calculator_controls,
     histogram_weight_selector,
     label_controls,
     needs_y_variable,
@@ -43,7 +46,6 @@ from .controls import (
     plot_style_controls,
     range_cut_controls,
     supports_point_color,
-    threshold_calculator_controls,
     variable_selector,
 )
 from .results import show_cached_plot_result
@@ -70,6 +72,7 @@ class PlotRequest:
     preview: bool
     save_name: str
     threshold: float | None = None
+    quantile_percentile: float | None = None
 
 
 def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
@@ -77,7 +80,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Plot configuration")
+        st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
             context,
             geometry,
@@ -91,7 +94,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
             save_name="root_explorer_plot",
         )
     with output:
-        st.subheader("Output")
+        st.subheader("Output", anchor=False)
         _generate_and_show(request, make_plot, "plot_result", "plot_save_cached")
 
 
@@ -100,7 +103,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
-        st.subheader("Plot configuration")
+        st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
             context,
             geometry,
@@ -114,7 +117,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
             save_name="root_explorer_event_plot",
         )
     with output:
-        st.subheader(f"Output: event {event_index}")
+        st.subheader(f"Output: event {event_index}", anchor=False)
         _generate_and_show(request, make_plot, "event_plot_result", "event_save_cached")
 
 
@@ -137,7 +140,7 @@ def _render_plot_controls(
     plot_type = st.selectbox(
         "Plot type", PLOT_TYPES, index=0, key="event_plot_type" if is_event_plot else "plot_type"
     )
-    st.markdown("### Variables")
+    st.markdown("### Variables", anchors=False)
     axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
     x_spec = variable_selector(
         axis_prefix("x"),
@@ -184,7 +187,7 @@ def _render_plot_controls(
     weight_branch = histogram_weight_selector(
         prefix, plot_type, context.fields, item_name=context.data_item_name
     )
-    threshold = threshold_calculator_controls(prefix, plot_type)
+    threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
     cut_specs, cut_bounds = range_cut_controls(
         prefix, context.fields, item_name=context.data_item_name
     )
@@ -224,6 +227,7 @@ def _render_plot_controls(
             preview=is_event_plot,
             save_name=save_name,
             threshold=threshold,
+            quantile_percentile=quantile_percentile,
         ),
         make_plot,
     )
@@ -238,7 +242,7 @@ def _generate_and_show(
         except ArrayShapeMismatchError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
-        except InvalidAxisScaleError as exc:
+        except (InvalidAxisScaleError, InvalidColorScaleError) as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:
@@ -339,8 +343,20 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_color=request.color_spec is not None,
     )
     threshold_result = None
+    quantile_result = None
+    reference_x = None
+    reference_label = None
     if request.plot_type == "1D histogram" and request.threshold is not None:
         threshold_result = calculate_threshold_result(x, request.threshold, weights)
+        reference_x = request.threshold
+        reference_label = f"threshold = {request.threshold:g}"
+    elif request.plot_type == "1D histogram" and request.quantile_percentile is not None:
+        quantile_result = calculate_quantile_result(x, request.quantile_percentile, weights)
+        if quantile_result.value is not None:
+            reference_x = quantile_result.value
+            reference_label = (
+                f"{request.quantile_percentile:g}% quantile = {quantile_result.value:g}"
+            )
 
     summary_rows = [describe_array(axis_labels[0], x)]
     if request.y_spec is not None:
@@ -351,10 +367,13 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         summary_rows.append(describe_array(color_label or "color", color))
     summary = pd.DataFrame(summary_rows)
     correlation_result = None
+    color_clipping_result = None
     if request.plot_type == "2D scatter":
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         correlation_result = calculate_correlations(x, y)
+        if color is not None:
+            color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     x_label = request.labels["custom_x"] or axis_labels[0]
@@ -400,6 +419,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "preview": preview,
             "threshold_result": threshold_result,
+            "quantile_result": quantile_result,
             "correlation_result": correlation_result,
             "save_name": save_name,
             "save_button_label": "Save HTML",
@@ -419,6 +439,11 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         weight_branch=request.weight_branch,
         color=color,
         color_label=color_label,
+        reference_x=reference_x,
+        reference_label=reference_label,
+        colorbar_extend=(
+            color_clipping_result.extend if color_clipping_result is not None else "neither"
+        ),
     )
     return {
         "kind": "matplotlib",
@@ -427,7 +452,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         "summary": summary,
         "preview": preview,
         "threshold_result": threshold_result,
+        "quantile_result": quantile_result,
         "correlation_result": correlation_result,
+        "color_clipping_result": color_clipping_result,
         "warnings": plot_warnings,
         "save_name": save_name,
         "save_button_label": "Save selected formats",

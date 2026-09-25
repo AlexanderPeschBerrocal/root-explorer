@@ -24,13 +24,19 @@ def variable_selector(
 ) -> VariableSpec:
     display_prefix = display_prefix or prefix
     mode_labels = {
-        "branch": f"Direct {item_name} values",
+        "branch": f"Direct {item_name} values: A",
+        "absolute": "|A|",
         "multiplicity": "Multiplicity per event",
         "nth": "nth object per event",
         "sum": "Sum per event",
         "mean": "Mean per event",
         "max": "Max per event",
         "min": "Min per event",
+        "sum_ab": "A + B",
+        "difference": "A - B",
+        "ratio": "A / B",
+        "product": "A * B",
+        "magnitude_3d": "sqrt(A² + B² + C²)",
         "r_xy": "r = sqrt(x² + y²)",
         "phi_xy": "phi = atan2(y, x)",
         "eta_xyz": "eta = asinh(z / sqrt(x²+y²))",
@@ -40,12 +46,6 @@ def variable_selector(
         "delta_phi": "delta phi",
         "delta_eta": "delta eta",
         "delta_r": "delta R",
-        "absolute": "|A|",
-        "ratio": "A / B",
-        "difference": "A - B",
-        "sum_ab": "A + B",
-        "product": "A * B",
-        "magnitude_3d": "sqrt(A² + B² + C²)",
     }
     if not allow_event_reductions:
         for mode in [
@@ -309,7 +309,7 @@ def histogram_weight_selector(
 ) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
-    st.markdown("### Histogram weights")
+    st.markdown("### Histogram weights", anchors=False)
     use_weights = st.checkbox("Use weights", value=False, key=f"{prefix}_use_weights")
     if not use_weights:
         return None
@@ -321,31 +321,45 @@ def histogram_weight_selector(
     )
 
 
-def threshold_calculator_controls(prefix: str, plot_type: str) -> float | None:
-    """Return a threshold when the optional 1D calculator is enabled."""
+def distribution_calculator_controls(
+    prefix: str, plot_type: str
+) -> tuple[float | None, float | None]:
+    """Return an optional threshold or quantile percentile for a 1D histogram."""
 
     if plot_type != "1D histogram":
-        return None
-    st.markdown("### Threshold calculator")
+        return None, None
+    st.markdown("### Distribution calculator", anchors=False)
     enabled = st.checkbox(
-        "Calculate threshold fractions", value=False, key=f"{prefix}_threshold_enabled"
+        "Calculate threshold / quantile", value=False, key=f"{prefix}_distribution_enabled"
     )
     if not enabled:
-        return None
-    return float(
-        st.number_input(
-            "threshold",
-            value=0.0,
-            format="%.6g",
-            key=f"{prefix}_threshold",
-        )
+        return None, None
+    mode = st.selectbox(
+        "calculator mode",
+        ["Threshold fractions", "Quantile"],
+        key=f"{prefix}_distribution_mode",
     )
+    if mode == "Threshold fractions":
+        threshold = st.number_input(
+            "threshold", value=0.0, format="%.6g", key=f"{prefix}_threshold"
+        )
+        return float(threshold), None
+    percentile = st.number_input(
+        "quantile percentile (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=50.0,
+        step=1.0,
+        format="%.3g",
+        key=f"{prefix}_quantile_percentile",
+    )
+    return None, float(percentile)
 
 
 def range_cut_controls(
     prefix: str, fields: list[str], *, item_name: str
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
-    st.markdown("### Cuts")
+    st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
         "Number of cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
     )
@@ -389,7 +403,7 @@ def plot_style_controls(
 ) -> dict[str, Any]:
     """Show only the style settings relevant to the selected plot type."""
 
-    st.markdown("### Style")
+    st.markdown("### Style", anchors=False)
     style: dict[str, Any] = {}
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
@@ -474,6 +488,9 @@ def plot_style_controls(
             style["reverse_colorscale"] = st.checkbox(
                 "reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
             )
+            style["log_color"] = st.checkbox(
+                "log color scale", value=False, key=f"{prefix}_log_color_2d"
+            )
             style["color_min_text"] = st.text_input(
                 "color min", value="", key=f"{prefix}_color_min_2d"
             )
@@ -535,7 +552,7 @@ def label_controls(prefix: str, plot_type: str, *, default_title: str = "") -> d
 def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> dict[str, Any]:
     """Render all export settings beneath an already-generated plot."""
 
-    st.markdown("### Export")
+    st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
     controls["save_directory"] = st.text_input(
         "save directory",

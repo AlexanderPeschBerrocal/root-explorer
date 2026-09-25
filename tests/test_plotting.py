@@ -8,15 +8,18 @@ import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
     InvalidAxisScaleError,
+    InvalidColorScaleError,
     KDEError,
     apply_range_cuts,
     build_plotly_3d,
+    calculate_color_clipping,
     calculate_correlations,
     describe_array,
     downsample_arrays,
@@ -538,3 +541,143 @@ def test_greys_colormap_for_static_scatter(reverse: bool, expected_name: str) ->
 
     assert ax.collections[0].cmap.name == expected_name
     plt.close(fig)
+
+
+def test_1d_reference_line_is_drawn_at_requested_value() -> None:
+    figure, axes = plt.subplots()
+    render_static_plot(
+        figure,
+        axes,
+        "1D histogram",
+        np.array([1.0, 2.0, 3.0]),
+        None,
+        "x",
+        "entries",
+        {"bins_x": 3, "log_y": False, "grid": False},
+        title="reference",
+        reference_x=2.0,
+        reference_label="threshold = 2",
+    )
+    assert axes.lines[-1].get_xdata()[0] == pytest.approx(2.0)
+    assert axes.lines[-1].get_label() == "threshold = 2"
+    plt.close(figure)
+
+
+def test_scatter_color_limits_and_log_normalization() -> None:
+    linear_figure, linear_axes = plt.subplots()
+    render_static_plot(
+        linear_figure,
+        linear_axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.0, 2.0, 3.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "color_min_text": "2",
+            "color_max_text": "50",
+            "grid": False,
+        },
+        title="linear color",
+        color=np.array([1.0, 10.0, 100.0]),
+    )
+    assert linear_axes.collections[0].norm.vmin == pytest.approx(2.0)
+    assert linear_axes.collections[0].norm.vmax == pytest.approx(50.0)
+    plt.close(linear_figure)
+
+    log_figure, log_axes = plt.subplots()
+    render_static_plot(
+        log_figure,
+        log_axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.0, 2.0, 3.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "log_color": True,
+            "color_min_text": "1",
+            "color_max_text": "100",
+            "grid": False,
+        },
+        title="log color",
+        color=np.array([1.0, 10.0, 100.0]),
+    )
+    assert isinstance(log_axes.collections[0].norm, LogNorm)
+    assert log_axes.collections[0].norm.vmin == pytest.approx(1.0)
+    assert log_axes.collections[0].norm.vmax == pytest.approx(100.0)
+    plt.close(log_figure)
+
+
+def test_scatter_rejects_invalid_color_limits() -> None:
+    figure, axes = plt.subplots()
+    with pytest.raises(InvalidColorScaleError, match="smaller"):
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            np.array([1.0, 2.0]),
+            np.array([1.0, 2.0]),
+            "x",
+            "y",
+            {
+                "marker_size_2d": 3.0,
+                "opacity_2d": 0.5,
+                "color_min_text": "10",
+                "color_max_text": "2",
+                "grid": False,
+            },
+            title="bad color",
+            color=np.array([1.0, 2.0]),
+        )
+    plt.close(figure)
+
+
+def test_scatter_color_clipping_counts_weights_and_extension() -> None:
+    result = calculate_color_clipping(
+        np.array([0.0, 2.0, 5.0, 12.0]),
+        {"color_min_text": "1", "color_max_text": "10"},
+        np.array([0.5, 1.0, 2.0, 4.0]),
+    )
+    assert result.below_count == 1
+    assert result.above_count == 1
+    assert result.below_weight == pytest.approx(0.5)
+    assert result.above_weight == pytest.approx(4.0)
+    assert result.extend == "both"
+
+
+def test_scatter_colorbar_marks_only_actual_clipping(monkeypatch) -> None:
+    figure, axes = plt.subplots()
+    captured: dict[str, object] = {}
+    original_colorbar = figure.colorbar
+
+    def capture_colorbar(*args, **kwargs):
+        captured.update(kwargs)
+        return original_colorbar(*args, **kwargs)
+
+    monkeypatch.setattr(figure, "colorbar", capture_colorbar)
+    render_static_plot(
+        figure,
+        axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.0, 2.0, 3.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "color_min_text": "2",
+            "color_max_text": "50",
+            "grid": False,
+        },
+        title="clipped color",
+        color=np.array([1.0, 10.0, 100.0]),
+        colorbar_extend="both",
+    )
+    assert captured["extend"] == "both"
+    plt.close(figure)

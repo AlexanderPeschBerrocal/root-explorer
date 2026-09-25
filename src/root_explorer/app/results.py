@@ -9,9 +9,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from ..analysis.statistics import ThresholdResult
+from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
+    ColorClippingResult,
     CorrelationResult,
     matplotlib_figure_bytes,
     plotly_figure_html,
@@ -50,7 +51,7 @@ def show_cached_plot_result(
 
     summary = result.get("summary")
     if summary is not None:
-        st.dataframe(summary, width="stretch")
+        _show_centered_table(summary)
 
     correlation_result = result.get("correlation_result")
     if isinstance(correlation_result, CorrelationResult):
@@ -60,12 +61,16 @@ def show_cached_plot_result(
     if isinstance(threshold_result, ThresholdResult):
         _show_threshold_result(threshold_result)
 
+    quantile_result = result.get("quantile_result")
+    if isinstance(quantile_result, QuantileResult):
+        _show_quantile_result(quantile_result)
+
     for warning in result.get("warnings", []):
         st.warning(warning)
 
     preview = result.get("preview")
     if preview is not None and len(preview) > 0:
-        st.markdown("#### Data preview")
+        st.markdown("#### Data preview", anchors=False)
         st.dataframe(preview, width="stretch")
 
     fig = result["figure"]
@@ -74,10 +79,14 @@ def show_cached_plot_result(
     if kind == "plotly":
         st.plotly_chart(fig, width="stretch")
     elif kind == "matplotlib":
-        st.pyplot(fig)
+        st.pyplot(fig, width=_matplotlib_display_width(fig))
     else:
         st.error(f"Unknown cached plot kind: {kind}")
         return
+
+    color_clipping_result = result.get("color_clipping_result")
+    if isinstance(color_clipping_result, ColorClippingResult):
+        _show_color_clipping_result(color_clipping_result)
 
     export = export_controls(export_prefix, kind, default_save_name=result["save_name"])
     outdir = Path(export["save_directory"])
@@ -143,10 +152,35 @@ def show_cached_plot_result(
                 )
 
 
+def color_clipping_summary(result: ColorClippingResult) -> str | None:
+    """Return a concise description of actually clipped scatter colour values."""
+
+    parts: list[str] = []
+    if result.below_count > 0 and result.color_min is not None:
+        noun = "point" if result.below_count == 1 else "points"
+        text = f"{result.below_count} {noun} below color min {result.color_min:g}"
+        if result.below_weight is not None:
+            text += f" (sum of weights: {result.below_weight:g})"
+        parts.append(text)
+    if result.above_count > 0 and result.color_max is not None:
+        noun = "point" if result.above_count == 1 else "points"
+        text = f"{result.above_count} {noun} above color max {result.color_max:g}"
+        if result.above_weight is not None:
+            text += f" (sum of weights: {result.above_weight:g})"
+        parts.append(text)
+    return "Color clipping: " + " · ".join(parts) if parts else None
+
+
+def _show_color_clipping_result(result: ColorClippingResult) -> None:
+    summary = color_clipping_summary(result)
+    if summary is not None:
+        st.caption(summary)
+
+
 def _show_threshold_result(result: ThresholdResult) -> None:
     """Display one cached threshold calculation next to the plot summary."""
 
-    st.markdown("#### Threshold calculator")
+    st.markdown("#### Threshold calculator", anchors=False)
     total_text = f"Selected values: {result.total_count}"
     if result.weighted:
         assert result.total_weight is not None
@@ -169,7 +203,8 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         rows[1]["sum of weights"] = result.above_weight
         rows[0]["weighted fraction"] = rows[0].pop("fraction")
         rows[1]["weighted fraction"] = rows[1].pop("fraction")
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    dataframe = pd.DataFrame(rows)
+    _show_centered_table(dataframe)
 
     if result.total_count == 0:
         st.warning("The selected sample is empty; threshold fractions are unavailable.")
@@ -182,23 +217,80 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         st.caption("Weighted fractions use signed sums of weights and may lie outside 0 to 1.")
 
 
+def _show_quantile_result(result: QuantileResult) -> None:
+    """Display one cached quantile calculation."""
+
+    st.markdown("#### Quantile calculator", anchors=False)
+    value_text = "unavailable" if result.value is None else f"{result.value:g}"
+    dataframe = pd.DataFrame([{"percentile (%)": result.percentile, "quantile": value_text}])
+    _show_centered_table(dataframe)
+    if result.total_count == 0:
+        st.warning("The selected sample is empty; the quantile is unavailable.")
+    elif result.weighted and result.has_negative_weights:
+        st.warning(
+            "Weighted quantiles are unavailable for signed weights because the signed "
+            "cumulative weight is not a monotonic empirical distribution."
+        )
+    elif result.weighted and result.value is None:
+        st.warning("The total non-negative weight is zero; the weighted quantile is unavailable.")
+
+
 def _show_correlation_result(result: CorrelationResult) -> None:
     """Display pairwise statistics for the full filtered 2D-scatter sample."""
 
-    st.markdown("#### Correlations")
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "valid pairs": result.n_pairs,
-                    "Pearson r": result.pearson_r,
-                    "Spearman \u03c1": result.spearman_rho,
-                }
-            ]
-        ),
-        width="stretch",
-        hide_index=True,
+    st.markdown("#### Correlations", anchors=False)
+    dataframe = pd.DataFrame(
+        [
+            {
+                "Pearson r": result.pearson_r,
+                "Spearman \u03c1": result.spearman_rho,
+            }
+        ]
     )
+    _show_centered_table(dataframe)
+
+
+def _matplotlib_display_width(fig) -> int:
+    """Convert Matplotlib's physical width to CSS pixels for stable browser sizing."""
+
+    return max(1, round(float(fig.get_figwidth()) * 96))
+
+
+def _centered_table_html(dataframe: pd.DataFrame) -> str:
+    """Return escaped HTML for a compact table with centred headers and cells."""
+
+    table = dataframe.to_html(
+        index=False,
+        border=0,
+        escape=True,
+        classes="root-explorer-result-table",
+    )
+    return f"""
+<style>
+.root-explorer-result-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 1rem 0;
+}}
+.root-explorer-result-table th,
+.root-explorer-result-table td {{
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+}}
+.root-explorer-result-table th {{
+    font-weight: 600;
+}}
+</style>
+{table}
+"""
+
+
+def _show_centered_table(dataframe: pd.DataFrame) -> None:
+    """Render a compact result table with explicitly centred headers and cells."""
+
+    st.markdown(_centered_table_html(dataframe), unsafe_allow_html=True)
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:

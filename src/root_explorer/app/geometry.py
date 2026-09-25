@@ -24,7 +24,7 @@ from .state import GeometryState
 def render_geometry_sidebar() -> GeometryState:
     """Render sidebar geometry controls and load a scene when requested."""
 
-    st.subheader("Detector geometry overlay")
+    st.subheader("Detector geometry overlay", anchor=False)
     enabled = st.checkbox("Enable 3D detector overlay", value=False, key="geometry_enabled")
     if not enabled:
         return GeometryState(scene=None, options={"enabled": False})
@@ -133,7 +133,7 @@ def render_geometry_sidebar() -> GeometryState:
 def render_geometry_tab(state: GeometryState) -> None:
     """Render the geometry summary and user guidance tab."""
 
-    st.subheader("Detector geometry overlay")
+    st.subheader("Detector geometry overlay", anchor=False)
     if state.scene is None:
         st.info(
             "Enable the 3D detector overlay in the sidebar and provide a GDML geometry file by path or upload."
@@ -144,7 +144,7 @@ def render_geometry_tab(state: GeometryState) -> None:
     for title, key in [("Materials", "materials"), ("Solid types", "solidTypes")]:
         values: Any = meta.get(key, {})
         if isinstance(values, dict) and values:
-            st.markdown(f"#### {title}")
+            st.markdown(f"#### {title}", anchors=False)
             st.dataframe(
                 pd.DataFrame(
                     [
@@ -158,7 +158,7 @@ def render_geometry_tab(state: GeometryState) -> None:
             )
     warnings = meta.get("warnings") or []
     if warnings:
-        st.markdown("#### Geometry parser warnings")
+        st.markdown("#### Geometry parser warnings", anchors=False)
         st.write("\n".join(f"- {warning}" for warning in warnings[:50]))
     st.markdown(
         """

@@ -14,8 +14,8 @@ def render_field_tab(context: DataContext) -> None:
 
     item_name = context.data_item_name
     item_plural = context.data_item_plural
-    st.subheader(f"{item_name.title()} and collection browser")
-    st.markdown(f"#### {item_plural.title()}")
+    st.subheader(f"{item_name.title()} and collection browser", anchor=False)
+    st.markdown(f"#### {item_plural.title()}", anchors=False)
     query = st.text_input(f"Filter {item_plural}", value="", key="field_table_filter")
     dataframe = pd.DataFrame([field.__dict__ for field in context.field_info]).rename(
         columns={"name": item_name, "field": f"{item_name} member"}
@@ -29,7 +29,7 @@ def render_field_tab(context: DataContext) -> None:
         ]
     st.dataframe(dataframe, width="stretch", height=540)
 
-    st.markdown("#### Collections")
+    st.markdown("#### Collections", anchors=False)
     st.dataframe(
         collection_summary(context.field_info, item_name=item_name), width="stretch", height=540
     )
@@ -39,7 +39,7 @@ def render_help_tab(context: DataContext) -> None:
     """Render the user-facing quick guide for the selected container type."""
 
     item_name = context.data_item_name
-    st.subheader("How to use this app")
+    st.subheader("How to use this app", anchor=False)
     st.markdown(
         f"""
 **Basic workflow**

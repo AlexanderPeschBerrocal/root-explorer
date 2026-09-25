@@ -28,7 +28,7 @@ def render_data_input() -> DataContext:
     """
 
     cli_path = parse_cli_rootfile()
-    st.header("Input")
+    st.header("Input", anchor=False)
     source_mode = st.radio("File source", ["Path", "Upload"], horizontal=True)
     root_path = ""
     if source_mode == "Path":
@@ -71,7 +71,7 @@ def render_data_input() -> DataContext:
         st.warning("This event dataset has no entries to inspect.")
         st.stop()
 
-    st.subheader("Read range")
+    st.subheader("Read range", anchor=False)
     entry_start = st.number_input(
         "entry start", min_value=0, max_value=max(n_entries - 1, 0), value=0, step=1
     )

@@ -94,3 +94,78 @@ def calculate_threshold_result(
         above_weight=above_weight,
         has_negative_weights=bool(np.any(selected_weights < 0)),
     )
+
+
+@dataclass(frozen=True)
+class QuantileResult:
+    """One unweighted or non-negatively weighted empirical quantile."""
+
+    percentile: float
+    value: float | None
+    total_count: int
+    weighted: bool
+    total_weight: float | None = None
+    has_negative_weights: bool = False
+
+
+def calculate_quantile_result(
+    values: np.ndarray,
+    percentile: float,
+    weights: np.ndarray | None = None,
+) -> QuantileResult:
+    """Calculate a quantile, using the weighted empirical CDF when possible."""
+
+    if not np.isfinite(percentile) or percentile < 0 or percentile > 100:
+        raise ValueError("Quantile percentile must be between 0 and 100.")
+
+    arrays = [np.asarray(values, dtype=float)]
+    names = ["values"]
+    if weights is not None:
+        arrays.append(np.asarray(weights, dtype=float))
+        names.append("weights")
+    aligned = align_arrays(arrays, names=names, context="quantile calculator")
+    selected_values = aligned[0]
+    selected_weights = aligned[1] if weights is not None else None
+
+    if not np.all(np.isfinite(selected_values)) or (
+        selected_weights is not None and not np.all(np.isfinite(selected_weights))
+    ):
+        raise ValueError("Quantile calculation requires finite values and weights.")
+
+    if len(selected_values) == 0:
+        return QuantileResult(percentile, None, 0, selected_weights is not None)
+
+    if selected_weights is None:
+        return QuantileResult(
+            percentile,
+            float(np.quantile(selected_values, percentile / 100.0)),
+            len(selected_values),
+            False,
+        )
+
+    total_weight = float(np.sum(selected_weights))
+    has_negative_weights = bool(np.any(selected_weights < 0))
+    if has_negative_weights or total_weight <= 0:
+        return QuantileResult(
+            percentile,
+            None,
+            len(selected_values),
+            True,
+            total_weight=total_weight,
+            has_negative_weights=has_negative_weights,
+        )
+
+    order = np.argsort(selected_values)
+    sorted_values = selected_values[order]
+    sorted_weights = selected_weights[order]
+    cumulative = np.cumsum(sorted_weights)
+    target = percentile / 100.0 * total_weight
+    index = int(np.searchsorted(cumulative, target, side="left"))
+    index = min(index, len(sorted_values) - 1)
+    return QuantileResult(
+        percentile,
+        float(sorted_values[index]),
+        len(selected_values),
+        True,
+        total_weight=total_weight,
+    )
