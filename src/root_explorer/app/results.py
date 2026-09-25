@@ -51,7 +51,7 @@ def show_cached_plot_result(
 
     summary = result.get("summary")
     if summary is not None:
-        st.table(_centered_table_styler(summary))
+        _show_centered_table(summary)
 
     correlation_result = result.get("correlation_result")
     if isinstance(correlation_result, CorrelationResult):
@@ -204,7 +204,7 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         rows[0]["weighted fraction"] = rows[0].pop("fraction")
         rows[1]["weighted fraction"] = rows[1].pop("fraction")
     dataframe = pd.DataFrame(rows)
-    st.table(_centered_table_styler(dataframe, hide_index=True))
+    _show_centered_table(dataframe)
 
     if result.total_count == 0:
         st.warning("The selected sample is empty; threshold fractions are unavailable.")
@@ -225,7 +225,7 @@ def _show_quantile_result(result: QuantileResult) -> None:
     dataframe = pd.DataFrame(
         [{"percentile (%)": result.percentile, "quantile": value_text}]
     )
-    st.table(_centered_table_styler(dataframe, hide_index=True))
+    _show_centered_table(dataframe)
     if result.total_count == 0:
         st.warning("The selected sample is empty; the quantile is unavailable.")
     elif result.weighted and result.has_negative_weights:
@@ -249,12 +249,7 @@ def _show_correlation_result(result: CorrelationResult) -> None:
             }
         ]
     )
-    st.dataframe(
-        dataframe,
-        width="stretch",
-        hide_index=True,
-        column_config=_centered_column_config(dataframe),
-    )
+    _show_centered_table(dataframe)
 
 
 def _matplotlib_display_width(fig) -> int:
@@ -263,20 +258,41 @@ def _matplotlib_display_width(fig) -> int:
     return max(1, round(float(fig.get_figwidth()) * 96))
 
 
-def _centered_table_styler(
-    dataframe: pd.DataFrame, *, hide_index: bool = False
-):
-    """Return a Styler that centres compact result-table headers and cells."""
+def _centered_table_html(dataframe: pd.DataFrame) -> str:
+    """Return escaped HTML for a compact table with centred headers and cells."""
 
-    styler = dataframe.style.set_table_styles(
-        [
-            {"selector": "th", "props": [("text-align", "center")]},
-            {"selector": "td", "props": [("text-align", "center")]},
-        ]
+    table = dataframe.to_html(
+        index=False,
+        border=0,
+        escape=True,
+        classes="root-explorer-result-table",
     )
-    if hide_index:
-        styler = styler.hide(axis="index")
-    return styler
+    return f"""
+<style>
+.root-explorer-result-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 1rem 0;
+}}
+.root-explorer-result-table th,
+.root-explorer-result-table td {{
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+}}
+.root-explorer-result-table th {{
+    font-weight: 600;
+}}
+</style>
+{table}
+"""
+
+
+def _show_centered_table(dataframe: pd.DataFrame) -> None:
+    """Render a compact result table with explicitly centred headers and cells."""
+
+    st.markdown(_centered_table_html(dataframe), unsafe_allow_html=True)
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
