@@ -9,6 +9,7 @@ import inspect
 import math
 import textwrap
 from dataclasses import fields, is_dataclass
+from importlib.util import resolve_name
 from types import ModuleType
 from typing import Any
 
@@ -143,7 +144,10 @@ def bundle_python_source(
                     raise SourceBundleError(
                         f"Cannot reconstruct import for module global {name!r} in {module_name!r}."
                     )
-                if any(dependency.__name__.startswith(prefix) for prefix in forbidden_module_prefixes):
+                if any(
+                    dependency.__name__.startswith(prefix)
+                    for prefix in forbidden_module_prefixes
+                ):
                     raise SourceBundleError(
                         f"Export helper {object_name!r} depends on forbidden module "
                         f"{dependency.__name__!r}."
@@ -195,7 +199,7 @@ def _vendor_local_internal_imports(
         if not isinstance(node, ast.ImportFrom) or node.level == 0:
             continue
         relative_name = "." * node.level + (node.module or "")
-        target_name = importlib.util.resolve_name(relative_name, module.__package__ or "")
+        target_name = resolve_name(relative_name, module.__package__ or "")
         if not target_name.startswith(package_prefix):
             continue
         target_module = importlib.import_module(target_name)
