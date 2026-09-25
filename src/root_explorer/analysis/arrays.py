@@ -9,7 +9,12 @@ from typing import Any
 import awkward as ak
 import numpy as np
 
-from ..io.root import read_event_field, read_field
+from ..io.root import (
+    read_event_field,
+    read_event_field_uncached,
+    read_field,
+    read_field_uncached,
+)
 from ..models import VariableSpec
 
 
@@ -165,6 +170,24 @@ def read_for_scope(
     if event_index is None:
         return read_field(path, tree_name, branch, entry_start, entry_stop)
     return read_event_field(path, tree_name, branch, event_index)
+
+
+def read_for_scope_uncached(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Standalone-safe equivalent of read_for_scope without Streamlit caching."""
+
+    if event_index is None:
+        return read_field_uncached(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_field_uncached(path, tree_name, branch, event_index)
+
+
+__standalone_source_overrides__ = {"read_for_scope": read_for_scope_uncached}
 
 
 def branch_values(

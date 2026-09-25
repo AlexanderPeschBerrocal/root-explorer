@@ -80,6 +80,28 @@ class PlotRequest:
     threshold: float | None = None
     quantile_percentile: float | None = None
 
+    def to_static_spec(self) -> StaticPlotSpec:
+        """Return the shared Streamlit-independent configuration for static plots."""
+
+        return StaticPlotSpec(
+            root_path=self.context.root_path,
+            tree_name=self.context.event_container_name,
+            entry_start=self.context.entry_start,
+            entry_stop=self.context.entry_stop,
+            plot_type=self.plot_type,
+            x_spec=self.x_spec,
+            y_spec=self.y_spec,
+            color_spec=self.color_spec,
+            weight_branch=self.weight_branch,
+            cut_specs=tuple(self.cut_specs),
+            cut_bounds=tuple(self.cut_bounds),
+            style=self.style,
+            labels=self.labels,
+            event_index=self.event_index,
+            threshold=self.threshold,
+            quantile_percentile=self.quantile_percentile,
+        )
+
 
 def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
     """Render controls and output for plotting the selected entry range."""
@@ -273,25 +295,7 @@ def _generate_and_show(
 def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     """Create a cached result for a static plot through the shared plotting pipeline."""
 
-    context = request.context
-    spec = StaticPlotSpec(
-        root_path=context.root_path,
-        tree_name=context.event_container_name,
-        entry_start=context.entry_start,
-        entry_stop=context.entry_stop,
-        plot_type=request.plot_type,
-        x_spec=request.x_spec,
-        y_spec=request.y_spec,
-        color_spec=request.color_spec,
-        weight_branch=request.weight_branch,
-        cut_specs=tuple(request.cut_specs),
-        cut_bounds=tuple(request.cut_bounds),
-        style=request.style,
-        labels=request.labels,
-        event_index=request.event_index,
-        threshold=request.threshold,
-        quantile_percentile=request.quantile_percentile,
-    )
+    spec = request.to_static_spec()
     prepared = prepare_static_plot(spec)
 
     summary_rows = [describe_array(prepared.x_label, prepared.x)]

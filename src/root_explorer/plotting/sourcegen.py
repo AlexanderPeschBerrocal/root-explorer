@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import importlib
 import inspect
 import math
 import textwrap
@@ -104,9 +105,24 @@ def bundle_python_source(
         module = inspect.getmodule(obj)
         if module is None:
             raise SourceBundleError(f"Cannot resolve source module for {object_name!r}.")
+
+        overrides = getattr(module, "__standalone_source_overrides__", {})
+        replacement = overrides.get(object_name)
+        if replacement is not None:
+            visit(replacement)
+            definitions.append(f"{object_name} = {replacement.__name__}")
+            return
+
         source = textwrap.dedent(inspect.getsource(obj))
         tree = ast.parse(source)
         import_map = _module_import_map(module)
+        source = _vendor_local_internal_imports(
+            source,
+            tree,
+            module,
+            package_prefix=package_prefix,
+            visit=visit,
+        )
 
         for name in _referenced_global_names(tree, module):
             dependency = module.__dict__[name]
@@ -162,6 +178,51 @@ def bundle_python_source(
     if definitions:
         sections.append("\n\n\n".join(definitions))
     return "\n\n".join(sections).rstrip() + "\n"
+
+
+def _vendor_local_internal_imports(
+    source: str,
+    tree: ast.AST,
+    module: ModuleType,
+    *,
+    package_prefix: str,
+    visit,
+) -> str:
+    """Vendor function-local internal imports and remove them from emitted source."""
+
+    ranges: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or node.level == 0:
+            continue
+        relative_name = "." * node.level + (node.module or "")
+        target_name = importlib.util.resolve_name(relative_name, module.__package__ or "")
+        if not target_name.startswith(package_prefix):
+            continue
+        target_module = importlib.import_module(target_name)
+        for alias in node.names:
+            if alias.name == "*":
+                raise SourceBundleError("Wildcard internal imports cannot be bundled.")
+            if alias.asname is not None and alias.asname != alias.name:
+                raise SourceBundleError(
+                    f"Aliased internal import {alias.name!r} cannot be bundled yet."
+                )
+            dependency = getattr(target_module, alias.name)
+            if not (inspect.isfunction(dependency) or inspect.isclass(dependency)):
+                raise SourceBundleError(
+                    f"Function-local internal import {alias.name!r} is not a callable/class."
+                )
+            visit(dependency)
+        ranges.append((node.lineno, node.end_lineno or node.lineno))
+
+    if not ranges:
+        return source
+
+    lines = source.splitlines()
+    for start, end in ranges:
+        for index in range(start - 1, end):
+            indentation = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+            lines[index] = indentation + "pass  # internal helper vendored above"
+    return "\n".join(lines)
 
 
 def _claim_name(
