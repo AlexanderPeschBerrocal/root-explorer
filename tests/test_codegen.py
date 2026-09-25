@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict
 from types import ModuleType
@@ -95,7 +95,7 @@ def _assert_prepared_parity(actual, expected) -> None:
 
 
 @contextmanager
-def _executed_generated_module(source: str) -> Iterator[ModuleType]:
+def _executed_generated_module(source: str) -> Generator[ModuleType, None, None]:
     """Execute generated code in a real, temporarily registered module.
 
     Executing into only a dictionary with a synthetic __name__ does not create a
