@@ -50,17 +50,29 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "Help",
     ]
     assert len(at.dataframe) >= 2
-    assert at.selectbox(key="x_mode").options[0] == "Direct branch values: A"
-    assert at.selectbox(key="x_mode").options[-9:] == [
+    assert at.selectbox(key="x_mode").options == [
+        "Direct branch values: A",
+        "|A|",
+        "Multiplicity per event",
+        "nth object per event",
+        "Sum per event",
+        "Mean per event",
+        "Max per event",
+        "Min per event",
+        "A + B",
+        "A - B",
+        "A / B",
+        "A * B",
+        "sqrt(A² + B² + C²)",
+        "r = sqrt(x² + y²)",
+        "phi = atan2(y, x)",
+        "eta = asinh(z / sqrt(x²+y²))",
+        "Energy (massless)",
+        "Energy (with mass)",
+        "Invariant mass (single particle)",
         "delta phi",
         "delta eta",
         "delta R",
-        "|A|",
-        "A / B",
-        "A - B",
-        "A + B",
-        "A * B",
-        "sqrt(A² + B² + C²)",
     ]
     assert at.selectbox(key="x_branch").label == "x: branch"
     at.selectbox(key="x_branch").select("Muon_pt").run()
