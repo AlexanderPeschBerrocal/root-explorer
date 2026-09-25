@@ -16,8 +16,8 @@ from root_explorer.app.controls import (
 )
 from root_explorer.app.results import (
     _centered_table_html,
-    color_clipping_summary,
     collection_summary,
+    color_clipping_summary,
     store_uploaded_file,
 )
 from root_explorer.app.state import DataContext
