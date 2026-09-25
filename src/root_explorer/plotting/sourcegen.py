@@ -278,7 +278,7 @@ def _module_import_map(module: ModuleType) -> dict[str, str]:
 
 def _is_internal_import(source: str, package_prefix: str) -> bool:
     stripped = source.strip()
-    return stripped.startswith("from .") or stripped.startswith(f"from {package_prefix}")
+    return stripped.startswith(("from .", f"from {package_prefix}"))
 
 
 def _is_source_constant(value: Any) -> bool:
