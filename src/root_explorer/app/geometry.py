@@ -144,7 +144,7 @@ def render_geometry_tab(state: GeometryState) -> None:
     for title, key in [("Materials", "materials"), ("Solid types", "solidTypes")]:
         values: Any = meta.get(key, {})
         if isinstance(values, dict) and values:
-            st.markdown(f"#### {title}")
+            st.markdown(f"#### {title}", anchors=False)
             st.dataframe(
                 pd.DataFrame(
                     [
@@ -158,7 +158,7 @@ def render_geometry_tab(state: GeometryState) -> None:
             )
     warnings = meta.get("warnings") or []
     if warnings:
-        st.markdown("#### Geometry parser warnings")
+        st.markdown("#### Geometry parser warnings", anchors=False)
         st.write("\n".join(f"- {warning}" for warning in warnings[:50]))
     st.markdown(
         """

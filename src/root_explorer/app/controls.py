@@ -309,7 +309,7 @@ def histogram_weight_selector(
 ) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
-    st.markdown("### Histogram weights")
+    st.markdown("### Histogram weights", anchors=False)
     use_weights = st.checkbox("Use weights", value=False, key=f"{prefix}_use_weights")
     if not use_weights:
         return None
@@ -328,7 +328,7 @@ def distribution_calculator_controls(
 
     if plot_type != "1D histogram":
         return None, None
-    st.markdown("### Distribution calculator")
+    st.markdown("### Distribution calculator", anchors=False)
     enabled = st.checkbox(
         "Calculate threshold / quantile", value=False, key=f"{prefix}_distribution_enabled"
     )
@@ -359,7 +359,7 @@ def distribution_calculator_controls(
 def range_cut_controls(
     prefix: str, fields: list[str], *, item_name: str
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
-    st.markdown("### Cuts")
+    st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
         "Number of cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
     )
@@ -403,7 +403,7 @@ def plot_style_controls(
 ) -> dict[str, Any]:
     """Show only the style settings relevant to the selected plot type."""
 
-    st.markdown("### Style")
+    st.markdown("### Style", anchors=False)
     style: dict[str, Any] = {}
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
@@ -552,7 +552,7 @@ def label_controls(prefix: str, plot_type: str, *, default_title: str = "") -> d
 def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> dict[str, Any]:
     """Render all export settings beneath an already-generated plot."""
 
-    st.markdown("### Export")
+    st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
     controls["save_directory"] = st.text_input(
         "save directory",

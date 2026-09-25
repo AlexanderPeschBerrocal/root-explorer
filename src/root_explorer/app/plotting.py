@@ -140,7 +140,7 @@ def _render_plot_controls(
     plot_type = st.selectbox(
         "Plot type", PLOT_TYPES, index=0, key="event_plot_type" if is_event_plot else "plot_type"
     )
-    st.markdown("### Variables")
+    st.markdown("### Variables", anchors=False)
     axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
     x_spec = variable_selector(
         axis_prefix("x"),

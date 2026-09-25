@@ -36,7 +36,7 @@ def main() -> None:
         layout="wide",
         menu_items={"About": ABOUT_TEXT},
     )
-    st.title(APP_TITLE)
+    st.title(APP_TITLE, anchor=False)
     st.caption(
         "A general-purpose Streamlit app for interactive plotting and event inspection of HEP ROOT TTrees and RNTuples in the web browser."
     )

@@ -50,7 +50,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "Help",
     ]
     assert len(at.dataframe) >= 2
-    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct branch values: A"
     assert at.selectbox(key="x_mode").options[-9:] == [
         "delta phi",
         "delta eta",
@@ -89,7 +89,7 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     mode = at.selectbox(key="x_mode")
 
     assert mode.options[:8] == [
-        "Direct branch values",
+        "Direct branch values: A",
         "|A|",
         "Multiplicity per event",
         "nth object per event",
@@ -223,7 +223,7 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     assert (
         next(widget for widget in at.selectbox if widget.label == "Event dataset").value == "Events"
     )
-    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.button(key="plot_make").click().run()
@@ -241,12 +241,12 @@ def test_app_updates_data_item_terminology_for_the_selected_container(
     container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
 
     container.select("ntuples/Events").run()
-    assert at.selectbox(key="x_mode").options[0] == "Direct field values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
 
     container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
     container.select("trees/Events").run()
-    assert at.selectbox(key="x_mode").options[0] == "Direct branch values"
+    assert at.selectbox(key="x_mode").options[0] == "Direct branch values: A"
     assert at.selectbox(key="x_branch").label == "x: branch"
 
 

@@ -28,7 +28,7 @@ def render_data_input() -> DataContext:
     """
 
     cli_path = parse_cli_rootfile()
-    st.header("Input")
+    st.header("Input", anchor=False)
     source_mode = st.radio("File source", ["Path", "Upload"], horizontal=True)
     root_path = ""
     if source_mode == "Path":

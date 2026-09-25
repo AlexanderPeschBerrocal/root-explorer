@@ -51,11 +51,7 @@ def show_cached_plot_result(
 
     summary = result.get("summary")
     if summary is not None:
-        st.dataframe(
-            summary,
-            width="stretch",
-            column_config=_centered_column_config(summary),
-        )
+        st.table(_centered_table_styler(summary))
 
     correlation_result = result.get("correlation_result")
     if isinstance(correlation_result, CorrelationResult):
@@ -74,7 +70,7 @@ def show_cached_plot_result(
 
     preview = result.get("preview")
     if preview is not None and len(preview) > 0:
-        st.markdown("#### Data preview")
+        st.markdown("#### Data preview", anchors=False)
         st.dataframe(preview, width="stretch")
 
     fig = result["figure"]
@@ -184,7 +180,7 @@ def _show_color_clipping_result(result: ColorClippingResult) -> None:
 def _show_threshold_result(result: ThresholdResult) -> None:
     """Display one cached threshold calculation next to the plot summary."""
 
-    st.markdown("#### Threshold calculator")
+    st.markdown("#### Threshold calculator", anchors=False)
     total_text = f"Selected values: {result.total_count}"
     if result.weighted:
         assert result.total_weight is not None
@@ -208,12 +204,7 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         rows[0]["weighted fraction"] = rows[0].pop("fraction")
         rows[1]["weighted fraction"] = rows[1].pop("fraction")
     dataframe = pd.DataFrame(rows)
-    st.dataframe(
-        dataframe,
-        width="stretch",
-        hide_index=True,
-        column_config=_centered_column_config(dataframe),
-    )
+    st.table(_centered_table_styler(dataframe, hide_index=True))
 
     if result.total_count == 0:
         st.warning("The selected sample is empty; threshold fractions are unavailable.")
@@ -229,17 +220,12 @@ def _show_threshold_result(result: ThresholdResult) -> None:
 def _show_quantile_result(result: QuantileResult) -> None:
     """Display one cached quantile calculation."""
 
-    st.markdown("#### Quantile calculator")
+    st.markdown("#### Quantile calculator", anchors=False)
     value_text = "unavailable" if result.value is None else f"{result.value:g}"
     dataframe = pd.DataFrame(
         [{"percentile (%)": result.percentile, "quantile": value_text}]
     )
-    st.dataframe(
-        dataframe,
-        width="stretch",
-        hide_index=True,
-        column_config=_centered_column_config(dataframe),
-    )
+    st.table(_centered_table_styler(dataframe, hide_index=True))
     if result.total_count == 0:
         st.warning("The selected sample is empty; the quantile is unavailable.")
     elif result.weighted and result.has_negative_weights:
@@ -254,7 +240,7 @@ def _show_quantile_result(result: QuantileResult) -> None:
 def _show_correlation_result(result: CorrelationResult) -> None:
     """Display pairwise statistics for the full filtered 2D-scatter sample."""
 
-    st.markdown("#### Correlations")
+    st.markdown("#### Correlations", anchors=False)
     dataframe = pd.DataFrame(
         [
             {
@@ -277,13 +263,20 @@ def _matplotlib_display_width(fig) -> int:
     return max(1, round(float(fig.get_figwidth()) * 96))
 
 
-def _centered_column_config(dataframe: pd.DataFrame) -> dict[str, object]:
-    """Return centered Streamlit column configuration for compact result tables."""
+def _centered_table_styler(
+    dataframe: pd.DataFrame, *, hide_index: bool = False
+):
+    """Return a Styler that centres compact result-table headers and cells."""
 
-    return {
-        str(column): st.column_config.Column(alignment="center")
-        for column in dataframe.columns
-    }
+    styler = dataframe.style.set_table_styles(
+        [
+            {"selector": "th", "props": [("text-align", "center")]},
+            {"selector": "td", "props": [("text-align", "center")]},
+        ]
+    )
+    if hide_index:
+        styler = styler.hide(axis="index")
+    return styler
 
 
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
