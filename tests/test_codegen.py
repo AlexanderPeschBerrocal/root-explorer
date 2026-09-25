@@ -98,6 +98,7 @@ def _execute_export(request: PlotRequest):
     assert "import root_explorer" not in source
     assert "import streamlit" not in source
 
+    # Give the generated code a unique name to avoid firing up as main immediately since we want to investigate the generated functions and not run the script as a whole
     namespace = {"__name__": "standalone_root_explorer_export"}
     exec(source, namespace)
     namespace["plt"].show = lambda: None
