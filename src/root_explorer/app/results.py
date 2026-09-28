@@ -251,7 +251,6 @@ def _show_correlation_result(result: CorrelationResult) -> None:
     render_dataframe(dataframe)
 
 
-
 def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field") -> pd.DataFrame:
     rows = []
     by_collection: dict[str, list[FieldInfo]] = {}
