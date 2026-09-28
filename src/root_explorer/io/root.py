@@ -110,10 +110,11 @@ def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
     return info
 
 
-@st.cache_data(show_spinner=True, max_entries=64)
-def read_field(
+def read_field_uncached(
     path: str, container_name: str, field_name: str, entry_start: int, entry_stop: int | None
 ) -> ak.Array:
+    """Read one field without framework-specific caching."""
+
     f = uproot.open(path)
     container = f[container_name]
     arr: ak.Array = container[field_name].array(
@@ -122,14 +123,29 @@ def read_field(
     return arr
 
 
-@st.cache_data(show_spinner=True, max_entries=128)
-def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
+@st.cache_data(show_spinner=True, max_entries=64)
+def read_field(
+    path: str, container_name: str, field_name: str, entry_start: int, entry_stop: int | None
+) -> ak.Array:
+    return read_field_uncached(path, container_name, field_name, entry_start, entry_stop)
+
+
+def read_event_field_uncached(
+    path: str, container_name: str, field_name: str, event_index: int
+) -> Any:
+    """Read one event field without framework-specific caching."""
+
     f = uproot.open(path)
     container = f[container_name]
     arr = container[field_name].array(
         library="ak", entry_start=event_index, entry_stop=event_index + 1
     )
     return arr[0]
+
+
+@st.cache_data(show_spinner=True, max_entries=128)
+def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
+    return read_event_field_uncached(path, container_name, field_name, event_index)
 
 
 def is_probably_numeric_typename(typename: str) -> bool:

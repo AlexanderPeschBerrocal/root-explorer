@@ -24,6 +24,12 @@ from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
+from ..plotting.pipeline import (
+    STATIC_PLOT_TYPES,
+    StaticPlotSpec,
+    prepare_static_plot,
+    render_prepared_static_plot,
+)
 from ..plotting.plots import (
     InvalidAxisScaleError,
     InvalidColorScaleError,
@@ -73,6 +79,28 @@ class PlotRequest:
     save_name: str
     threshold: float | None = None
     quantile_percentile: float | None = None
+
+    def to_static_spec(self) -> StaticPlotSpec:
+        """Return the shared Streamlit-independent configuration for static plots."""
+
+        return StaticPlotSpec(
+            root_path=self.context.root_path,
+            tree_name=self.context.event_container_name,
+            entry_start=self.context.entry_start,
+            entry_stop=self.context.entry_stop,
+            plot_type=self.plot_type,
+            x_spec=self.x_spec,
+            y_spec=self.y_spec,
+            color_spec=self.color_spec,
+            weight_branch=self.weight_branch,
+            cut_specs=tuple(self.cut_specs),
+            cut_bounds=tuple(self.cut_bounds),
+            style=self.style,
+            labels=self.labels,
+            event_index=self.event_index,
+            threshold=self.threshold,
+            quantile_percentile=self.quantile_percentile,
+        )
 
 
 def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
@@ -264,8 +292,56 @@ def _generate_and_show(
     )
 
 
+def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
+    """Create a cached result for a static plot through the shared plotting pipeline."""
+
+    spec = request.to_static_spec()
+    prepared = prepare_static_plot(spec)
+
+    summary_rows = [describe_array(prepared.x_label, prepared.x)]
+    if prepared.y is not None:
+        summary_rows.append(describe_array(prepared.y_label, prepared.y))
+    if prepared.color is not None:
+        summary_rows.append(describe_array(prepared.color_label or "color", prepared.color))
+    summary = pd.DataFrame(summary_rows)
+
+    correlation_result = None
+    if request.plot_type == "2D scatter" and prepared.y is not None:
+        correlation_result = calculate_correlations(prepared.x, prepared.y)
+
+    render_x, render_y, render_color = prepared.render_arrays(request.plot_type)
+    preview = (
+        _preview_dataframe(render_x, render_y, None, prepared.weights, render_color)
+        if request.preview
+        else None
+    )
+    figure, plot_warnings = render_prepared_static_plot(spec, prepared)
+    save_name = (
+        f"{request.save_name}_{request.event_index}"
+        if request.event_index is not None
+        else request.save_name
+    )
+    return {
+        "kind": "matplotlib",
+        "figure": figure,
+        "code": generate_static_plot_code(request),
+        "summary": summary,
+        "preview": preview,
+        "threshold_result": prepared.threshold_result,
+        "quantile_result": prepared.quantile_result,
+        "correlation_result": correlation_result,
+        "color_clipping_result": prepared.color_clipping_result,
+        "warnings": plot_warnings,
+        "save_name": save_name,
+        "save_button_label": "Save selected formats",
+    }
+
+
 def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     """Create the cached plot payload shared by global and event plot tabs."""
+
+    if request.plot_type in STATIC_PLOT_TYPES:
+        return _build_static_plot_result(request)
 
     context = request.context
     event_index = request.event_index

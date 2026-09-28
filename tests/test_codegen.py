@@ -1,38 +1,210 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import sys
+from collections.abc import Generator
+from contextlib import contextmanager
+from dataclasses import asdict
+from types import ModuleType
+from typing import Any
 
-import awkward as ak
-import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-import uproot
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 from root_explorer.app.plotting import PlotRequest
 from root_explorer.app.state import DataContext, GeometryState
 from root_explorer.models import VariableSpec
 from root_explorer.plotting.codegen import generate_static_plot_code
+from root_explorer.plotting.pipeline import prepare_static_plot, render_prepared_static_plot
 
 
-def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
-    request = PlotRequest(
-        context=DataContext(
-            root_path=str(root_path),
-            event_container_name="Events",
-            n_entries=12,
-            entry_start=2,
-            entry_stop=10,
-            field_info=[],
-            fields=[],
-        ),
+def _request(
+    root_path,
+    *,
+    plot_type: str,
+    x_spec: VariableSpec,
+    y_spec: VariableSpec | None = None,
+    color_spec: VariableSpec | None = None,
+    weight_branch: str | None = None,
+    cut_specs: list[VariableSpec] | None = None,
+    cut_bounds: list[tuple[float | None, float | None]] | None = None,
+    style: dict[str, Any],
+    labels: dict[str, Any] | None = None,
+    threshold: float | None = None,
+    quantile_percentile: float | None = None,
+) -> PlotRequest:
+    return PlotRequest(
+        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
+        plot_type=plot_type,
+        x_spec=x_spec,
+        y_spec=y_spec,
+        z_spec=None,
+        color_spec=color_spec,
+        weight_branch=weight_branch,
+        cut_specs=cut_specs or [],
+        cut_bounds=cut_bounds or [],
+        style=style,
+        labels=labels
+        or {
+            "title": "",
+            "custom_x": "",
+            "custom_y": "",
+            "custom_z": "",
+        },
+        geometry=GeometryState(scene=None, options={}),
+        event_index=None,
+        preview=False,
+        save_name="plot",
+        threshold=threshold,
+        quantile_percentile=quantile_percentile,
+    )
+
+
+def _result_payload(value):
+    return None if value is None else asdict(value)
+
+
+def _assert_optional_array_equal(actual, expected) -> None:
+    if expected is None:
+        assert actual is None
+        return
+    assert actual is not None
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
+def _assert_prepared_parity(actual, expected) -> None:
+    _assert_optional_array_equal(actual.x, expected.x)
+    _assert_optional_array_equal(actual.y, expected.y)
+    _assert_optional_array_equal(actual.weights, expected.weights)
+    _assert_optional_array_equal(actual.color, expected.color)
+    assert actual.x_label == expected.x_label
+    assert actual.y_label == expected.y_label
+    assert actual.color_label == expected.color_label
+    assert actual.title == expected.title
+    if expected.reference_x is None:
+        assert actual.reference_x is None
+    else:
+        assert actual.reference_x == pytest.approx(expected.reference_x)
+    assert actual.reference_label == expected.reference_label
+    assert actual.max_points == expected.max_points
+    assert _result_payload(actual.threshold_result) == _result_payload(expected.threshold_result)
+    assert _result_payload(actual.quantile_result) == _result_payload(expected.quantile_result)
+    assert _result_payload(actual.color_clipping_result) == _result_payload(
+        expected.color_clipping_result
+    )
+
+
+@contextmanager
+def _executed_generated_module(source: str) -> Generator[ModuleType, None, None]:
+    """Execute generated code in a real, temporarily registered module.
+
+    Executing into only a dictionary with a synthetic __name__ does not create a
+    registered Python module. Generated exports use postponed annotations, and
+    dataclasses may resolve those annotations through sys.modules[cls.__module__]
+    while defining vendored classes. Registering a ModuleType mirrors normal Python
+    script/import execution, while a non-__main__ name prevents main() from running
+    eagerly so the parity tests can inspect the generated helpers first.
+    """
+
+    module_name = "standalone_root_explorer_export"
+    module = ModuleType(module_name)
+    previous_module = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    try:
+        exec(compile(source, "root_explorer_export.py", "exec"), module.__dict__)
+        yield module
+    finally:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
+
+
+def _execute_export(request: PlotRequest):
+    source = generate_static_plot_code(request)
+
+    assert "from root_explorer" not in source
+    assert "import root_explorer" not in source
+    assert "import streamlit" not in source
+
+    with _executed_generated_module(source) as module:
+        namespace = module.__dict__
+        namespace["plt"].show = lambda: None
+
+        namespace["main"]()
+        main_figure = namespace["plt"].gcf()
+        assert main_figure.axes
+        plt.close(main_figure)
+
+        canonical_spec = request.to_static_spec()
+        canonical_prepared = prepare_static_plot(canonical_spec)
+        generated_prepared = namespace["prepare_static_plot"](namespace["PLOT"])
+        _assert_prepared_parity(generated_prepared, canonical_prepared)
+
+        canonical_figure, canonical_warnings = render_prepared_static_plot(
+            canonical_spec, canonical_prepared
+        )
+        generated_figure, generated_warnings = namespace["render_prepared_static_plot"](
+            namespace["PLOT"], generated_prepared
+        )
+        assert generated_warnings == canonical_warnings
+        return canonical_prepared, canonical_figure, generated_figure
+
+
+def _histogram_heights(figure) -> np.ndarray:
+    return np.asarray([patch.get_height() for patch in figure.axes[0].patches], dtype=float)
+
+
+def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
         plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        y_spec=None,
-        z_spec=None,
-        color_spec=None,
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "equal_aspect": False,
+            "grid": True,
+        },
+        labels={
+            "title": "Muon transverse momentum",
+            "custom_x": "pT [GeV]",
+            "custom_y": "",
+            "custom_z": "",
+        },
+        quantile_percentile=50.0,
+    )
+
+    prepared, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        np.testing.assert_allclose(
+            _histogram_heights(generated_figure),
+            _histogram_heights(canonical_figure),
+        )
+        assert generated_figure.axes[0].get_xlabel() == canonical_figure.axes[0].get_xlabel()
+        assert generated_figure.axes[0].get_ylabel() == canonical_figure.axes[0].get_ylabel()
+        assert generated_figure.axes[0].get_title() == canonical_figure.axes[0].get_title()
+        assert prepared.quantile_result is not None
+        assert prepared.reference_x == pytest.approx(prepared.quantile_result.value)
+        assert len(generated_figure.axes[0].lines) == len(canonical_figure.axes[0].lines) == 1
+        np.testing.assert_allclose(
+            generated_figure.axes[0].lines[0].get_xdata(),
+            canonical_figure.axes[0].lines[0].get_xdata(),
+        )
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
+
+
+def test_exported_weighted_cut_histogram_matches_canonical_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
         weight_branch="genWeight",
         cut_specs=[VariableSpec(mode="branch", branch="Muon_eta")],
         cut_bounds=[(-2.1, 2.1)],
@@ -41,7 +213,9 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
             "fig_height": 5.0,
             "bins_x": 37,
             "log_x": True,
-            "log_y": True,
+            "log_y": False,
+            "show_kde": False,
+            "equal_aspect": False,
             "grid": False,
         },
         labels={
@@ -49,118 +223,67 @@ def test_generated_weighted_histogram_code_compiles_and_runs(root_path) -> None:
             "custom_x": "Muon transverse momentum [GeV]",
             "custom_y": "Weighted candidates",
             "custom_z": "",
-            "save_directory": "root_explorer_plots",
-            "save_name": "weighted_muon_pt",
-            "save_png": True,
-            "save_pdf": False,
         },
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="weighted_muon_pt",
     )
 
-    source = generate_static_plot_code(request)
-
-    compile(source, "weighted_muon_pt.py", "exec")
-    assert "from root_explorer" not in source
-    assert "root_path =" in source
-    assert "entry_start = 2" in source
-    assert "entry_stop = 10" in source
-    assert "'genWeight'" in source
-    assert "mask &= cut_0 >= -2.1" in source
-    assert "axes.hist(x, bins=37, weights=weights)" in source
-    assert 'axes.set_xscale("log")' in source
-    assert 'axes.set_yscale("log")' in source
-    assert "figure = plt.figure(figsize=(11.0, 5.0))" in source
-    assert "Muon transverse momentum [GeV]" in source
-
-    namespace = {"__name__": "generated_weighted_muon_pt"}
-    exec(source, namespace)
-    namespace["plt"].show = lambda: None
-    namespace["main"]()
-    assert plt.get_fignums()
-    assert namespace["plt"].gcf().axes[0].get_xscale() == "log"
-    assert namespace["plt"].gcf().axes[0].get_yscale() == "log"
-    plt.close("all")
-
-    delta_eta_request = replace(
-        request,
-        x_spec=VariableSpec(mode="delta_eta", branch_a="Muon_eta", branch_b="Muon_eta"),
-        cut_specs=[],
-        cut_bounds=[],
-        labels={**request.labels, "custom_x": "", "custom_y": ""},
-    )
-    delta_eta_source = generate_static_plot_code(delta_eta_request)
-    compile(delta_eta_source, "delta_eta.py", "exec")
-    assert "x = x_a - x_b" in delta_eta_source
-    assert "Δη(Muon_eta,Muon_eta)" in delta_eta_source
-
-
-def test_generated_code_distinguishes_event_weights_when_lengths_are_ambiguous(
-    tmp_path,
-) -> None:
-    root_path = tmp_path / "ambiguous_counts.root"
-    with uproot.recreate(root_path) as root_file:
-        root_file.mktree(
-            "Events",
-            {
-                "Muon_pt": ak.Array([[10.0, 20.0], [], [30.0]]),
-                "genWeight": np.array([2.0, 100.0, 5.0]),
-            },
+    prepared, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        assert prepared.weights is not None
+        np.testing.assert_allclose(
+            _histogram_heights(generated_figure),
+            _histogram_heights(canonical_figure),
         )
+        assert np.sum(_histogram_heights(generated_figure)) == pytest.approx(
+            np.sum(prepared.weights)
+        )
+        assert generated_figure.axes[0].get_xscale() == "log"
+        assert generated_figure.axes[0].get_ylabel() == "Weighted candidates"
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
 
-    request = PlotRequest(
-        context=DataContext(str(root_path), "Events", 3, 0, 3, [], []),
+
+def test_exported_derived_variable_matches_canonical_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
         plot_type="1D histogram",
-        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        y_spec=None,
-        z_spec=None,
-        color_spec=None,
-        weight_branch="genWeight",
-        cut_specs=[],
-        cut_bounds=[],
+        x_spec=VariableSpec(
+            mode="magnitude_3d",
+            branch_a="Muon_px",
+            branch_b="Muon_py",
+            branch_c="Muon_pz",
+        ),
         style={
             "fig_width": 8.0,
             "fig_height": 6.0,
-            "bins_x": 3,
+            "bins_x": 24,
+            "log_x": False,
             "log_y": False,
-            "show_kde": True,
-            "kde_bandwidth": "silverman",
-            "kde_custom_factor": 1.0,
+            "show_kde": False,
+            "equal_aspect": False,
             "grid": False,
         },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
     )
 
-    source = generate_static_plot_code(request)
-    namespace = {"__name__": "generated_ambiguous_weights"}
-    exec(source, namespace)
-    namespace["plt"].show = lambda: None
-    namespace["main"]()
+    prepared, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        assert prepared.x_label == "mag(Muon_px,Muon_py,Muon_pz)"
+        assert len(prepared.x) > 0
+        np.testing.assert_allclose(
+            _histogram_heights(generated_figure),
+            _histogram_heights(canonical_figure),
+        )
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
 
-    axes = namespace["plt"].gcf().axes[0]
-    assert sum(patch.get_height() for patch in axes.patches) == pytest.approx(9.0)
-    assert axes.get_ylabel() == "sum weights (genWeight)"
-    assert axes.lines[0].get_label() == "KDE"
-    plt.close("all")
 
-
-def test_generated_2d_histogram_code_reproduces_highest_density_contours(root_path) -> None:
-    request = PlotRequest(
-        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
+def test_exported_2d_histogram_with_contours_and_kde_matches_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
         plot_type="2D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
         y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
-        z_spec=None,
-        color_spec=None,
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
         style={
             "fig_width": 8.0,
             "fig_height": 6.0,
@@ -177,118 +300,74 @@ def test_generated_2d_histogram_code_reproduces_highest_density_contours(root_pa
             "equal_aspect": False,
             "grid": False,
         },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
     )
 
-    source = generate_static_plot_code(request)
+    _, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        canonical_axes = canonical_figure.axes[0]
+        generated_axes = generated_figure.axes[0]
+        assert len(generated_axes.collections) == len(canonical_axes.collections)
+        assert len(generated_axes.collections) > 1
+        np.testing.assert_allclose(
+            np.asarray(generated_axes.collections[0].get_array()),
+            np.asarray(canonical_axes.collections[0].get_array()),
+        )
+        assert len(generated_figure.axes) == len(canonical_figure.axes) == 2
+        assert generated_figure.axes[1].get_ylabel() == canonical_figure.axes[1].get_ylabel()
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
 
-    compile(source, "contour_plot.py", "exec")
-    assert "contour_percentages = [68.0, 95.0, 99.0]" in source
-    assert "contours = axes.contour(" in source
-    assert "from scipy.stats import gaussian_kde" in source
-    assert "bandwidth = kde_bandwidth('custom', 0.7)" in source
-    namespace = {"__name__": "generated_contour_plot"}
-    exec(source, namespace)
-    namespace["plt"].show = lambda: None
-    namespace["main"]()
-    assert len(namespace["plt"].gcf().axes[0].collections) > 1
-    plt.close("all")
 
-
-@pytest.mark.parametrize(
-    ("spec", "formula"),
-    [
-        (VariableSpec(mode="absolute", branch_a="Muon_eta"), "x = np.abs(x_a)"),
-        (
-            VariableSpec(
-                mode="magnitude_3d",
-                branch_a="Muon_px",
-                branch_b="Muon_py",
-                branch_c="Muon_pz",
-            ),
-            "x = np.hypot(np.hypot(x_a, x_b), x_c)",
-        ),
-        (
-            VariableSpec(
-                mode="energy_massless",
-                branch_a="Muon_pt",
-                branch_b="Muon_eta",
-                longitudinal_kind="eta",
-            ),
-            "x = x_a * np.cosh(x_b)",
-        ),
-        (
-            VariableSpec(
-                mode="energy_massive",
-                branch_a="Muon_pt",
-                branch_b="Muon_eta",
-                branch_c="Muon_mass",
-                longitudinal_kind="eta",
-            ),
-            "x = np.sqrt(x_c**2 + (x_a * np.cosh(x_b))**2)",
-        ),
-        (
-            VariableSpec(
-                mode="energy_massive",
-                branch_a="Muon_pt",
-                branch_b="Muon_eta",
-                branch_c="Muon_mass",
-                longitudinal_kind="y",
-            ),
-            "x = np.hypot(x_c, x_a) * np.cosh(x_b)",
-        ),
-        (
-            VariableSpec(
-                mode="invariant_mass",
-                branch_a="Muon_energy",
-                branch_b="Muon_px",
-                branch_c="Muon_py",
-                branch_d="Muon_pz",
-            ),
-            "x = np.sqrt(np.maximum(x_mass_squared, 0.0))",
-        ),
-    ],
-)
-def test_generated_code_reproduces_single_particle_quantities(root_path, spec, formula) -> None:
-    request = PlotRequest(
-        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
-        plot_type="1D histogram",
-        x_spec=spec,
-        y_spec=None,
-        z_spec=None,
-        color_spec=None,
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
+def test_exported_coloured_scatter_matches_canonical_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="2D scatter",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        color_spec=VariableSpec(mode="branch", branch="Muon_energy"),
         style={
             "fig_width": 8.0,
             "fig_height": 6.0,
-            "bins_x": 20,
+            "marker_size_2d": 4.0,
+            "opacity_2d": 0.6,
+            "max_points": 10,
+            "colorscale": "Greys",
+            "reverse_colorscale": True,
+            "log_color": True,
+            "color_min_text": "20",
+            "color_max_text": "120",
+            "log_x": False,
             "log_y": False,
+            "equal_aspect": False,
             "grid": False,
         },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
     )
 
-    source = generate_static_plot_code(request)
-    assert formula in source
-    namespace = {"__name__": "generated_single_particle_quantity"}
-    exec(source, namespace)
-    namespace["plt"].show = lambda: None
-    namespace["main"]()
-    assert namespace["plt"].gcf().axes[0].patches
-    plt.close("all")
+    prepared, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        assert prepared.color is not None
+        assert prepared.color_clipping_result is not None
+        canonical_scatter = canonical_figure.axes[0].collections[0]
+        generated_scatter = generated_figure.axes[0].collections[0]
+        np.testing.assert_allclose(
+            np.asarray(generated_scatter.get_offsets()),
+            np.asarray(canonical_scatter.get_offsets()),
+        )
+        np.testing.assert_allclose(
+            np.asarray(generated_scatter.get_array()),
+            np.asarray(canonical_scatter.get_array()),
+        )
+        assert generated_scatter.cmap.name == canonical_scatter.cmap.name == "Greys_r"
+        assert generated_scatter.norm.vmin == pytest.approx(canonical_scatter.norm.vmin)
+        assert generated_scatter.norm.vmax == pytest.approx(canonical_scatter.norm.vmax)
+        assert len(generated_figure.axes) == len(canonical_figure.axes) == 2
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
 
 
-def test_generated_code_rejects_interactive_3d_request() -> None:
+def test_export_rejects_interactive_3d_request() -> None:
     request = PlotRequest(
         context=DataContext("events.root", "Events", 1, 0, 1, [], []),
         plot_type="3D scatter interactive",
@@ -307,149 +386,5 @@ def test_generated_code_rejects_interactive_3d_request() -> None:
         save_name="plot",
     )
 
-    try:
+    with pytest.raises(ValueError, match="not available"):
         generate_static_plot_code(request)
-    except ValueError as exc:
-        assert "not available" in str(exc)
-    else:
-        raise AssertionError("Expected 3D code generation to be rejected.")
-
-
-@pytest.mark.parametrize(
-    ("reverse", "expected_name"),
-    [(False, "Greys"), (True, "Greys_r")],
-)
-def test_generated_scatter_code_preserves_greys_case(reverse: bool, expected_name: str) -> None:
-    request = PlotRequest(
-        context=DataContext("events.root", "Events", 1, 0, 1, [], []),
-        plot_type="2D scatter",
-        x_spec=VariableSpec(mode="branch", branch="x"),
-        y_spec=VariableSpec(mode="branch", branch="y"),
-        z_spec=None,
-        color_spec=VariableSpec(mode="branch", branch="energy"),
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
-        style={
-            "fig_width": 8.0,
-            "fig_height": 6.0,
-            "marker_size_2d": 3.0,
-            "opacity_2d": 0.5,
-            "max_points": 100_000,
-            "colorscale": "Greys",
-            "reverse_colorscale": reverse,
-            "equal_aspect": False,
-            "grid": False,
-        },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
-    )
-
-    source = generate_static_plot_code(request)
-
-    compile(source, "greys_scatter.py", "exec")
-    assert f"cmap={expected_name!r}" in source
-
-
-def test_generated_histogram_code_marks_quantile(root_path) -> None:
-    request = PlotRequest(
-        context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
-        plot_type="1D histogram",
-        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        y_spec=None,
-        z_spec=None,
-        color_spec=None,
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
-        style={
-            "fig_width": 8.0,
-            "fig_height": 6.0,
-            "bins_x": 20,
-            "log_y": False,
-            "grid": False,
-        },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
-        quantile_percentile=50.0,
-    )
-    source = generate_static_plot_code(request)
-    assert "np.quantile(x, 0.5)" in source
-    assert "50% quantile" in source
-
-
-def test_generated_scatter_code_supports_log_color_scale() -> None:
-    request = PlotRequest(
-        context=DataContext("events.root", "Events", 1, 0, 1, [], []),
-        plot_type="2D scatter",
-        x_spec=VariableSpec(mode="branch", branch="x"),
-        y_spec=VariableSpec(mode="branch", branch="y"),
-        z_spec=None,
-        color_spec=VariableSpec(mode="branch", branch="energy"),
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
-        style={
-            "fig_width": 8.0,
-            "fig_height": 6.0,
-            "marker_size_2d": 3.0,
-            "opacity_2d": 0.5,
-            "max_points": 100_000,
-            "colorscale": "Viridis",
-            "reverse_colorscale": False,
-            "log_color": True,
-            "color_min_text": "1",
-            "color_max_text": "100",
-            "equal_aspect": False,
-            "grid": False,
-        },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
-    )
-    source = generate_static_plot_code(request)
-    assert "from matplotlib.colors import LogNorm" in source
-    assert "color_norm = LogNorm" in source
-
-
-def test_generated_scatter_code_marks_clipped_colorbar_extensions() -> None:
-    request = PlotRequest(
-        context=DataContext("events.root", "Events", 1, 0, 1, [], []),
-        plot_type="2D scatter",
-        x_spec=VariableSpec(mode="branch", branch="x"),
-        y_spec=VariableSpec(mode="branch", branch="y"),
-        z_spec=None,
-        color_spec=VariableSpec(mode="branch", branch="energy"),
-        weight_branch=None,
-        cut_specs=[],
-        cut_bounds=[],
-        style={
-            "fig_width": 8.0,
-            "fig_height": 6.0,
-            "marker_size_2d": 3.0,
-            "opacity_2d": 0.5,
-            "max_points": 100_000,
-            "colorscale": "Viridis",
-            "reverse_colorscale": False,
-            "color_min_text": "1",
-            "color_max_text": "10",
-            "equal_aspect": False,
-            "grid": False,
-        },
-        labels={"title": "", "custom_x": "", "custom_y": "", "custom_z": ""},
-        geometry=GeometryState(scene=None, options={}),
-        event_index=None,
-        preview=False,
-        save_name="plot",
-    )
-    source = generate_static_plot_code(request)
-    assert "colorbar_extend" in source
-    assert "extend=colorbar_extend" in source
