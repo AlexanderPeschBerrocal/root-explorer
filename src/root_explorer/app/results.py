@@ -80,7 +80,7 @@ def show_cached_plot_result(
     if kind == "plotly":
         st.plotly_chart(fig, width="stretch")
     elif kind == "matplotlib":
-        st.pyplot(fig, width=_matplotlib_display_width(fig))
+        st.pyplot(fig, width="stretch")
     else:
         st.error(f"Unknown cached plot kind: {kind}")
         return
@@ -249,12 +249,6 @@ def _show_correlation_result(result: CorrelationResult) -> None:
         ]
     )
     render_dataframe(dataframe)
-
-
-def _matplotlib_display_width(fig) -> int:
-    """Convert Matplotlib's physical width to CSS pixels for stable browser sizing."""
-
-    return max(1, round(float(fig.get_figwidth()) * 96))
 
 
 
