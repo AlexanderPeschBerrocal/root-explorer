@@ -7,6 +7,7 @@ import streamlit as st
 from ..analysis.ranking import compute_event_metric, metric_dataframe
 from ..io.root import choose_default
 from .state import DataContext
+from .tables import render_dataframe
 
 
 def render_event_selection(context: DataContext) -> int:
@@ -66,7 +67,7 @@ def render_event_selection(context: DataContext) -> int:
                 st.error(f"Ranking failed: {exc}")
         if "rank_df" in st.session_state:
             st.write(f"Metric: **{st.session_state.get('rank_label', 'metric')}**")
-            st.dataframe(st.session_state["rank_df"], width="stretch", height=220)
+            render_dataframe(st.session_state["rank_df"], height=220)
             ranked_events = st.session_state["rank_df"]["event"].astype(int).tolist()
             if ranked_events:
                 selected = st.selectbox(

@@ -75,6 +75,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "delta R",
     ]
     assert at.selectbox(key="x_branch").label == "x: branch"
+    initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
 
@@ -83,6 +84,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     at.text_input(key="plot_save_name").input("muon_pt").run()
     assert not at.exception
     result = at.session_state["plot_result"]
+    assert len(at.dataframe) > initial_dataframes
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
     assert at.text_input(key="plot_save_name").value == "muon_pt"
@@ -158,6 +160,7 @@ def test_scatter_correlations_use_full_filtered_sample_before_downsampling(tmp_p
         root_file.mktree("Events", {"x": x, "y": y})
 
     at = _load_root_file(make_app_test(), root_path)
+    initial_dataframes = len(at.dataframe)
     at.selectbox(key="plot_type").select("2D scatter").run()
     at.selectbox(key="x_branch").select("x")
     at.selectbox(key="y_branch").select("y")
@@ -172,6 +175,7 @@ def test_scatter_correlations_use_full_filtered_sample_before_downsampling(tmp_p
     assert limited_correlation.n_pairs == 1_499
     assert limited["summary"].iloc[0]["n"] == 1_499
     assert len(limited["figure"].axes[0].collections[0].get_offsets()) == 1_000
+    assert len(at.dataframe) >= initial_dataframes + 2
     assert any(markdown.value == "#### Correlations" for markdown in at.markdown)
 
     at.number_input(key="plot_max_points_2d").set_value(2_000).run()
@@ -197,6 +201,7 @@ def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
 
 def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
+    initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.checkbox(key="plot_distribution_enabled").check().run()
     at.selectbox(key="plot_distribution_mode").select("Threshold fractions").run()
@@ -210,6 +215,7 @@ def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> 
     assert threshold.below_count + threshold.above_count == threshold.total_count
     assert threshold.total_count == result["summary"].iloc[0]["n"]
     assert threshold.below_fraction + threshold.above_fraction == pytest.approx(1.0)
+    assert len(at.dataframe) >= initial_dataframes + 2
 
     at.number_input(key="plot_n_cuts").set_value(1).run()
     at.selectbox(key="plot_cut_0_branch").select("Muon_pt").run()
@@ -263,9 +269,11 @@ def test_app_updates_data_item_terminology_for_the_selected_container(
 
 def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
+    initial_dataframes = len(at.dataframe)
     at.button(key="rank_compute").click().run()
     assert not at.exception
     assert not at.session_state["rank_df"].empty
+    assert len(at.dataframe) > initial_dataframes
 
     at.selectbox(key="event_plot_type").select("3D scatter interactive").run()
     at.selectbox(key="event_x_branch").select("Muon_px")
@@ -306,6 +314,7 @@ def test_app_loads_geometry_path(tiny_gdml_path, root_path) -> None:
 
 def test_app_calculates_quantile_and_marks_histogram(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
+    initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.checkbox(key="plot_distribution_enabled").check().run()
     at.selectbox(key="plot_distribution_mode").select("Quantile").run()
@@ -316,6 +325,7 @@ def test_app_calculates_quantile_and_marks_histogram(root_path) -> None:
     quantile = result["quantile_result"]
     assert quantile is not None
     assert quantile.value is not None
+    assert len(at.dataframe) >= initial_dataframes + 2
     axes = result["figure"].axes[0]
     assert axes.lines[-1].get_xdata()[0] == pytest.approx(quantile.value)
 
