@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from root_explorer.app import tables
 from root_explorer.app.controls import (
     COLOR_SCALES,
     needs_y_variable,
@@ -15,7 +16,6 @@ from root_explorer.app.controls import (
     supports_point_color,
 )
 from root_explorer.app.results import (
-    _centered_table_html,
     collection_summary,
     color_clipping_summary,
     store_uploaded_file,
@@ -98,12 +98,25 @@ def test_color_clipping_summary_handles_counts_and_optional_weights() -> None:
     assert color_clipping_summary(ColorClippingResult(1.0, 10.0, 0, 0)) is None
 
 
-def test_centered_table_html_centres_headers_and_cells_and_escapes_values() -> None:
-    html = _centered_table_html(pd.DataFrame({"variable": ["<unsafe>"], "n": [1]}))
+def test_render_dataframe_centres_cells_and_uses_shared_defaults(monkeypatch) -> None:
+    captured: dict[str, object] = {}
 
-    assert "text-align: center !important;" in html
-    assert "<th>variable</th>" in html
-    assert "<th>n</th>" in html
-    assert "&lt;unsafe&gt;" in html
-    assert "<unsafe>" not in html
-    assert "<th></th>" not in html
+    def capture_dataframe(dataframe, **kwargs) -> None:
+        captured["dataframe"] = dataframe
+        captured.update(kwargs)
+
+    monkeypatch.setattr(tables.st, "dataframe", capture_dataframe)
+    dataframe = pd.DataFrame({"variable": ["Muon_pt"], "n": [1]})
+
+    tables.render_dataframe(dataframe)
+
+    assert captured["dataframe"] is dataframe
+    assert captured["width"] == "stretch"
+    assert captured["height"] == "auto"
+    assert captured["hide_index"] is True
+    column_config = captured["column_config"]
+    assert set(column_config) == {"variable", "n"}
+    assert all(config["alignment"] == "center" for config in column_config.values())
+
+    tables.render_dataframe(dataframe, height=220)
+    assert captured["height"] == 220
