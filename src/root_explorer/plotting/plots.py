@@ -22,6 +22,10 @@ class InvalidAxisScaleError(ValueError):
     """Raised when selected values cannot be displayed on a requested axis scale."""
 
 
+class InvalidAxisLimitError(ValueError):
+    """Raised when explicit axis display limits are invalid."""
+
+
 class InvalidColorScaleError(ValueError):
     """Raised when scatter colour normalization is invalid."""
 
@@ -102,6 +106,60 @@ def apply_log_axis_scales(
             )
         _require_positive_axis_values(y, "y")
     ax.set_yscale("log")
+
+
+def apply_axis_limits(ax: Any, style: dict[str, Any]) -> None:
+    """Validate and apply optional viewport limits without filtering plot data."""
+
+    x_min = _axis_limit_value(style, "x_min_text", "x-axis minimum")
+    x_max = _axis_limit_value(style, "x_max_text", "x-axis maximum")
+    y_min = _axis_limit_value(style, "y_min_text", "y-axis minimum")
+    y_max = _axis_limit_value(style, "y_max_text", "y-axis maximum")
+
+    _validate_axis_limit_pair(x_min, x_max, "x")
+    _validate_axis_limit_pair(y_min, y_max, "y")
+    _validate_log_axis_limits(x_min, x_max, "x", bool(style.get("log_x", False)))
+    _validate_log_axis_limits(y_min, y_max, "y", bool(style.get("log_y", False)))
+
+    if x_min is not None or x_max is not None:
+        ax.set_xlim(left=x_min, right=x_max)
+    if y_min is not None or y_max is not None:
+        ax.set_ylim(bottom=y_min, top=y_max)
+
+
+def _axis_limit_value(style: dict[str, Any], key: str, label: str) -> float | None:
+    raw = style.get(key, "")
+    if raw is None or not str(raw).strip():
+        return None
+    value = parse_optional_float(raw)
+    if value is None or not np.isfinite(value):
+        raise InvalidAxisLimitError(f"{label} must be a finite number.")
+    return value
+
+
+def _validate_axis_limit_pair(minimum: float | None, maximum: float | None, axis_name: str) -> None:
+    if minimum is not None and maximum is not None and minimum >= maximum:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis minimum must be smaller than {axis_name}-axis maximum."
+        )
+
+
+def _validate_log_axis_limits(
+    minimum: float | None,
+    maximum: float | None,
+    axis_name: str,
+    logarithmic: bool,
+) -> None:
+    if not logarithmic:
+        return
+    if minimum is not None and minimum <= 0:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis minimum must be strictly positive for a logarithmic axis."
+        )
+    if maximum is not None and maximum <= 0:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis maximum must be strictly positive for a logarithmic axis."
+        )
 
 
 def _require_positive_axis_values(values: np.ndarray, axis_name: str) -> None:
@@ -825,6 +883,7 @@ def render_static_plot(
     ax.set_title(title or plot_type)
     if style.get("equal_aspect", False):
         ax.set_aspect("equal", adjustable="box")
+    apply_axis_limits(ax, style)
     if style.get("grid", False):
         ax.grid(alpha=0.3)
     return warnings

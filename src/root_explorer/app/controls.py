@@ -411,6 +411,25 @@ def plot_style_controls(
         style["fig_height"] = st.slider("figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
         style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
+        style["manual_axis_limits"] = st.checkbox(
+            "Apply manual axis limits", value=False, key=f"{prefix}_manual_axis_limits"
+        )
+        style["x_min_text"] = ""
+        style["x_max_text"] = ""
+        style["y_min_text"] = ""
+        style["y_max_text"] = ""
+        if style["manual_axis_limits"]:
+            st.caption("Leave a bound blank to use the automatic limit for that side.")
+            x_min_column, x_max_column = st.columns(2)
+            with x_min_column:
+                style["x_min_text"] = st.text_input("x minimum", value="", key=f"{prefix}_x_min")
+            with x_max_column:
+                style["x_max_text"] = st.text_input("x maximum", value="", key=f"{prefix}_x_max")
+            y_min_column, y_max_column = st.columns(2)
+            with y_min_column:
+                style["y_min_text"] = st.text_input("y minimum", value="", key=f"{prefix}_y_min")
+            with y_max_column:
+                style["y_max_text"] = st.text_input("y maximum", value="", key=f"{prefix}_y_max")
 
     if plot_type in {"1D histogram", "2D histogram"}:
         style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
