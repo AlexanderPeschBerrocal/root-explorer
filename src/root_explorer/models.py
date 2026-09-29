@@ -3,6 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+
+FieldStructure = Literal[
+    "scalar",
+    "regular",
+    "jagged",
+    "nested/record",
+    "unknown",
+    "unsupported",
+]
 
 
 @dataclass(frozen=True)
@@ -15,6 +25,9 @@ class FieldInfo:
     collection: str
     field: str
     description: str | None = None
+    structure: FieldStructure = "unknown"
+    dtype: str = "unknown"
+    fixed_shape: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

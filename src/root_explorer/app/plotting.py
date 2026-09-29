@@ -169,6 +169,12 @@ def _render_plot_controls(
     plot_type = st.selectbox(
         "Plot type", PLOT_TYPES, index=0, key="event_plot_type" if is_event_plot else "plot_type"
     )
+    show_field_details = st.toggle(
+        f"Show {context.data_item_name} details in selectors",
+        value=False,
+        key=f"{prefix}_show_field_details",
+        help="Add structural-shape and logical-dtype badges after each name in selectors.",
+    )
     st.markdown("### Variables", anchors=False)
     axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
     x_spec = variable_selector(
@@ -176,6 +182,8 @@ def _render_plot_controls(
         context.fields,
         ["x", "pt", "eta"] if event_index is not None else ["pt", "energy", "eta", "x"],
         item_name=context.data_item_name,
+        field_info=context.field_info,
+        show_field_details=show_field_details,
         allow_event_reductions=event_index is None,
     )
     y_spec = z_spec = color_spec = None
@@ -185,6 +193,8 @@ def _render_plot_controls(
             context.fields,
             ["y", "eta", "phi"] if event_index is not None else ["eta", "phi", "y"],
             item_name=context.data_item_name,
+            field_info=context.field_info,
+            show_field_details=show_field_details,
             allow_event_reductions=event_index is None,
         )
     if needs_z_variable(plot_type):
@@ -193,6 +203,8 @@ def _render_plot_controls(
             context.fields,
             ["z", "phi"] if event_index is not None else ["phi", "z"],
             item_name=context.data_item_name,
+            field_info=context.field_info,
+            show_field_details=show_field_details,
             allow_event_reductions=event_index is None,
         )
     color_enabled = False
@@ -210,15 +222,26 @@ def _render_plot_controls(
                 if event_index is not None
                 else ["pt", "energy", "mass", "pdgId", "charge"],
                 item_name=context.data_item_name,
+                field_info=context.field_info,
+                show_field_details=show_field_details,
                 allow_event_reductions=False,
             )
 
     weight_branch = histogram_weight_selector(
-        prefix, plot_type, context.fields, item_name=context.data_item_name
+        prefix,
+        plot_type,
+        context.fields,
+        item_name=context.data_item_name,
+        field_info=context.field_info,
+        show_field_details=show_field_details,
     )
     threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
     cut_specs, cut_bounds = range_cut_controls(
-        prefix, context.fields, item_name=context.data_item_name
+        prefix,
+        context.fields,
+        item_name=context.data_item_name,
+        field_info=context.field_info,
+        show_field_details=show_field_details,
     )
     style = plot_style_controls(
         prefix,

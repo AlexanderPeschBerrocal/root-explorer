@@ -84,6 +84,42 @@ def test_get_field_info_exposes_useful_source_documentation(monkeypatch) -> None
 
 
 @pytest.mark.parametrize(
+    ("form", "expected"),
+    [
+        (ak.forms.NumpyForm("float32"), ("scalar", "float32", ())),
+        (
+            ak.forms.RegularForm(ak.forms.NumpyForm("int16"), 3),
+            ("regular", "int16", (3,)),
+        ),
+        (
+            ak.forms.ListOffsetForm("i64", ak.forms.NumpyForm("float64")),
+            ("jagged", "float64", ()),
+        ),
+        (
+            ak.forms.ListOffsetForm(
+                "i64", ak.forms.ListOffsetForm("i64", ak.forms.NumpyForm("float64"))
+            ),
+            ("nested/record", "float64", ()),
+        ),
+        (
+            ak.forms.RecordForm(
+                [ak.forms.NumpyForm("float32"), ak.forms.NumpyForm("float32")],
+                ["x", "y"],
+            ),
+            ("nested/record", "record", ()),
+        ),
+        (
+            ak.forms.NumpyForm("uint8", parameters={"__array__": "char"}),
+            ("unsupported", "string", ()),
+        ),
+        (ak.forms.EmptyForm(), ("unknown", "unknown", ())),
+    ],
+)
+def test_classify_field_form_covers_supported_shape_categories(form, expected) -> None:
+    assert root_io.classify_field_form(form) == expected
+
+
+@pytest.mark.parametrize(
     ("fixture_name", "expected_containers"),
     [
         ("root_path", ["Events"]),
@@ -103,6 +139,12 @@ def test_event_container_metadata_reads_and_helper_choices(
     assert root_io.get_entry_count(str(path), "Events") == 12
     assert {field.name for field in field_info} >= {"event", "Muon_pt", "Jet_pt", "genWeight"}
     assert all(field.description is None for field in field_info)
+    by_name = {field.name: field for field in field_info}
+    assert (by_name["event"].structure, by_name["event"].dtype) == ("scalar", "uint64")
+    assert (by_name["Muon_pt"].structure, by_name["Muon_pt"].dtype) == (
+        "jagged",
+        "float32",
+    )
     assert "Muon_pt" in root_io.numeric_fields(field_info)
     assert root_io.field_choices(["Muon_pt", "Jet_pt"], "muON") == ["Muon_pt"]
     assert root_io.choose_default(["Jet_pt", "Muon_pt"], ["muon"]) == 1
@@ -133,6 +175,12 @@ def test_rntuple_nested_field_reads_like_its_flat_equivalent(rntuple_path) -> No
 
     assert "Muon.pt" in {field.name for field in field_info}
     assert "Muon.pt" in root_io.numeric_fields(field_info)
+    by_name = {field.name: field for field in field_info}
+    assert by_name["Muon"].structure == "nested/record"
+    assert (by_name["Muon.pt"].structure, by_name["Muon.pt"].dtype) == (
+        "jagged",
+        "float32",
+    )
     assert ak.almost_equal(nested_muon_pt, flat_muon_pt)
 
 
@@ -142,6 +190,29 @@ def test_mixed_nested_event_containers_are_discovered(mixed_event_containers_pat
     assert root_io.walk_event_containers(root_file) == ["ntuples/Events", "trees/Events"]
     assert root_io.is_event_container(root_file["ntuples/Events"])
     assert root_io.is_event_container(root_file["trees/Events"])
+
+
+def test_fixed_size_fields_are_classified_consistently_for_ttree_and_rntuple(tmp_path) -> None:
+    path = tmp_path / "fixed_shapes.root"
+    values = np.arange(12, dtype=np.float32).reshape(4, 3)
+    with root_io.uproot.recreate(path) as root_file:
+        tree = root_file.mktree("Tree", {"coordinates": np.dtype((np.float32, (3,)))})
+        tree.extend({"coordinates": values})
+        root_file.mkrntuple("Ntuple", {"coordinates": values})
+
+    tree_field = root_io.get_field_info(str(path), "Tree")[0]
+    ntuple_field = root_io.get_field_info(str(path), "Ntuple")[0]
+
+    assert (tree_field.structure, tree_field.dtype, tree_field.fixed_shape) == (
+        "regular",
+        "float32",
+        (3,),
+    )
+    assert (ntuple_field.structure, ntuple_field.dtype, ntuple_field.fixed_shape) == (
+        "regular",
+        "float32",
+        (3,),
+    )
 
 
 def test_root_name_helpers_and_cli_path(monkeypatch) -> None:

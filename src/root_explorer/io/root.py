@@ -8,10 +8,11 @@ from collections.abc import Sequence
 from typing import Any
 
 import awkward as ak
+import numpy as np
 import streamlit as st
 import uproot
 
-from ..models import FieldInfo
+from ..models import FieldInfo, FieldStructure
 
 _ROOT_LEAFLIST_RE = re.compile(r"(?:[^:/]+(?:\[[^\]]+\])*/[BbSsIiFfDdLlOoGgCc](?::|$))+")
 
@@ -115,6 +116,124 @@ def source_field_description(field_object: Any, field_name: str) -> str | None:
     return None
 
 
+def _source_field_form(field_object: Any) -> ak.forms.Form | None:
+    """Return one field's Awkward form using schema metadata only."""
+
+    interpretation = getattr(field_object, "interpretation", None)
+    if interpretation is not None and hasattr(interpretation, "awkward_form"):
+        try:
+            return interpretation.awkward_form(field_object.file)
+        except Exception:
+            pass
+
+    if hasattr(field_object, "to_akform"):
+        try:
+            form, _ = field_object.to_akform()
+            if isinstance(form, ak.forms.RecordForm) and len(form.contents) == 1:
+                return form.contents[0]
+            return form
+        except Exception:
+            pass
+    return None
+
+
+def _form_is_string(form: ak.forms.Form) -> bool:
+    return form.parameter("__array__") in {"string", "bytestring", "char", "byte"}
+
+
+def classify_field_form(
+    form: ak.forms.Form,
+) -> tuple[FieldStructure, str, tuple[int, ...]]:
+    """Classify a schema form without reading field values."""
+
+    if _form_is_string(form):
+        return "unsupported", "string", ()
+
+    if isinstance(
+        form,
+        (
+            ak.forms.IndexedForm,
+            ak.forms.IndexedOptionForm,
+            ak.forms.ByteMaskedForm,
+            ak.forms.BitMaskedForm,
+            ak.forms.UnmaskedForm,
+        ),
+    ):
+        return classify_field_form(form.content)
+
+    if isinstance(form, ak.forms.NumpyForm):
+        dtype = form.primitive
+        try:
+            numeric = np.issubdtype(np.dtype(dtype), np.number) or np.dtype(dtype) == np.bool_
+        except TypeError:
+            numeric = False
+        if not numeric:
+            return "unsupported", dtype, ()
+        numpy_shape = tuple(int(size) for size in form.inner_shape)
+        return ("regular" if numpy_shape else "scalar"), dtype, numpy_shape
+
+    if isinstance(form, ak.forms.RegularForm):
+        regular_shape: list[int] = []
+        current: ak.forms.Form = form
+        while isinstance(current, ak.forms.RegularForm):
+            regular_shape.append(int(current.size))
+            current = current.content
+        structure, dtype, inner_shape = classify_field_form(current)
+        if structure == "scalar":
+            return "regular", dtype, (*regular_shape, *inner_shape)
+        if structure == "regular":
+            return "regular", dtype, (*regular_shape, *inner_shape)
+        return "nested/record", dtype, ()
+
+    if isinstance(form, (ak.forms.ListForm, ak.forms.ListOffsetForm)):
+        structure, dtype, _ = classify_field_form(form.content)
+        if structure == "scalar":
+            return "jagged", dtype, ()
+        return "nested/record", dtype, ()
+
+    if isinstance(form, ak.forms.RecordForm):
+        if len(form.contents) == 1:
+            return classify_field_form(form.contents[0])
+        return "nested/record", "record", ()
+
+    if isinstance(form, ak.forms.EmptyForm):
+        return "unknown", "unknown", ()
+    return "unsupported", type(form).__name__.removesuffix("Form").casefold(), ()
+
+
+def _fallback_field_structure(
+    field_object: Any, typename: str
+) -> tuple[FieldStructure, str, tuple[int, ...]]:
+    """Classify unusual fields conservatively when no Awkward form is exposed."""
+
+    lower = typename.casefold()
+    if any(token in lower for token in ("string", "char*")):
+        return "unsupported", "string", ()
+    if getattr(field_object, "fields", None):
+        return "nested/record", "record", ()
+    if "vector<" in lower or typename.endswith("[]"):
+        return "jagged", "unknown", ()
+    fixed_sizes = tuple(int(size) for size in re.findall(r"\[(\d+)\]", typename))
+    if fixed_sizes:
+        return "regular", "unknown", fixed_sizes
+    if is_probably_numeric_typename(typename):
+        return "scalar", typename, ()
+    return "unknown", "unknown", ()
+
+
+def field_structure_metadata(
+    field_object: Any, typename: str
+) -> tuple[FieldStructure, str, tuple[int, ...]]:
+    """Return structural category, logical dtype, and any fixed dimensions."""
+
+    if getattr(field_object, "fields", None):
+        return "nested/record", "record", ()
+    form = _source_field_form(field_object)
+    if form is not None:
+        return classify_field_form(form)
+    return _fallback_field_structure(field_object, typename)
+
+
 @st.cache_data(show_spinner=False)
 def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
     """Return display metadata for the fields in one event container."""
@@ -130,16 +249,32 @@ def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
     info: list[FieldInfo] = []
     for name in field_names:
         description = None
+        structure: FieldStructure = "unknown"
+        dtype = "unknown"
+        fixed_shape: tuple[int, ...] = ()
         try:
             field_object = container[name]
             typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
             interpretation = str(getattr(field_object, "interpretation", "RField"))
             description = source_field_description(field_object, name)
+            structure, dtype, fixed_shape = field_structure_metadata(field_object, typename)
         except Exception:
             typename = "unknown"
             interpretation = "unknown"
         collection, field = split_collection(name)
-        info.append(FieldInfo(name, typename, interpretation, collection, field, description))
+        info.append(
+            FieldInfo(
+                name,
+                typename,
+                interpretation,
+                collection,
+                field,
+                description,
+                structure,
+                dtype,
+                fixed_shape,
+            )
+        )
     return info
 
 

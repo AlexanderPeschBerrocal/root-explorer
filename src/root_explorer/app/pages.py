@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from .controls import field_structure_label
 from .results import collection_summary
 from .state import DataContext
 
@@ -17,9 +18,17 @@ def render_field_tab(context: DataContext) -> None:
     st.subheader(f"{item_name.title()} and collection browser", anchor=False)
     st.markdown(f"#### {item_plural.title()}", anchors=False)
     query = st.text_input(f"Filter {item_plural}", value="", key="field_table_filter")
-    dataframe = pd.DataFrame([field.__dict__ for field in context.field_info]).rename(
-        columns={"name": item_name, "field": f"{item_name} member"}
-    )
+    dataframe = pd.DataFrame(
+        [
+            {
+                **field.__dict__,
+                "structure": field_structure_label(field),
+            }
+            for field in context.field_info
+        ]
+    ).rename(columns={"name": item_name, "field": f"{item_name} member"})
+    if "fixed_shape" in dataframe:
+        dataframe = dataframe.drop(columns="fixed_shape")
     if "description" in dataframe:
         if dataframe["description"].notna().any():
             dataframe["description"] = dataframe["description"].fillna("")
@@ -32,7 +41,16 @@ def render_field_tab(context: DataContext) -> None:
                 lambda row: folded_query in " ".join(map(str, row.values)).casefold(), axis=1
             )
         ]
-    column_config = {}
+    column_config = {
+        "structure": st.column_config.TextColumn(
+            "structure",
+            help="Per-event shape: scalar, fixed-size, jagged, nested/record, or unsupported.",
+        ),
+        "dtype": st.column_config.TextColumn(
+            "dtype",
+            help="Logical primitive data type reported by the source schema.",
+        ),
+    }
     if "description" in dataframe:
         column_config["description"] = st.column_config.TextColumn(
             "description",
@@ -61,7 +79,9 @@ def render_help_tab(context: DataContext) -> None:
 4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
 5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one.
 
-**Jagged collections and cuts**
+**Field badges, jagged collections, and cuts**
+- Enable **Show {context.data_item_name} details in selectors** below the plot-type selection in the Plotter or Event inspection tab to add name-first badges such as `[scalar] [float32]`, `[fixed 3]`, or `[jagged] [float32]`. These describe the per-event structure and logical data type without loading the full field.
+- `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the field browser.
 - For object collections, direct {item_name} values are flattened for plotting.
 - In the Plotter, **Multiplicity per event**, **nth object per event**, and per-event reductions such as sum, mean, max, and min are useful for turning jagged collections into one value per event.
 - Range cuts are combined with logical AND and applied simultaneously before plotting.

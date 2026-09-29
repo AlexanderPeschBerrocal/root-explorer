@@ -9,6 +9,7 @@ import pandas as pd
 from root_explorer.app import tables
 from root_explorer.app.controls import (
     COLOR_SCALES,
+    field_option_labels,
     needs_y_variable,
     needs_z_variable,
     selected_static_formats,
@@ -41,6 +42,47 @@ def test_control_predicates_and_static_formats() -> None:
     assert not supports_point_color("1D histogram")
     assert supports_histogram_weights("2D histogram")
     assert selected_static_formats({"save_png": False, "save_pdf": True}) == ["pdf"]
+
+
+def test_field_option_labels_keep_names_first_and_show_shape_and_dtype() -> None:
+    labels = field_option_labels(
+        [
+            FieldInfo(
+                "event",
+                "uint64_t",
+                "",
+                "event-level",
+                "event",
+                structure="scalar",
+                dtype="uint64",
+            ),
+            FieldInfo(
+                "Muon_cov",
+                "float[3][3]",
+                "",
+                "Muon",
+                "cov",
+                structure="regular",
+                dtype="float32",
+                fixed_shape=(3, 3),
+            ),
+            FieldInfo(
+                "Muon_pt",
+                "float[]",
+                "",
+                "Muon",
+                "pt",
+                structure="jagged",
+                dtype="float32",
+            ),
+        ]
+    )
+
+    assert labels == {
+        "event": "event  [scalar] [uint64]",
+        "Muon_cov": "Muon_cov  [fixed 3x3] [float32]",
+        "Muon_pt": "Muon_pt  [jagged] [float32]",
+    }
 
 
 def test_collection_summary_and_uploaded_file_storage() -> None:
