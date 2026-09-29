@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -94,24 +95,41 @@ def apply_log_axis_scales(
     """Validate and apply logarithmic axis scales without modifying plot data."""
 
     if style.get("log_x", False):
-        _require_positive_axis_values(x, "x")
-        ax.set_xscale("log")
+        apply_log_x_axis(ax, x)
 
-    if not style.get("log_y", False):
-        return
-
-    if histogram_counts is not None:
-        counts = np.asarray(histogram_counts, dtype=float)
-        if not np.any(np.isfinite(counts) & (counts > 0)):
-            raise InvalidAxisScaleError(
-                "Cannot use a logarithmic y-axis: the histogram has no positive bin contents."
-            )
-    else:
-        if y is None:
+    if style.get("log_y", False):
+        if histogram_counts is not None:
+            apply_log_histogram_y_axis(ax, histogram_counts)
+        elif y is None:
             raise InvalidAxisScaleError(
                 "Cannot use a logarithmic y-axis: no y coordinates are available."
             )
-        _require_positive_axis_values(y, "y")
+        else:
+            apply_log_y_axis(ax, y)
+
+
+def apply_log_x_axis(ax: Any, x: np.ndarray) -> None:
+    """Validate and apply a logarithmic x-axis."""
+
+    _require_positive_axis_values(x, "x")
+    ax.set_xscale("log")
+
+
+def apply_log_y_axis(ax: Any, y: np.ndarray) -> None:
+    """Validate and apply a logarithmic y-axis for coordinate values."""
+
+    _require_positive_axis_values(y, "y")
+    ax.set_yscale("log")
+
+
+def apply_log_histogram_y_axis(ax: Any, histogram_counts: np.ndarray) -> None:
+    """Validate and apply a logarithmic y-axis for histogram bin contents."""
+
+    counts = np.asarray(histogram_counts, dtype=float)
+    if not np.any(np.isfinite(counts) & (counts > 0)):
+        raise InvalidAxisScaleError(
+            "Cannot use a logarithmic y-axis: the histogram has no positive bin contents."
+        )
     ax.set_yscale("log")
 
 
@@ -456,16 +474,17 @@ def calculate_color_clipping(
     )
 
 
-def scatter_color_scale(
-    color: np.ndarray, style: dict[str, Any]
-) -> tuple[LogNorm | None, float | None, float | None]:
-    """Validate and resolve 2D-scatter colour normalization."""
+def scatter_color_scale_linear(style: dict[str, Any]) -> tuple[float | None, float | None]:
+    """Resolve explicit limits for a linear 2D-scatter colour scale."""
+
+    return _scatter_color_limits(style)
+
+
+def scatter_color_scale_log(color: np.ndarray, style: dict[str, Any]) -> LogNorm:
+    """Validate and resolve logarithmic 2D-scatter colour normalization."""
 
     cmin, cmax = _scatter_color_limits(style)
     values = np.asarray(color, dtype=float)
-    if not style.get("log_color", False):
-        return None, cmin, cmax
-
     if values.size == 0 or np.any(~np.isfinite(values)) or np.any(values <= 0):
         raise InvalidColorScaleError(
             "Logarithmic color scale requires all color values to be finite and strictly positive."
@@ -480,7 +499,18 @@ def scatter_color_scale(
         raise InvalidColorScaleError(
             "Logarithmic color scale requires color min to be smaller than color max."
         )
-    return LogNorm(vmin=vmin, vmax=vmax), None, None
+    return LogNorm(vmin=vmin, vmax=vmax)
+
+
+def scatter_color_scale(
+    color: np.ndarray, style: dict[str, Any]
+) -> tuple[LogNorm | None, float | None, float | None]:
+    """Validate and resolve 2D-scatter colour normalization."""
+
+    if style.get("log_color", False):
+        return scatter_color_scale_log(color, style), None, None
+    cmin, cmax = scatter_color_scale_linear(style)
+    return None, cmin, cmax
 
 
 def parse_optional_float(text: str) -> float | None:
@@ -600,14 +630,28 @@ def histogram2d_values(
     return np.histogram2d(x, y, bins=(bins_x, bins_y), weights=weights)
 
 
-def draw_hist2d(ax, h, xedges, yedges, log_scale: bool):
-    """Draw precomputed 2D histogram values."""
+def draw_hist2d_linear(ax, h: np.ndarray, xedges: np.ndarray, yedges: np.ndarray):
+    """Draw precomputed 2D histogram values with a linear colour scale."""
+
+    return ax.pcolormesh(xedges, yedges, h.T, shading="auto")
+
+
+def draw_hist2d_log(ax, h: np.ndarray, xedges: np.ndarray, yedges: np.ndarray):
+    """Draw precomputed 2D histogram values with a logarithmic colour scale."""
 
     positive = h[np.isfinite(h) & (h > 0)]
     norm = None
-    if log_scale and len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
+    if len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
         norm = LogNorm(vmin=float(np.nanmin(positive)), vmax=float(np.nanmax(positive)))
     return ax.pcolormesh(xedges, yedges, h.T, shading="auto", norm=norm)
+
+
+def draw_hist2d(ax, h, xedges, yedges, log_scale: bool):
+    """Draw precomputed 2D histogram values."""
+
+    if log_scale:
+        return draw_hist2d_log(ax, h, xedges, yedges)
+    return draw_hist2d_linear(ax, h, xedges, yedges)
 
 
 def draw_highest_density_contours(
@@ -805,6 +849,246 @@ def matplotlib_cmap_name(colorscale: str, reverse: bool = False) -> str:
     return f"{name}_r" if reverse else name
 
 
+def create_static_figure(style: dict[str, Any]):
+    """Create the Matplotlib figure used for a static ROOT Explorer plot."""
+
+    return plt.subplots(
+        figsize=(style["fig_width"], style["fig_height"]),
+        dpi=float(style.get("display_dpi", 200)),
+    )
+
+
+def draw_histogram_1d(
+    ax: Any,
+    x: np.ndarray,
+    x_label: str,
+    y_label: str,
+    style: dict[str, Any],
+    *,
+    weights: np.ndarray | None,
+    weight_branch: str | None,
+    reference_x: float | None,
+    reference_label: str | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Draw the base 1D histogram and return its counts and bin edges."""
+
+    histogram_counts, histogram_edges, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label or ("entries" if weights is None else f"sum weights ({weight_branch})"))
+    if reference_x is not None:
+        ax.axvline(
+            reference_x,
+            color="tab:red",
+            linestyle="--",
+            linewidth=1.5,
+            label=reference_label or f"x = {reference_x:g}",
+        )
+        ax.legend()
+    return histogram_counts, histogram_edges
+
+
+def draw_histogram_2d_linear(
+    fig: Any,
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    x_label: str,
+    y_label: str,
+    style: dict[str, Any],
+    *,
+    weights: np.ndarray | None,
+    weight_branch: str | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Draw the base 2D histogram with a linear colour scale."""
+
+    histogram, xedges, yedges = histogram2d_values(
+        x, y, style["bins_x"], style["bins_y"], weights=weights
+    )
+    mesh = draw_hist2d_linear(ax, histogram, xedges, yedges)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    fig.colorbar(
+        mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
+    )
+    return histogram, xedges, yedges
+
+
+def draw_histogram_2d_log(
+    fig: Any,
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    x_label: str,
+    y_label: str,
+    style: dict[str, Any],
+    *,
+    weights: np.ndarray | None,
+    weight_branch: str | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Draw the base 2D histogram with a logarithmic colour scale."""
+
+    histogram, xedges, yedges = histogram2d_values(
+        x, y, style["bins_x"], style["bins_y"], weights=weights
+    )
+    mesh = draw_hist2d_log(ax, histogram, xedges, yedges)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    fig.colorbar(
+        mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
+    )
+    return histogram, xedges, yedges
+
+
+def draw_scatter_2d(
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    x_label: str,
+    y_label: str,
+    style: dict[str, Any],
+) -> None:
+    """Draw an uncoloured 2D scatter plot."""
+
+    ax.scatter(x, y, s=style["marker_size_2d"], alpha=style["opacity_2d"])
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+
+def draw_colored_scatter_2d_linear(
+    fig: Any,
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    color: np.ndarray,
+    x_label: str,
+    y_label: str,
+    color_label: str | None,
+    style: dict[str, Any],
+    *,
+    colorbar_extend: str,
+) -> None:
+    """Draw a 2D scatter plot with a linear colour scale."""
+
+    cmin, cmax = scatter_color_scale_linear(style)
+    scatter = ax.scatter(
+        x,
+        y,
+        s=style["marker_size_2d"],
+        alpha=style["opacity_2d"],
+        c=color,
+        cmap=matplotlib_cmap_name(
+            style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
+        ),
+        vmin=cmin,
+        vmax=cmax,
+    )
+    fig.colorbar(scatter, ax=ax, label=color_label or "color", extend=colorbar_extend)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+
+def draw_colored_scatter_2d_log(
+    fig: Any,
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    color: np.ndarray,
+    x_label: str,
+    y_label: str,
+    color_label: str | None,
+    style: dict[str, Any],
+    *,
+    colorbar_extend: str,
+) -> None:
+    """Draw a 2D scatter plot with a logarithmic colour scale."""
+
+    scatter = ax.scatter(
+        x,
+        y,
+        s=style["marker_size_2d"],
+        alpha=style["opacity_2d"],
+        c=color,
+        cmap=matplotlib_cmap_name(
+            style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
+        ),
+        norm=scatter_color_scale_log(color, style),
+    )
+    fig.colorbar(scatter, ax=ax, label=color_label or "color", extend=colorbar_extend)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+
+def draw_kde_1d_overlay(
+    ax: Any,
+    x: np.ndarray,
+    histogram_edges: np.ndarray,
+    style: dict[str, Any],
+    *,
+    weights: np.ndarray | None,
+) -> str | None:
+    """Draw a selected 1D KDE overlay, returning a displayable warning on failure."""
+
+    try:
+        bandwidth = resolve_kde_bandwidth(
+            style.get("kde_bandwidth", "scott"), style.get("kde_custom_factor", 1.0)
+        )
+        draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth)
+    except Exception as exc:
+        return str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
+    return None
+
+
+def draw_kde_2d_overlay(
+    ax: Any,
+    x: np.ndarray,
+    y: np.ndarray,
+    xedges: np.ndarray,
+    yedges: np.ndarray,
+    style: dict[str, Any],
+    *,
+    weights: np.ndarray | None,
+) -> str | None:
+    """Draw a selected 2D KDE overlay, returning a displayable warning on failure."""
+
+    try:
+        bandwidth = resolve_kde_bandwidth(
+            style.get("kde_bandwidth", "scott"), style.get("kde_custom_factor", 1.0)
+        )
+        draw_kde_2d(ax, x, y, xedges, yedges, weights=weights, bandwidth=bandwidth)
+    except Exception as exc:
+        return str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
+    return None
+
+
+def draw_histogram_contours(
+    ax: Any,
+    histogram: np.ndarray,
+    xedges: np.ndarray,
+    yedges: np.ndarray,
+    style: dict[str, Any],
+) -> str | None:
+    """Draw selected highest-density contours, returning a displayable warning on failure."""
+
+    try:
+        draw_highest_density_contours(
+            ax, histogram, xedges, yedges, style.get("contour_levels", [])
+        )
+    except ContourConfigurationError as exc:
+        return str(exc)
+    return None
+
+
+def finish_static_axes(ax: Any, plot_type: str, title: str, style: dict[str, Any]) -> None:
+    """Apply static-plot title, aspect-ratio, viewport, and grid settings."""
+
+    ax.set_title(title or plot_type)
+    if style.get("equal_aspect", False):
+        ax.set_aspect("equal", adjustable="box")
+    apply_axis_limits(ax, style)
+    if style.get("grid", False):
+        ax.grid(alpha=0.3)
+
+
 def render_static_plot(
     fig,
     ax,
@@ -826,110 +1110,75 @@ def render_static_plot(
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
-        histogram_counts, histogram_edges, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
-        if style.get("show_kde", False):
-            try:
-                bandwidth = resolve_kde_bandwidth(
-                    style.get("kde_bandwidth", "scott"),
-                    style.get("kde_custom_factor", 1.0),
-                )
-                draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth)
-            except Exception as exc:
-                warnings.append(
-                    str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
-                )
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(
-            y_label or ("entries" if weights is None else f"sum weights ({weight_branch})")
+        histogram_counts, histogram_edges = draw_histogram_1d(
+            ax,
+            x,
+            x_label,
+            y_label,
+            style,
+            weights=weights,
+            weight_branch=weight_branch,
+            reference_x=reference_x,
+            reference_label=reference_label,
         )
+        if style.get("show_kde", False):
+            warning = draw_kde_1d_overlay(ax, x, histogram_edges, style, weights=weights)
+            if warning is not None:
+                warnings.append(warning)
         apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
-        if reference_x is not None:
-            ax.axvline(
-                reference_x,
-                color="tab:red",
-                linestyle="--",
-                linewidth=1.5,
-                label=reference_label or f"x = {reference_x:g}",
-            )
-            ax.legend()
 
     elif plot_type == "2D histogram":
         if y is None:
             raise ValueError("2D histogram requires a y variable.")
-        histogram, xedges, yedges = histogram2d_values(
-            x, y, style["bins_x"], style["bins_y"], weights=weights
+        draw_histogram = draw_histogram_2d_log if style["log_z"] else draw_histogram_2d_linear
+        histogram, xedges, yedges = draw_histogram(
+            fig,
+            ax,
+            x,
+            y,
+            x_label,
+            y_label,
+            style,
+            weights=weights,
+            weight_branch=weight_branch,
         )
-        mesh = draw_hist2d(ax, histogram, xedges, yedges, style["log_z"])
         if style.get("show_contours", False):
-            try:
-                draw_highest_density_contours(
-                    ax, histogram, xedges, yedges, style.get("contour_levels", [])
-                )
-            except ContourConfigurationError as exc:
-                warnings.append(str(exc))
+            warning = draw_histogram_contours(ax, histogram, xedges, yedges, style)
+            if warning is not None:
+                warnings.append(warning)
         if style.get("show_kde", False):
-            try:
-                bandwidth = resolve_kde_bandwidth(
-                    style.get("kde_bandwidth", "scott"),
-                    style.get("kde_custom_factor", 1.0),
-                )
-                draw_kde_2d(
-                    ax,
-                    x,
-                    y,
-                    xedges,
-                    yedges,
-                    weights=weights,
-                    bandwidth=bandwidth,
-                )
-            except Exception as exc:
-                warnings.append(
-                    str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
-                )
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        fig.colorbar(
-            mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
-        )
+            warning = draw_kde_2d_overlay(ax, x, y, xedges, yedges, style, weights=weights)
+            if warning is not None:
+                warnings.append(warning)
         apply_log_axis_scales(ax, style, x=x, y=y)
 
     elif plot_type == "2D scatter":
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         if color is not None:
-            color_norm, cmin, cmax = scatter_color_scale(color, style)
-            scatter = ax.scatter(
+            draw_scatter = (
+                draw_colored_scatter_2d_log
+                if style.get("log_color", False)
+                else draw_colored_scatter_2d_linear
+            )
+            draw_scatter(
+                fig,
+                ax,
                 x,
                 y,
-                s=style["marker_size_2d"],
-                alpha=style["opacity_2d"],
-                c=color,
-                cmap=matplotlib_cmap_name(
-                    style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
-                ),
-                norm=color_norm,
-                vmin=cmin,
-                vmax=cmax,
-            )
-            fig.colorbar(
-                scatter,
-                ax=ax,
-                label=color_label or "color",
-                extend=colorbar_extend,
+                color,
+                x_label,
+                y_label,
+                color_label,
+                style,
+                colorbar_extend=colorbar_extend,
             )
         else:
-            ax.scatter(x, y, s=style["marker_size_2d"], alpha=style["opacity_2d"])
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
+            draw_scatter_2d(ax, x, y, x_label, y_label, style)
         apply_log_axis_scales(ax, style, x=x, y=y)
 
     else:
         raise ValueError(f"Unsupported static plot type: {plot_type}")
 
-    ax.set_title(title or plot_type)
-    if style.get("equal_aspect", False):
-        ax.set_aspect("equal", adjustable="box")
-    apply_axis_limits(ax, style)
-    if style.get("grid", False):
-        ax.grid(alpha=0.3)
+    finish_static_axes(ax, plot_type, title, style)
     return warnings

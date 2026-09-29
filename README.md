@@ -21,6 +21,14 @@ From a checkout, users can launch the app directly:
 streamlit run streamlit_app.py
 ```
 
+### Standalone plot code
+
+The **Download plot code** action creates a standalone, editable Python script
+for the selected static plot. It contains only the analysis and rendering
+operations selected at export time. Input paths, branch names, labels, ranges,
+and non-structural styles can be edited directly; regenerate the script after
+changing the plot type, variable modes, optional features, or logarithmic scales.
+
 ### Docker
 
 The application can also be built and run in Docker. This provides a reproducible
