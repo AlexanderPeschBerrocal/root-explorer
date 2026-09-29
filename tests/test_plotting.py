@@ -14,6 +14,7 @@ from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
+    InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
     KDEError,
@@ -423,6 +424,84 @@ def test_logarithmic_axes_for_histogram_and_scatter() -> None:
     assert scatter_axes.get_xscale() == "log"
     assert scatter_axes.get_yscale() == "log"
     plt.close(scatter_figure)
+
+
+def test_explicit_axis_limits_support_complete_and_partial_bounds() -> None:
+    figure, axes = plt.subplots()
+    render_static_plot(
+        figure,
+        axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([10.0, 20.0, 30.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "log_x": False,
+            "log_y": False,
+            "x_min_text": "0.5",
+            "x_max_text": "4.5",
+            "y_min_text": "15",
+            "y_max_text": "",
+            "grid": False,
+        },
+        title="limited scatter",
+    )
+
+    assert axes.get_xlim() == pytest.approx((0.5, 4.5))
+    assert axes.get_ylim()[0] == pytest.approx(15.0)
+    assert axes.get_ylim()[1] > 15.0
+    assert len(axes.collections[0].get_offsets()) == 3
+    plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    ("style", "message"),
+    [
+        ({"x_min_text": "not-a-number"}, "x-axis minimum must be a finite number"),
+        ({"x_max_text": "inf"}, "x-axis maximum must be a finite number"),
+        (
+            {"x_min_text": "2", "x_max_text": "1"},
+            "x-axis minimum must be smaller than x-axis maximum",
+        ),
+        (
+            {"y_min_text": "3", "y_max_text": "3"},
+            "y-axis minimum must be smaller than y-axis maximum",
+        ),
+        (
+            {"log_x": True, "x_min_text": "0"},
+            "x-axis minimum must be strictly positive",
+        ),
+        (
+            {"log_y": True, "y_max_text": "-1"},
+            "y-axis maximum must be strictly positive",
+        ),
+    ],
+)
+def test_invalid_explicit_axis_limits_are_rejected(style, message) -> None:
+    figure, axes = plt.subplots()
+    plot_style = {
+        "marker_size_2d": 3.0,
+        "opacity_2d": 0.5,
+        "grid": False,
+        **style,
+    }
+
+    with pytest.raises(InvalidAxisLimitError, match=message):
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            np.array([1.0, 2.0]),
+            np.array([3.0, 4.0]),
+            "x",
+            "y",
+            plot_style,
+            title="invalid limits",
+        )
+    plt.close(figure)
 
 
 @pytest.mark.parametrize(

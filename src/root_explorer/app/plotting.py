@@ -31,6 +31,7 @@ from ..plotting.pipeline import (
     render_prepared_static_plot,
 )
 from ..plotting.plots import (
+    InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
     apply_range_cuts,
@@ -270,7 +271,7 @@ def _generate_and_show(
         except ArrayShapeMismatchError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
-        except (InvalidAxisScaleError, InvalidColorScaleError) as exc:
+        except (InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError) as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:
