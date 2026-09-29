@@ -14,10 +14,15 @@ class _FakeBranch:
     typename = "float32"
     interpretation = "fake interpretation"
 
+    def __init__(self, *, title: str = "", description: str | None = None) -> None:
+        self.title = title
+        if description is not None:
+            self.description = description
+
 
 class _FakeTree:
-    def __init__(self, names: list[str]) -> None:
-        self._branches = {name: _FakeBranch() for name in names}
+    def __init__(self, names: list[str], branches: dict[str, _FakeBranch] | None = None) -> None:
+        self._branches = branches or {name: _FakeBranch() for name in names}
 
     def __iter__(self):
         # Match Uproot's TTree behavior: direct iteration yields branch objects.
@@ -54,6 +59,30 @@ def test_get_field_info_keeps_field_names_as_strings(monkeypatch) -> None:
     assert summary.loc[summary["collection"] == "Muon", "example fields"].item() == "pt, eta"
 
 
+def test_get_field_info_exposes_useful_source_documentation(monkeypatch) -> None:
+    tree = _FakeTree(
+        [],
+        {
+            "Muon_pt": _FakeBranch(title="Muon transverse momentum [GeV]"),
+            "Muon_eta": _FakeBranch(title="Muon_eta[nMuon]/F"),
+            "covariance": _FakeBranch(title="covariance[3][3]/D"),
+            "run": _FakeBranch(title="run/i"),
+            "event": _FakeBranch(description="Unique event identifier"),
+            "empty": _FakeBranch(description=""),
+        },
+    )
+    monkeypatch.setattr(root_io.uproot, "open", lambda path: _FakeFile(tree))
+
+    info = {field.name: field for field in root_io.get_field_info("fake.root", "Events")}
+
+    assert info["Muon_pt"].description == "Muon transverse momentum [GeV]"
+    assert info["event"].description == "Unique event identifier"
+    assert info["Muon_eta"].description is None
+    assert info["covariance"].description is None
+    assert info["run"].description is None
+    assert info["empty"].description is None
+
+
 @pytest.mark.parametrize(
     ("fixture_name", "expected_containers"),
     [
@@ -73,6 +102,7 @@ def test_event_container_metadata_reads_and_helper_choices(
     assert root_io.walk_event_containers(root_file) == expected_containers
     assert root_io.get_entry_count(str(path), "Events") == 12
     assert {field.name for field in field_info} >= {"event", "Muon_pt", "Jet_pt", "genWeight"}
+    assert all(field.description is None for field in field_info)
     assert "Muon_pt" in root_io.numeric_fields(field_info)
     assert root_io.field_choices(["Muon_pt", "Jet_pt"], "muON") == ["Muon_pt"]
     assert root_io.choose_default(["Jet_pt", "Muon_pt"], ["muon"]) == 1
