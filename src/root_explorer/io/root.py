@@ -169,20 +169,20 @@ def classify_field_form(
             numeric = False
         if not numeric:
             return "unsupported", dtype, ()
-        shape = tuple(int(size) for size in form.inner_shape)
-        return ("regular" if shape else "scalar"), dtype, shape
+        numpy_shape = tuple(int(size) for size in form.inner_shape)
+        return ("regular" if numpy_shape else "scalar"), dtype, numpy_shape
 
     if isinstance(form, ak.forms.RegularForm):
-        shape: list[int] = []
+        regular_shape: list[int] = []
         current: ak.forms.Form = form
         while isinstance(current, ak.forms.RegularForm):
-            shape.append(int(current.size))
+            regular_shape.append(int(current.size))
             current = current.content
         structure, dtype, inner_shape = classify_field_form(current)
         if structure == "scalar":
-            return "regular", dtype, (*shape, *inner_shape)
+            return "regular", dtype, (*regular_shape, *inner_shape)
         if structure == "regular":
-            return "regular", dtype, (*shape, *inner_shape)
+            return "regular", dtype, (*regular_shape, *inner_shape)
         return "nested/record", dtype, ()
 
     if isinstance(form, (ak.forms.ListForm, ak.forms.ListOffsetForm)):
