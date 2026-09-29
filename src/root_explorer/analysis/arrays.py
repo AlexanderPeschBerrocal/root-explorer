@@ -621,6 +621,37 @@ def variable_values_for_values(
     from .variables import evaluate_variable
 
     values, label = evaluate_variable(spec, path, tree_name, entry_start, entry_stop, event_index)
+    return (
+        align_variable_values_to_reference(
+            values,
+            label,
+            spec,
+            reference_spec,
+            value_count,
+            path,
+            tree_name,
+            entry_start,
+            entry_stop,
+            event_index,
+        ),
+        label,
+    )
+
+
+def align_variable_values_to_reference(
+    values: np.ndarray,
+    label: str,
+    spec: VariableSpec,
+    reference_spec: VariableSpec,
+    value_count: int,
+    path: str,
+    tree_name: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> np.ndarray:
+    """Align already-evaluated variable values with the selected x-variable shape."""
+
     values_are_per_event = variable_is_event_level_array(
         spec, path, tree_name, entry_start, entry_stop, event_index
     )
@@ -668,7 +699,7 @@ def variable_values_for_values(
         values_are_per_event=values_are_per_event,
         values_name=label,
     )
-    return values, label
+    return values
 
 
 def cut_values_for_values(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import asdict
+from dataclasses import replace
 from types import ModuleType
 from typing import Any
 
@@ -14,7 +14,7 @@ import pytest
 from root_explorer.app.plotting import PlotRequest
 from root_explorer.app.state import DataContext, GeometryState
 from root_explorer.models import VariableSpec
-from root_explorer.plotting.codegen import generate_static_plot_code
+from root_explorer.plotting.codegen import build_static_plot_export_plan, generate_static_plot_code
 from root_explorer.plotting.pipeline import prepare_static_plot, render_prepared_static_plot
 
 
@@ -57,40 +57,6 @@ def _request(
         save_name="plot",
         threshold=threshold,
         quantile_percentile=quantile_percentile,
-    )
-
-
-def _result_payload(value):
-    return None if value is None else asdict(value)
-
-
-def _assert_optional_array_equal(actual, expected) -> None:
-    if expected is None:
-        assert actual is None
-        return
-    assert actual is not None
-    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
-
-
-def _assert_prepared_parity(actual, expected) -> None:
-    _assert_optional_array_equal(actual.x, expected.x)
-    _assert_optional_array_equal(actual.y, expected.y)
-    _assert_optional_array_equal(actual.weights, expected.weights)
-    _assert_optional_array_equal(actual.color, expected.color)
-    assert actual.x_label == expected.x_label
-    assert actual.y_label == expected.y_label
-    assert actual.color_label == expected.color_label
-    assert actual.title == expected.title
-    if expected.reference_x is None:
-        assert actual.reference_x is None
-    else:
-        assert actual.reference_x == pytest.approx(expected.reference_x)
-    assert actual.reference_label == expected.reference_label
-    assert actual.max_points == expected.max_points
-    assert _result_payload(actual.threshold_result) == _result_payload(expected.threshold_result)
-    assert _result_payload(actual.quantile_result) == _result_payload(expected.quantile_result)
-    assert _result_payload(actual.color_clipping_result) == _result_payload(
-        expected.color_clipping_result
     )
 
 
@@ -138,16 +104,10 @@ def _execute_export(request: PlotRequest):
 
         canonical_spec = request.to_static_spec()
         canonical_prepared = prepare_static_plot(canonical_spec)
-        generated_prepared = namespace["prepare_static_plot"](namespace["PLOT"])
-        _assert_prepared_parity(generated_prepared, canonical_prepared)
-
-        canonical_figure, canonical_warnings = render_prepared_static_plot(
-            canonical_spec, canonical_prepared
-        )
-        generated_figure, generated_warnings = namespace["render_prepared_static_plot"](
-            namespace["PLOT"], generated_prepared
-        )
-        assert generated_warnings == canonical_warnings
+        canonical_figure, _ = render_prepared_static_plot(canonical_spec, canonical_prepared)
+        namespace["main"]()
+        generated_figure = namespace["plt"].gcf()
+        assert generated_figure.axes
         return canonical_prepared, canonical_figure, generated_figure
 
 
@@ -365,6 +325,191 @@ def test_exported_coloured_scatter_matches_canonical_pipeline(root_path) -> None
     finally:
         plt.close(canonical_figure)
         plt.close(generated_figure)
+
+
+def test_basic_histogram_export_omits_unselected_features() -> None:
+    request = _request(
+        "events.root",
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "equal_aspect": False,
+            "grid": False,
+        },
+    )
+
+    source = generate_static_plot_code(request)
+
+    compile(source, "basic_histogram_export.py", "exec")
+    assert "def evaluate_branch_variable(" in source
+    assert "def evaluate_variable(" not in source
+    assert "def evaluate_magnitude_3d_variable(" not in source
+    assert "def draw_kde_1d(" not in source
+    assert "def draw_kde_2d(" not in source
+    assert "def draw_highest_density_contours(" not in source
+    assert "def calculate_quantile_result(" not in source
+    assert "def calculate_threshold_result(" not in source
+    assert "def histogram_weights_for_values(" not in source
+    assert "def draw_colored_scatter_2d_" not in source
+    assert "gaussian_kde" not in source
+
+
+def test_plain_2d_histogram_export_omits_optional_overlays() -> None:
+    request = _request(
+        "events.root",
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "bins_y": 20,
+            "log_x": False,
+            "log_y": False,
+            "log_z": False,
+            "show_kde": False,
+            "show_contours": False,
+            "equal_aspect": False,
+            "grid": False,
+        },
+    )
+
+    source = generate_static_plot_code(request)
+
+    compile(source, "plain_2d_histogram_export.py", "exec")
+    assert "def draw_histogram_2d_linear(" in source
+    assert "def draw_histogram_2d_log(" not in source
+    assert "def draw_kde_2d(" not in source
+    assert "def draw_highest_density_contours(" not in source
+    assert "def draw_colored_scatter_2d_" not in source
+    assert "gaussian_kde" not in source
+
+
+def test_export_plan_adds_only_selected_overlays() -> None:
+    base_style = {
+        "fig_width": 8.0,
+        "fig_height": 6.0,
+        "bins_x": 20,
+        "bins_y": 20,
+        "log_x": False,
+        "log_y": False,
+        "log_z": False,
+        "equal_aspect": False,
+        "grid": False,
+    }
+    kde_request = _request(
+        "events.root",
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        y_spec=VariableSpec(mode="branch", branch="y"),
+        style={**base_style, "show_kde": True, "show_contours": False},
+    )
+    contour_request = _request(
+        "events.root",
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        y_spec=VariableSpec(mode="branch", branch="y"),
+        style={**base_style, "show_kde": False, "show_contours": True},
+    )
+
+    kde_plan = build_static_plot_export_plan(kde_request.to_static_spec())
+    contour_plan = build_static_plot_export_plan(contour_request.to_static_spec())
+    kde_source = generate_static_plot_code(kde_request)
+    contour_source = generate_static_plot_code(contour_request)
+
+    assert kde_plan.show_kde is True
+    assert kde_plan.show_contours is False
+    assert contour_plan.show_kde is False
+    assert contour_plan.show_contours is True
+    assert "from scipy.stats import gaussian_kde" in kde_source
+    assert "def draw_kde_2d_overlay(" in kde_source
+    assert "def draw_histogram_contours(" not in kde_source
+    assert "def draw_histogram_contours(" in contour_source
+    assert "from scipy.stats import gaussian_kde" not in contour_source
+    assert "def draw_kde_2d_overlay(" not in contour_source
+
+
+def test_coloured_scatter_export_excludes_histogram_features() -> None:
+    request = _request(
+        "events.root",
+        plot_type="2D scatter",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        y_spec=VariableSpec(mode="branch", branch="y"),
+        color_spec=VariableSpec(mode="branch", branch="color"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "marker_size_2d": 2.0,
+            "opacity_2d": 0.5,
+            "max_points": 100,
+            "colorscale": "Viridis",
+            "reverse_colorscale": False,
+            "log_color": False,
+            "log_x": False,
+            "log_y": False,
+            "equal_aspect": False,
+            "grid": False,
+        },
+    )
+
+    source = generate_static_plot_code(request)
+
+    assert "def draw_colored_scatter_2d_linear(" in source
+    assert "def calculate_color_clipping(" in source
+    assert "def draw_histogram_1d(" not in source
+    assert "def draw_histogram_2d_" not in source
+    assert "def draw_kde_" not in source
+    assert "def draw_highest_density_contours(" not in source
+
+
+def test_export_configuration_allows_non_structural_edits_and_rejects_mode_changes(
+    root_path,
+) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "equal_aspect": False,
+            "grid": False,
+        },
+    )
+
+    with _executed_generated_module(generate_static_plot_code(request)) as module:
+        namespace = module.__dict__
+        namespace["plt"].show = lambda: None
+        namespace["PLOT"] = replace(
+            namespace["PLOT"],
+            labels={"title": "Edited", "custom_x": "", "custom_y": ""},
+            style={
+                **namespace["PLOT"].style,
+                "show_contours": True,
+                "log_z": True,
+                "log_color": True,
+            },
+        )
+        namespace["main"]()
+        plt.close(namespace["plt"].gcf())
+
+        namespace["PLOT"] = replace(
+            namespace["PLOT"],
+            x_spec=replace(namespace["PLOT"].x_spec, mode="sum"),
+        )
+        with pytest.raises(ValueError, match="variable modes"):
+            namespace["main"]()
 
 
 def test_export_rejects_interactive_3d_request() -> None:

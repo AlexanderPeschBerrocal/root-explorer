@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from ..analysis.arrays import (
@@ -27,6 +26,7 @@ from .plots import (
     ColorClippingResult,
     apply_range_cuts,
     calculate_color_clipping,
+    create_static_figure,
     downsample_arrays,
     render_static_plot,
 )
@@ -234,7 +234,7 @@ def render_prepared_static_plot(
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
     x, y, color = prepared.render_arrays(spec.plot_type)
-    figure, axes = plt.subplots(figsize=(spec.style["fig_width"], spec.style["fig_height"]))
+    figure, axes = create_static_figure(spec.style)
     warnings = render_static_plot(
         figure,
         axes,
