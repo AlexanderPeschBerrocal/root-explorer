@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 import matplotlib
@@ -17,6 +18,7 @@ from root_explorer.plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidPlotResolutionError,
     KDEError,
     apply_range_cuts,
     build_plotly_3d,
@@ -38,6 +40,7 @@ from root_explorer.plotting.plots import (
     safe_filename,
     save_matplotlib_figure,
     save_plotly_figure,
+    validate_raster_resolution,
 )
 
 
@@ -327,7 +330,7 @@ def test_filters_downsampling_and_descriptions() -> None:
 
 
 def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(2.0, 1.0))
     render_static_plot(
         fig,
         ax,
@@ -340,9 +343,16 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
         title="scatter",
     )
     assert ax.get_title() == "scatter"
-    assert save_matplotlib_figure(fig, tmp_path, "unsafe / title", ["png", "pdf"])
+    assert save_matplotlib_figure(fig, tmp_path, "unsafe / title", ["png", "pdf"], dpi=300)
     assert (tmp_path / "unsafe___title.png").is_file()
-    assert matplotlib_figure_bytes(fig, "png").startswith(b"\x89PNG")
+    png_150 = matplotlib_figure_bytes(fig, "png", dpi=150)
+    png_300 = matplotlib_figure_bytes(fig, "png", dpi=300)
+    assert png_150.startswith(b"\x89PNG")
+    assert matplotlib_figure_bytes(fig, "pdf", dpi=300).startswith(b"%PDF")
+    width_150, height_150 = struct.unpack(">II", png_150[16:24])
+    width_300, height_300 = struct.unpack(">II", png_300[16:24])
+    assert width_300 == pytest.approx(2 * width_150, abs=2)
+    assert height_300 == pytest.approx(2 * height_150, abs=2)
     plt.close(fig)
 
     interactive = build_plotly_3d(
@@ -364,6 +374,19 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()
     assert safe_filename("../bad name") == ".._bad_name"
+
+
+def test_raster_resolution_validation_rejects_oversized_or_invalid_exports() -> None:
+    figure, _ = plt.subplots(figsize=(16.0, 12.0))
+
+    with pytest.raises(InvalidPlotResolutionError, match="safety limit"):
+        validate_raster_resolution(figure, 600)
+    with pytest.raises(InvalidPlotResolutionError, match="cannot exceed 600 DPI"):
+        validate_raster_resolution(figure, 601)
+    with pytest.raises(InvalidPlotResolutionError, match="finite and positive"):
+        validate_raster_resolution(figure, 0)
+
+    plt.close(figure)
 
 
 def test_weighted_histogram_uses_weighted_default_y_label() -> None:

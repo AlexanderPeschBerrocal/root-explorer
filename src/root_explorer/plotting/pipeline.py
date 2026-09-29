@@ -234,7 +234,10 @@ def render_prepared_static_plot(
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
     x, y, color = prepared.render_arrays(spec.plot_type)
-    figure, axes = plt.subplots(figsize=(spec.style["fig_width"], spec.style["fig_height"]))
+    figure, axes = plt.subplots(
+        figsize=(spec.style["fig_width"], spec.style["fig_height"]),
+        dpi=float(spec.style.get("display_dpi", 200)),
+    )
     warnings = render_static_plot(
         figure,
         axes,

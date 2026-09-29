@@ -12,6 +12,10 @@ from ..io.root import choose_default
 from ..models import VariableSpec
 from ..plotting.plots import ContourConfigurationError, parse_contour_levels, parse_optional_float
 
+DEFAULT_STATIC_DISPLAY_DPI = 200
+DEFAULT_STATIC_EXPORT_DPI = 300
+STATIC_EXPORT_DPI_OPTIONS = (150, 300, 600)
+
 
 def variable_selector(
     prefix: str,
@@ -407,8 +411,16 @@ def plot_style_controls(
     style: dict[str, Any] = {}
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
-        style["fig_width"] = st.slider("figure width", 4.0, 16.0, 8.0, key=f"{prefix}_fig_width")
+        style["fig_width"] = st.slider(
+            "figure width",
+            4.0,
+            16.0,
+            8.0,
+            key=f"{prefix}_fig_width",
+            help=f"Static previews are rendered at {DEFAULT_STATIC_DISPLAY_DPI} DPI.",
+        )
         style["fig_height"] = st.slider("figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
+        style["display_dpi"] = DEFAULT_STATIC_DISPLAY_DPI
         style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
         style["manual_axis_limits"] = st.checkbox(
@@ -586,6 +598,17 @@ def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> d
     if plot_kind == "matplotlib":
         controls["save_png"] = st.checkbox("save PNG", value=True, key=f"{prefix}_save_png")
         controls["save_pdf"] = st.checkbox("save PDF", value=False, key=f"{prefix}_save_pdf")
+        controls["export_dpi"] = st.selectbox(
+            "raster export resolution",
+            STATIC_EXPORT_DPI_OPTIONS,
+            index=STATIC_EXPORT_DPI_OPTIONS.index(DEFAULT_STATIC_EXPORT_DPI),
+            format_func=lambda dpi: f"{dpi} DPI",
+            key=f"{prefix}_export_dpi",
+            help=(
+                "Controls PNG pixel dimensions and the resolution of any rasterized content "
+                "inside PDF files. PDF text and vector lines remain resolution-independent."
+            ),
+        )
         if not controls["save_png"] and not controls["save_pdf"]:
             st.warning("Select at least one static export format.")
     return controls

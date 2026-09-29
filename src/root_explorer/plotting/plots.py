@@ -38,9 +38,16 @@ class KDEError(ValueError):
     """Raised when a KDE overlay cannot be constructed without misleading output."""
 
 
+class InvalidPlotResolutionError(ValueError):
+    """Raised when a raster export would be invalid or unreasonably large."""
+
+
 KDE_MAX_POINTS = 5_000
 KDE_1D_GRID_SIZE = 512
 KDE_2D_MAX_GRID_SIZE = 100
+DEFAULT_EXPORT_DPI = 300
+MAX_EXPORT_DPI = 600
+MAX_RASTER_PIXELS = 40_000_000
 
 
 @dataclass(frozen=True)
@@ -644,19 +651,52 @@ def safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name).strip("_") or "plot"
 
 
-def save_matplotlib_figure(fig, outdir: Path, name: str, formats: Sequence[str]) -> list[Path]:
+def validate_raster_resolution(fig, dpi: int | float) -> tuple[int, int]:
+    """Return estimated pixel dimensions or reject an unsafe raster request."""
+
+    try:
+        dpi_value = float(dpi)
+    except (TypeError, ValueError) as exc:
+        raise InvalidPlotResolutionError("Raster export resolution must be a number.") from exc
+    if not np.isfinite(dpi_value) or dpi_value <= 0:
+        raise InvalidPlotResolutionError("Raster export resolution must be finite and positive.")
+    if dpi_value > MAX_EXPORT_DPI:
+        raise InvalidPlotResolutionError(
+            f"Raster export resolution cannot exceed {MAX_EXPORT_DPI} DPI."
+        )
+
+    width = int(np.ceil(float(fig.get_figwidth()) * dpi_value))
+    height = int(np.ceil(float(fig.get_figheight()) * dpi_value))
+    pixels = width * height
+    if pixels > MAX_RASTER_PIXELS:
+        raise InvalidPlotResolutionError(
+            f"The requested raster would be approximately {width:,} x {height:,} pixels "
+            f"({pixels / 1_000_000:.1f} megapixels), above the "
+            f"{MAX_RASTER_PIXELS / 1_000_000:.0f}-megapixel safety limit. Reduce the figure "
+            "size or export resolution."
+        )
+    return width, height
+
+
+def save_matplotlib_figure(
+    fig,
+    outdir: Path,
+    name: str,
+    formats: Sequence[str],
+    *,
+    dpi: int | float = DEFAULT_EXPORT_DPI,
+) -> list[Path]:
     selected = [fmt for fmt in formats if fmt in {"png", "pdf"}]
     if not selected:
         return []
+    if "png" in selected:
+        validate_raster_resolution(fig, dpi)
     outdir.mkdir(parents=True, exist_ok=True)
     base = safe_filename(name)
     saved_paths: list[Path] = []
     for fmt in selected:
         path = outdir / f"{base}.{fmt}"
-        if fmt == "png":
-            fig.savefig(path, dpi=180, bbox_inches="tight")
-        else:
-            fig.savefig(path, bbox_inches="tight")
+        fig.savefig(path, dpi=dpi, bbox_inches="tight")
         saved_paths.append(path)
     return saved_paths
 
@@ -668,12 +708,18 @@ def save_plotly_figure(fig, outdir: Path, name: str) -> Path:
     return path
 
 
-def matplotlib_figure_bytes(fig, file_format: str) -> bytes:
+def matplotlib_figure_bytes(
+    fig, file_format: str, *, dpi: int | float = DEFAULT_EXPORT_DPI
+) -> bytes:
     """Render a Matplotlib figure for a browser download."""
-    buffer = io.BytesIO()
-    save_kwargs: dict[str, Any] = {"format": file_format, "bbox_inches": "tight"}
     if file_format == "png":
-        save_kwargs["dpi"] = 180
+        validate_raster_resolution(fig, dpi)
+    buffer = io.BytesIO()
+    save_kwargs: dict[str, Any] = {
+        "format": file_format,
+        "bbox_inches": "tight",
+        "dpi": dpi,
+    }
     fig.savefig(buffer, **save_kwargs)
     return buffer.getvalue()
 

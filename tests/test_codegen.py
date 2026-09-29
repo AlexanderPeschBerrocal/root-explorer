@@ -192,6 +192,7 @@ def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
         assert generated_figure.axes[0].get_xlabel() == canonical_figure.axes[0].get_xlabel()
         assert generated_figure.axes[0].get_ylabel() == canonical_figure.axes[0].get_ylabel()
         assert generated_figure.axes[0].get_title() == canonical_figure.axes[0].get_title()
+        assert generated_figure.dpi == canonical_figure.dpi == 200
         assert generated_figure.axes[0].get_xlim() == pytest.approx((10.0, 80.0))
         assert generated_figure.axes[0].get_ylim() == pytest.approx((0.0, 20.0))
         assert prepared.quantile_result is not None
