@@ -20,6 +20,11 @@ def render_field_tab(context: DataContext) -> None:
     dataframe = pd.DataFrame([field.__dict__ for field in context.field_info]).rename(
         columns={"name": item_name, "field": f"{item_name} member"}
     )
+    if "description" in dataframe:
+        if dataframe["description"].notna().any():
+            dataframe["description"] = dataframe["description"].fillna("")
+        else:
+            dataframe = dataframe.drop(columns="description")
     if query:
         folded_query = query.casefold()
         dataframe = dataframe[
@@ -27,7 +32,14 @@ def render_field_tab(context: DataContext) -> None:
                 lambda row: folded_query in " ".join(map(str, row.values)).casefold(), axis=1
             )
         ]
-    st.dataframe(dataframe, width="stretch", height=540)
+    column_config = {}
+    if "description" in dataframe:
+        column_config["description"] = st.column_config.TextColumn(
+            "description",
+            help="Documentation supplied by the ROOT file, when available.",
+            width="large",
+        )
+    st.dataframe(dataframe, width="stretch", height=540, column_config=column_config)
 
     st.markdown("#### Collections", anchors=False)
     st.dataframe(
