@@ -14,6 +14,7 @@ class FieldInfo:
     interpretation: str
     collection: str
     field: str
+    description: str | None = None
 
 
 @dataclass(frozen=True)

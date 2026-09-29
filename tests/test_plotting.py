@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 import matplotlib
@@ -14,8 +15,10 @@ from root_explorer.analysis.arrays import ArrayShapeMismatchError
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
+    InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidPlotResolutionError,
     KDEError,
     apply_range_cuts,
     build_plotly_3d,
@@ -37,6 +40,7 @@ from root_explorer.plotting.plots import (
     safe_filename,
     save_matplotlib_figure,
     save_plotly_figure,
+    validate_raster_resolution,
 )
 
 
@@ -326,7 +330,7 @@ def test_filters_downsampling_and_descriptions() -> None:
 
 
 def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(2.0, 1.0))
     render_static_plot(
         fig,
         ax,
@@ -339,9 +343,16 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
         title="scatter",
     )
     assert ax.get_title() == "scatter"
-    assert save_matplotlib_figure(fig, tmp_path, "unsafe / title", ["png", "pdf"])
+    assert save_matplotlib_figure(fig, tmp_path, "unsafe / title", ["png", "pdf"], dpi=300)
     assert (tmp_path / "unsafe___title.png").is_file()
-    assert matplotlib_figure_bytes(fig, "png").startswith(b"\x89PNG")
+    png_150 = matplotlib_figure_bytes(fig, "png", dpi=150)
+    png_300 = matplotlib_figure_bytes(fig, "png", dpi=300)
+    assert png_150.startswith(b"\x89PNG")
+    assert matplotlib_figure_bytes(fig, "pdf", dpi=300).startswith(b"%PDF")
+    width_150, height_150 = struct.unpack(">II", png_150[16:24])
+    width_300, height_300 = struct.unpack(">II", png_300[16:24])
+    assert width_300 == pytest.approx(2 * width_150, abs=2)
+    assert height_300 == pytest.approx(2 * height_150, abs=2)
     plt.close(fig)
 
     interactive = build_plotly_3d(
@@ -363,6 +374,19 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()
     assert safe_filename("../bad name") == ".._bad_name"
+
+
+def test_raster_resolution_validation_rejects_oversized_or_invalid_exports() -> None:
+    figure, _ = plt.subplots(figsize=(16.0, 12.0))
+
+    with pytest.raises(InvalidPlotResolutionError, match="safety limit"):
+        validate_raster_resolution(figure, 600)
+    with pytest.raises(InvalidPlotResolutionError, match="cannot exceed 600 DPI"):
+        validate_raster_resolution(figure, 601)
+    with pytest.raises(InvalidPlotResolutionError, match="finite and positive"):
+        validate_raster_resolution(figure, 0)
+
+    plt.close(figure)
 
 
 def test_weighted_histogram_uses_weighted_default_y_label() -> None:
@@ -423,6 +447,84 @@ def test_logarithmic_axes_for_histogram_and_scatter() -> None:
     assert scatter_axes.get_xscale() == "log"
     assert scatter_axes.get_yscale() == "log"
     plt.close(scatter_figure)
+
+
+def test_explicit_axis_limits_support_complete_and_partial_bounds() -> None:
+    figure, axes = plt.subplots()
+    render_static_plot(
+        figure,
+        axes,
+        "2D scatter",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([10.0, 20.0, 30.0]),
+        "x",
+        "y",
+        {
+            "marker_size_2d": 3.0,
+            "opacity_2d": 0.5,
+            "log_x": False,
+            "log_y": False,
+            "x_min_text": "0.5",
+            "x_max_text": "4.5",
+            "y_min_text": "15",
+            "y_max_text": "",
+            "grid": False,
+        },
+        title="limited scatter",
+    )
+
+    assert axes.get_xlim() == pytest.approx((0.5, 4.5))
+    assert axes.get_ylim()[0] == pytest.approx(15.0)
+    assert axes.get_ylim()[1] > 15.0
+    assert len(axes.collections[0].get_offsets()) == 3
+    plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    ("style", "message"),
+    [
+        ({"x_min_text": "not-a-number"}, "x-axis minimum must be a finite number"),
+        ({"x_max_text": "inf"}, "x-axis maximum must be a finite number"),
+        (
+            {"x_min_text": "2", "x_max_text": "1"},
+            "x-axis minimum must be smaller than x-axis maximum",
+        ),
+        (
+            {"y_min_text": "3", "y_max_text": "3"},
+            "y-axis minimum must be smaller than y-axis maximum",
+        ),
+        (
+            {"log_x": True, "x_min_text": "0"},
+            "x-axis minimum must be strictly positive",
+        ),
+        (
+            {"log_y": True, "y_max_text": "-1"},
+            "y-axis maximum must be strictly positive",
+        ),
+    ],
+)
+def test_invalid_explicit_axis_limits_are_rejected(style, message) -> None:
+    figure, axes = plt.subplots()
+    plot_style = {
+        "marker_size_2d": 3.0,
+        "opacity_2d": 0.5,
+        "grid": False,
+        **style,
+    }
+
+    with pytest.raises(InvalidAxisLimitError, match=message):
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            np.array([1.0, 2.0]),
+            np.array([3.0, 4.0]),
+            "x",
+            "y",
+            plot_style,
+            title="invalid limits",
+        )
+    plt.close(figure)
 
 
 @pytest.mark.parametrize(

@@ -53,6 +53,8 @@ def test_static_pipeline_prepares_weighted_cut_histogram(root_path) -> None:
 
     figure, warnings = render_prepared_static_plot(spec, prepared)
     assert warnings == []
+    assert figure.dpi == 200
+    assert figure.get_size_inches() == pytest.approx((8.0, 6.0))
     assert figure.axes[0].get_xlabel() == "Muon pT"
     assert figure.axes[0].get_title() == "Weighted muons"
     plt.close(figure)

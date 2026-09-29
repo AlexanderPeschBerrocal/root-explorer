@@ -126,6 +126,10 @@ def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
             "bins_x": 20,
             "log_x": False,
             "log_y": False,
+            "x_min_text": "10",
+            "x_max_text": "80",
+            "y_min_text": "0",
+            "y_max_text": "20",
             "show_kde": False,
             "equal_aspect": False,
             "grid": True,
@@ -148,6 +152,9 @@ def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
         assert generated_figure.axes[0].get_xlabel() == canonical_figure.axes[0].get_xlabel()
         assert generated_figure.axes[0].get_ylabel() == canonical_figure.axes[0].get_ylabel()
         assert generated_figure.axes[0].get_title() == canonical_figure.axes[0].get_title()
+        assert generated_figure.dpi == canonical_figure.dpi == 200
+        assert generated_figure.axes[0].get_xlim() == pytest.approx((10.0, 80.0))
+        assert generated_figure.axes[0].get_ylim() == pytest.approx((0.0, 20.0))
         assert prepared.quantile_result is not None
         assert prepared.reference_x == pytest.approx(prepared.quantile_result.value)
         assert len(generated_figure.axes[0].lines) == len(canonical_figure.axes[0].lines) == 1

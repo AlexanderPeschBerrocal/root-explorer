@@ -23,6 +23,10 @@ class InvalidAxisScaleError(ValueError):
     """Raised when selected values cannot be displayed on a requested axis scale."""
 
 
+class InvalidAxisLimitError(ValueError):
+    """Raised when explicit axis display limits are invalid."""
+
+
 class InvalidColorScaleError(ValueError):
     """Raised when scatter colour normalization is invalid."""
 
@@ -35,9 +39,16 @@ class KDEError(ValueError):
     """Raised when a KDE overlay cannot be constructed without misleading output."""
 
 
+class InvalidPlotResolutionError(ValueError):
+    """Raised when a raster export would be invalid or unreasonably large."""
+
+
 KDE_MAX_POINTS = 5_000
 KDE_1D_GRID_SIZE = 512
 KDE_2D_MAX_GRID_SIZE = 100
+DEFAULT_EXPORT_DPI = 300
+MAX_EXPORT_DPI = 600
+MAX_RASTER_PIXELS = 40_000_000
 
 
 @dataclass(frozen=True)
@@ -120,6 +131,60 @@ def apply_log_histogram_y_axis(ax: Any, histogram_counts: np.ndarray) -> None:
             "Cannot use a logarithmic y-axis: the histogram has no positive bin contents."
         )
     ax.set_yscale("log")
+
+
+def apply_axis_limits(ax: Any, style: dict[str, Any]) -> None:
+    """Validate and apply optional viewport limits without filtering plot data."""
+
+    x_min = _axis_limit_value(style, "x_min_text", "x-axis minimum")
+    x_max = _axis_limit_value(style, "x_max_text", "x-axis maximum")
+    y_min = _axis_limit_value(style, "y_min_text", "y-axis minimum")
+    y_max = _axis_limit_value(style, "y_max_text", "y-axis maximum")
+
+    _validate_axis_limit_pair(x_min, x_max, "x")
+    _validate_axis_limit_pair(y_min, y_max, "y")
+    _validate_log_axis_limits(x_min, x_max, "x", bool(style.get("log_x", False)))
+    _validate_log_axis_limits(y_min, y_max, "y", bool(style.get("log_y", False)))
+
+    if x_min is not None or x_max is not None:
+        ax.set_xlim(left=x_min, right=x_max)
+    if y_min is not None or y_max is not None:
+        ax.set_ylim(bottom=y_min, top=y_max)
+
+
+def _axis_limit_value(style: dict[str, Any], key: str, label: str) -> float | None:
+    raw = style.get(key, "")
+    if raw is None or not str(raw).strip():
+        return None
+    value = parse_optional_float(raw)
+    if value is None or not np.isfinite(value):
+        raise InvalidAxisLimitError(f"{label} must be a finite number.")
+    return value
+
+
+def _validate_axis_limit_pair(minimum: float | None, maximum: float | None, axis_name: str) -> None:
+    if minimum is not None and maximum is not None and minimum >= maximum:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis minimum must be smaller than {axis_name}-axis maximum."
+        )
+
+
+def _validate_log_axis_limits(
+    minimum: float | None,
+    maximum: float | None,
+    axis_name: str,
+    logarithmic: bool,
+) -> None:
+    if not logarithmic:
+        return
+    if minimum is not None and minimum <= 0:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis minimum must be strictly positive for a logarithmic axis."
+        )
+    if maximum is not None and maximum <= 0:
+        raise InvalidAxisLimitError(
+            f"{axis_name}-axis maximum must be strictly positive for a logarithmic axis."
+        )
 
 
 def _require_positive_axis_values(values: np.ndarray, axis_name: str) -> None:
@@ -630,19 +695,52 @@ def safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name).strip("_") or "plot"
 
 
-def save_matplotlib_figure(fig, outdir: Path, name: str, formats: Sequence[str]) -> list[Path]:
+def validate_raster_resolution(fig, dpi: int | float) -> tuple[int, int]:
+    """Return estimated pixel dimensions or reject an unsafe raster request."""
+
+    try:
+        dpi_value = float(dpi)
+    except (TypeError, ValueError) as exc:
+        raise InvalidPlotResolutionError("Raster export resolution must be a number.") from exc
+    if not np.isfinite(dpi_value) or dpi_value <= 0:
+        raise InvalidPlotResolutionError("Raster export resolution must be finite and positive.")
+    if dpi_value > MAX_EXPORT_DPI:
+        raise InvalidPlotResolutionError(
+            f"Raster export resolution cannot exceed {MAX_EXPORT_DPI} DPI."
+        )
+
+    width = int(np.ceil(float(fig.get_figwidth()) * dpi_value))
+    height = int(np.ceil(float(fig.get_figheight()) * dpi_value))
+    pixels = width * height
+    if pixels > MAX_RASTER_PIXELS:
+        raise InvalidPlotResolutionError(
+            f"The requested raster would be approximately {width:,} x {height:,} pixels "
+            f"({pixels / 1_000_000:.1f} megapixels), above the "
+            f"{MAX_RASTER_PIXELS / 1_000_000:.0f}-megapixel safety limit. Reduce the figure "
+            "size or export resolution."
+        )
+    return width, height
+
+
+def save_matplotlib_figure(
+    fig,
+    outdir: Path,
+    name: str,
+    formats: Sequence[str],
+    *,
+    dpi: int | float = DEFAULT_EXPORT_DPI,
+) -> list[Path]:
     selected = [fmt for fmt in formats if fmt in {"png", "pdf"}]
     if not selected:
         return []
+    if "png" in selected:
+        validate_raster_resolution(fig, dpi)
     outdir.mkdir(parents=True, exist_ok=True)
     base = safe_filename(name)
     saved_paths: list[Path] = []
     for fmt in selected:
         path = outdir / f"{base}.{fmt}"
-        if fmt == "png":
-            fig.savefig(path, dpi=180, bbox_inches="tight")
-        else:
-            fig.savefig(path, bbox_inches="tight")
+        fig.savefig(path, dpi=dpi, bbox_inches="tight")
         saved_paths.append(path)
     return saved_paths
 
@@ -654,12 +752,18 @@ def save_plotly_figure(fig, outdir: Path, name: str) -> Path:
     return path
 
 
-def matplotlib_figure_bytes(fig, file_format: str) -> bytes:
+def matplotlib_figure_bytes(
+    fig, file_format: str, *, dpi: int | float = DEFAULT_EXPORT_DPI
+) -> bytes:
     """Render a Matplotlib figure for a browser download."""
-    buffer = io.BytesIO()
-    save_kwargs: dict[str, Any] = {"format": file_format, "bbox_inches": "tight"}
     if file_format == "png":
-        save_kwargs["dpi"] = 180
+        validate_raster_resolution(fig, dpi)
+    buffer = io.BytesIO()
+    save_kwargs: dict[str, Any] = {
+        "format": file_format,
+        "bbox_inches": "tight",
+        "dpi": dpi,
+    }
     fig.savefig(buffer, **save_kwargs)
     return buffer.getvalue()
 
@@ -748,7 +852,10 @@ def matplotlib_cmap_name(colorscale: str, reverse: bool = False) -> str:
 def create_static_figure(style: dict[str, Any]):
     """Create the Matplotlib figure used for a static ROOT Explorer plot."""
 
-    return plt.subplots(figsize=(style["fig_width"], style["fig_height"]))
+    return plt.subplots(
+        figsize=(style["fig_width"], style["fig_height"]),
+        dpi=float(style.get("display_dpi", 200)),
+    )
 
 
 def draw_histogram_1d(
@@ -972,11 +1079,12 @@ def draw_histogram_contours(
 
 
 def finish_static_axes(ax: Any, plot_type: str, title: str, style: dict[str, Any]) -> None:
-    """Apply static-plot title, aspect-ratio, and grid settings."""
+    """Apply static-plot title, aspect-ratio, viewport, and grid settings."""
 
     ax.set_title(title or plot_type)
     if style.get("equal_aspect", False):
         ax.set_aspect("equal", adjustable="box")
+    apply_axis_limits(ax, style)
     if style.get("grid", False):
         ax.grid(alpha=0.3)
 

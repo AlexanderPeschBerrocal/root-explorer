@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -11,6 +12,8 @@ import streamlit as st
 import uproot
 
 from ..models import FieldInfo
+
+_ROOT_LEAFLIST_RE = re.compile(r"(?:[^:/]+(?:\[[^\]]+\])*/[BbSsIiFfDdLlOoGgCc](?::|$))+")
 
 
 def parse_cli_rootfile() -> str | None:
@@ -84,6 +87,34 @@ def split_collection(field_name: str) -> tuple[str, str]:
     return "event-level", field_name
 
 
+def source_field_description(field_object: Any, field_name: str) -> str | None:
+    """Return useful source-provided documentation for a field when available.
+
+    RNTuple fields expose a dedicated ``description`` attribute. TTree branches
+    generally use ``title`` for their ROOT leaf-list declaration, but files may
+    replace it with human-readable documentation. Leaf-list implementation
+    strings are deliberately excluded because typename and interpretation are
+    already displayed separately.
+    """
+
+    for attribute in ("description", "title"):
+        try:
+            raw_value = getattr(field_object, attribute)
+        except Exception:
+            continue
+        try:
+            if isinstance(raw_value, bytes):
+                value = raw_value.decode(errors="replace").strip()
+            else:
+                value = str(raw_value).strip() if raw_value is not None else ""
+        except Exception:
+            continue
+        if not value or value == field_name or _ROOT_LEAFLIST_RE.fullmatch(value):
+            continue
+        return value
+    return None
+
+
 @st.cache_data(show_spinner=False)
 def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
     """Return display metadata for the fields in one event container."""
@@ -98,15 +129,17 @@ def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
 
     info: list[FieldInfo] = []
     for name in field_names:
+        description = None
         try:
             field_object = container[name]
             typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
             interpretation = str(getattr(field_object, "interpretation", "RField"))
+            description = source_field_description(field_object, name)
         except Exception:
             typename = "unknown"
             interpretation = "unknown"
         collection, field = split_collection(name)
-        info.append(FieldInfo(name, typename, interpretation, collection, field))
+        info.append(FieldInfo(name, typename, interpretation, collection, field, description))
     return info
 
 

@@ -87,7 +87,10 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert len(at.dataframe) > initial_dataframes
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
+    assert result["figure"].dpi == 200
     assert at.text_input(key="plot_save_name").value == "muon_pt"
+    assert at.selectbox(key="plot_export_dpi").value == 300
+    assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
     assert any("Make plot button again or press P" in caption.value for caption in at.caption)
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
@@ -197,6 +200,29 @@ def test_app_warns_for_invalid_logarithmic_axis(root_path) -> None:
     assert not at.exception
     assert "plot_result" not in at.session_state
     assert any("strictly positive" in warning.value for warning in at.warning)
+
+
+def test_app_applies_and_validates_explicit_axis_limits(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    assert not any(widget.key == "plot_x_min" for widget in at.text_input)
+    at.checkbox(key="plot_manual_axis_limits").check().run()
+    at.text_input(key="plot_x_min").input("10").run()
+    at.text_input(key="plot_x_max").input("80").run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    assert at.session_state["plot_result"]["figure"].axes[0].get_xlim() == pytest.approx(
+        (10.0, 80.0)
+    )
+
+    at.text_input(key="plot_x_min").input("100").run()
+    at.text_input(key="plot_x_max").input("10").run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    assert "plot_result" not in at.session_state
+    assert any("minimum must be smaller" in warning.value for warning in at.warning)
 
 
 def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> None:
