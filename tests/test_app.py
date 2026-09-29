@@ -75,6 +75,13 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "delta R",
     ]
     assert at.selectbox(key="x_branch").label == "x: branch"
+    assert "Muon_pt" in at.selectbox(key="x_branch").options
+    assert not any("[jagged]" in option for option in at.selectbox(key="x_branch").options)
+    assert at.toggle(key="plot_show_field_details").label == "Show branch details in selectors"
+    assert not at.toggle(key="plot_show_field_details").value
+    assert at.toggle(key="event_show_field_details").label == "Show branch details in selectors"
+    assert not at.toggle(key="event_show_field_details").value
+    assert {"structure", "dtype"}.issubset(at.dataframe[0].value.columns)
     initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
@@ -130,10 +137,47 @@ def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     assert at.selectbox(key="x_longitudinal").label == "x: y"
 
 
+def test_field_detail_toggle_applies_badges_to_all_field_selectors(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.toggle(key="plot_show_field_details").set_value(True).run()
+
+    badge = "Muon_pt  [jagged] [float32]"
+    assert badge in at.selectbox(key="x_branch").options
+
+    at.checkbox(key="plot_use_weights").check().run()
+    assert "genWeight  [scalar] [float32]" in at.selectbox(key="plot_weight_branch").options
+
+    at.number_input(key="plot_n_cuts").set_value(1).run()
+    assert badge in at.selectbox(key="plot_cut_0_branch").options
+
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    at.checkbox(key="plot_color_points").check().run()
+    assert badge in at.selectbox(key="color_branch").options
+
+    assert not any("[jagged]" in option for option in at.selectbox(key="event_x_branch").options)
+    at.toggle(key="event_show_field_details").set_value(True).run()
+    assert badge in at.selectbox(key="event_x_branch").options
+    assert badge in at.selectbox(key="metric_branch").options
+
+
+def test_event_reduction_explains_the_resulting_shape(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.toggle(key="plot_show_field_details").set_value(True).run()
+    at.selectbox(key="x_mode").select("Sum per event").run()
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+
+    assert any(
+        "one event-level scalar per event from [jagged] [float32] input" in caption.value
+        for caption in at.caption
+    )
+
+
 def test_app_labels_weighted_histogram_with_weight_sum(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
+    at.toggle(key="plot_show_field_details").set_value(True).run()
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.checkbox(key="plot_use_weights").check().run()
+    assert "genWeight  [scalar] [float32]" in at.selectbox(key="plot_weight_branch").options
     at.button(key="plot_make").click().run()
 
     assert not at.exception
@@ -268,6 +312,11 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     )
     assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
+    assert at.toggle(key="plot_show_field_details").label == "Show field details in selectors"
+    assert at.selectbox(key="x_branch").options.count("Muon_pt") == 1
+    at.toggle(key="plot_show_field_details").set_value(True).run()
+    assert "Muon_pt  [jagged] [float32]" in at.selectbox(key="x_branch").options
+    assert "event  [scalar] [uint64]" in at.selectbox(key="x_branch").options
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.button(key="plot_make").click().run()
 

@@ -6,6 +6,7 @@ import streamlit as st
 
 from ..analysis.ranking import compute_event_metric, metric_dataframe
 from ..io.root import choose_default
+from .controls import field_option_labels
 from .state import DataContext
 from .tables import render_dataframe
 
@@ -26,10 +27,16 @@ def render_event_selection(context: DataContext) -> int:
     st.session_state["event_index"] = int(event_index)
 
     with st.expander("Rank events", expanded=True):
+        option_labels = (
+            field_option_labels(context.field_info)
+            if st.session_state.get("event_show_field_details", False)
+            else {}
+        )
         metric_branch = st.selectbox(
             f"metric {context.data_item_name}",
             context.fields,
             index=choose_default(context.fields, ["pt", "energy", "mass", "x"]),
+            format_func=lambda field_name: option_labels.get(field_name, field_name),
             key="metric_branch",
         )
         metric_mode = st.selectbox(

@@ -9,12 +9,33 @@ import streamlit as st
 
 from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
-from ..models import VariableSpec
+from ..models import FieldInfo, VariableSpec
 from ..plotting.plots import ContourConfigurationError, parse_contour_levels, parse_optional_float
 
 DEFAULT_STATIC_DISPLAY_DPI = 200
 DEFAULT_STATIC_EXPORT_DPI = 300
 STATIC_EXPORT_DPI_OPTIONS = (150, 300, 600)
+
+
+def field_structure_label(field: FieldInfo) -> str:
+    """Return the compact structural badge text for one source field."""
+
+    if field.structure == "regular" and field.fixed_shape:
+        dimensions = "x".join(str(size) for size in field.fixed_shape)
+        return f"fixed {dimensions}"
+    return field.structure
+
+
+def field_option_labels(field_info: Sequence[FieldInfo]) -> dict[str, str]:
+    """Return name-first selector labels with structural and dtype badges."""
+
+    labels: dict[str, str] = {}
+    for field in field_info:
+        badges = [field_structure_label(field)]
+        if field.dtype not in {"unknown", "record"}:
+            badges.append(field.dtype)
+        labels[field.name] = f"{field.name}  " + " ".join(f"[{badge}]" for badge in badges)
+    return labels
 
 
 def variable_selector(
@@ -23,10 +44,18 @@ def variable_selector(
     preferred: Sequence[str],
     *,
     item_name: str,
+    field_info: Sequence[FieldInfo] = (),
+    show_field_details: bool = False,
     allow_event_reductions: bool = True,
     display_prefix: str | None = None,
 ) -> VariableSpec:
     display_prefix = display_prefix or prefix
+    metadata_by_name = {field.name: field for field in field_info}
+    option_labels = field_option_labels(field_info) if show_field_details else {}
+
+    def format_field(field_name: str) -> str:
+        return option_labels.get(field_name, field_name)
+
     mode_labels = {
         "branch": f"Direct {item_name} values: A",
         "absolute": "|A|",
@@ -75,6 +104,7 @@ def variable_selector(
             f"{display_prefix}: {item_name}",
             options,
             index=choose_default(options, preferred),
+            format_func=format_field,
             key=f"{prefix}_branch",
         )
         index = 0
@@ -87,6 +117,13 @@ def variable_selector(
                 step=1,
                 key=f"{prefix}_index",
             )
+        if show_field_details and mode in {"multiplicity", "nth", "sum", "mean", "max", "min"}:
+            source = metadata_by_name.get(branch)
+            if source is not None:
+                st.caption(
+                    "Result: one event-level scalar per event from "
+                    f"[{field_structure_label(source)}] [{source.dtype}] input."
+                )
         return VariableSpec(mode=mode, branch=branch, index=int(index))
 
     if mode == "absolute":
@@ -94,6 +131,7 @@ def variable_selector(
             f"{display_prefix}: A",
             options,
             index=choose_default(options, preferred),
+            format_func=format_field,
             key=f"{prefix}_a",
         )
         return VariableSpec(mode=mode, branch_a=a)
@@ -113,12 +151,14 @@ def variable_selector(
             f"{display_prefix}: {label_a}",
             options,
             index=choose_default(options, preferred),
+            format_func=format_field,
             key=f"{prefix}_a",
         )
         b = st.selectbox(
             f"{display_prefix}: {label_b}",
             options,
             index=min(1, len(options) - 1),
+            format_func=format_field,
             key=f"{prefix}_b",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b)
@@ -128,18 +168,21 @@ def variable_selector(
             f"{display_prefix}: x",
             options,
             index=choose_default(options, ["x", "px"]),
+            format_func=format_field,
             key=f"{prefix}_x",
         )
         b = st.selectbox(
             f"{display_prefix}: y",
             options,
             index=choose_default(options, ["y", "py"]),
+            format_func=format_field,
             key=f"{prefix}_y",
         )
         c = st.selectbox(
             f"{display_prefix}: z",
             options,
             index=choose_default(options, ["z", "pz"]),
+            format_func=format_field,
             key=f"{prefix}_z",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
@@ -149,18 +192,21 @@ def variable_selector(
             f"{display_prefix}: A",
             options,
             index=choose_default(options, ["px", "x"]),
+            format_func=format_field,
             key=f"{prefix}_a",
         )
         b = st.selectbox(
             f"{display_prefix}: B",
             options,
             index=choose_default(options, ["py", "y"]),
+            format_func=format_field,
             key=f"{prefix}_b",
         )
         c = st.selectbox(
             f"{display_prefix}: C",
             options,
             index=choose_default(options, ["pz", "z"]),
+            format_func=format_field,
             key=f"{prefix}_c",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c)
@@ -170,6 +216,7 @@ def variable_selector(
             f"{display_prefix}: pT",
             options,
             index=choose_default(options, ["pt"]),
+            format_func=format_field,
             key=f"{prefix}_pt",
         )
         longitudinal_labels = {"eta": "eta (pseudorapidity)", "y": "y (rapidity)"}
@@ -186,6 +233,7 @@ def variable_selector(
                 options,
                 ["eta"] if longitudinal_kind == "eta" else ["rapidity", "y"],
             ),
+            format_func=format_field,
             key=f"{prefix}_longitudinal",
         )
         mass = None
@@ -194,6 +242,7 @@ def variable_selector(
                 f"{display_prefix}: mass",
                 options,
                 index=choose_default(options, ["mass", "m"]),
+                format_func=format_field,
                 key=f"{prefix}_mass",
             )
         return VariableSpec(
@@ -217,6 +266,7 @@ def variable_selector(
                     f"{display_prefix}: {component}",
                     options,
                     index=choose_default(options, preferred_components),
+                    format_func=format_field,
                     key=f"{prefix}_{component.lower()}",
                 )
             )
@@ -233,12 +283,14 @@ def variable_selector(
             f"{display_prefix}: phi 1",
             options,
             index=choose_default(options, ["phi"]),
+            format_func=format_field,
             key=f"{prefix}_phi1",
         )
         b = st.selectbox(
             f"{display_prefix}: phi 2",
             options,
             index=choose_default(options, ["phi"]),
+            format_func=format_field,
             key=f"{prefix}_phi2",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b)
@@ -248,12 +300,14 @@ def variable_selector(
             f"{display_prefix}: eta 1",
             options,
             index=choose_default(options, ["eta"]),
+            format_func=format_field,
             key=f"{prefix}_eta1",
         )
         b = st.selectbox(
             f"{display_prefix}: eta 2",
             options,
             index=choose_default(options, ["eta"]),
+            format_func=format_field,
             key=f"{prefix}_eta2",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b)
@@ -263,24 +317,28 @@ def variable_selector(
             f"{display_prefix}: eta 1",
             options,
             index=choose_default(options, ["eta"]),
+            format_func=format_field,
             key=f"{prefix}_eta1",
         )
         b = st.selectbox(
             f"{display_prefix}: phi 1",
             options,
             index=choose_default(options, ["phi"]),
+            format_func=format_field,
             key=f"{prefix}_phi1",
         )
         c = st.selectbox(
             f"{display_prefix}: eta 2",
             options,
             index=choose_default(options, ["eta"]),
+            format_func=format_field,
             key=f"{prefix}_eta2",
         )
         d = st.selectbox(
             f"{display_prefix}: phi 2",
             options,
             index=choose_default(options, ["phi"]),
+            format_func=format_field,
             key=f"{prefix}_phi2",
         )
         return VariableSpec(mode=mode, branch_a=a, branch_b=b, branch_c=c, branch_d=d)
@@ -309,7 +367,13 @@ def supports_histogram_weights(plot_type: str) -> bool:
 
 
 def histogram_weight_selector(
-    prefix: str, plot_type: str, fields: list[str], *, item_name: str
+    prefix: str,
+    plot_type: str,
+    fields: list[str],
+    *,
+    item_name: str,
+    field_info: Sequence[FieldInfo] = (),
+    show_field_details: bool = False,
 ) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
@@ -317,10 +381,12 @@ def histogram_weight_selector(
     use_weights = st.checkbox("Use weights", value=False, key=f"{prefix}_use_weights")
     if not use_weights:
         return None
+    option_labels = field_option_labels(field_info) if show_field_details else {}
     return st.selectbox(
         f"weight {item_name}",
         fields,
         index=choose_default(fields, ["weight", "genWeight", "eventWeight"]),
+        format_func=lambda field_name: option_labels.get(field_name, field_name),
         key=f"{prefix}_weight_branch",
     )
 
@@ -361,7 +427,12 @@ def distribution_calculator_controls(
 
 
 def range_cut_controls(
-    prefix: str, fields: list[str], *, item_name: str
+    prefix: str,
+    fields: list[str],
+    *,
+    item_name: str,
+    field_info: Sequence[FieldInfo] = (),
+    show_field_details: bool = False,
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
@@ -377,6 +448,8 @@ def range_cut_controls(
                     fields,
                     ["pt", "eta", "mass"],
                     item_name=item_name,
+                    field_info=field_info,
+                    show_field_details=show_field_details,
                     allow_event_reductions=False,
                     display_prefix=f"cut_{i + 1}",
                 )
