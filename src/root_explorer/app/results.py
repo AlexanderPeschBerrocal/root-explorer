@@ -14,11 +14,13 @@ from ..models import FieldInfo
 from ..plotting.plots import (
     ColorClippingResult,
     CorrelationResult,
+    InvalidPlotResolutionError,
     matplotlib_figure_bytes,
     plotly_figure_html,
     safe_filename,
     save_matplotlib_figure,
     save_plotly_figure,
+    validate_raster_resolution,
 )
 from .controls import export_controls, selected_static_formats
 from .tables import render_dataframe
@@ -115,13 +117,26 @@ def show_cached_plot_result(
             )
     else:
         formats = selected_static_formats(export)
+        export_dpi = int(export.get("export_dpi", 300))
+        resolution_error = None
+        if "png" in formats:
+            try:
+                validate_raster_resolution(fig, export_dpi)
+            except InvalidPlotResolutionError as exc:
+                resolution_error = str(exc)
+                st.warning(resolution_error)
         code = result.get("code")
         export_columns = st.columns(1 + len(formats) + int(code is not None))
         with export_columns[0]:
             if st.button(
-                result.get("save_button_label", "Save plot"), key=save_button_key, width="stretch"
+                result.get("save_button_label", "Save plot"),
+                key=save_button_key,
+                width="stretch",
+                disabled=resolution_error is not None,
             ):
-                saved_paths = save_matplotlib_figure(fig, outdir, save_name, formats)
+                saved_paths = save_matplotlib_figure(
+                    fig, outdir, save_name, formats, dpi=export_dpi
+                )
                 if saved_paths:
                     st.success("Saved: " + ", ".join(str(path) for path in saved_paths))
                 else:
@@ -144,12 +159,13 @@ def show_cached_plot_result(
             with column:
                 st.download_button(
                     f"Download {file_format.upper()}",
-                    data=lambda fmt=file_format: matplotlib_figure_bytes(fig, fmt),
+                    data=lambda fmt=file_format: matplotlib_figure_bytes(fig, fmt, dpi=export_dpi),
                     file_name=f"{download_name}.{file_format}",
                     mime=mime_types[file_format],
                     key=f"{save_button_key}_download_{file_format}",
                     on_click="ignore",
                     width="stretch",
+                    disabled=file_format == "png" and resolution_error is not None,
                 )
 
 

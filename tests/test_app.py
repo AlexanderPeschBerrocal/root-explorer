@@ -87,7 +87,10 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert len(at.dataframe) > initial_dataframes
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
+    assert result["figure"].dpi == 200
     assert at.text_input(key="plot_save_name").value == "muon_pt"
+    assert at.selectbox(key="plot_export_dpi").value == 300
+    assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
     assert any("Make plot button again or press P" in caption.value for caption in at.caption)
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
