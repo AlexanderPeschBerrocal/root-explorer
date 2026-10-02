@@ -431,9 +431,7 @@ def test_logarithmic_axes_for_histogram_and_scatter() -> None:
         "entries",
         {"bins_x": 3, "log_x": True, "log_y": True, "grid": False},
         title="log histogram",
-        histogram_1d=build_histogram_1d(
-            np.array([1.0, 2.0, 4.0]), 3, label="x"
-        ),
+        histogram_1d=build_histogram_1d(np.array([1.0, 2.0, 4.0]), 3, label="x"),
     )
     assert histogram_axes.get_xscale() == "log"
     assert histogram_axes.get_yscale() == "log"
