@@ -108,6 +108,47 @@ def _generate_mixed_event_containers(output_path: Path, *, n_events: int, seed: 
     return output_path
 
 
+def _generate_catalogue_root(output_path: Path, *, n_events: int, seed: int) -> Path:
+    """Write a heterogeneous ROOT hierarchy for catalogue integration tests."""
+
+    fields = _generate_event_fields(n_events=n_events, seed=seed)
+    histogram = np.histogram(
+        np.array([91.0, 92.0, 93.0, 94.0], dtype=np.float64),
+        bins=np.array([90.0, 92.0, 95.0], dtype=np.float64),
+    )
+    with uproot.recreate(output_path) as root_file:
+        root_file.mktree("Events", fields)
+
+        analysis = root_file.mkdir("Analysis")
+        analysis.mkdir("nested").mkrntuple("Events", fields)
+        analysis["h_mass"] = histogram
+        analysis["duplicate"] = "analysis copy"
+        analysis["repeated"] = "first cycle"
+        analysis["repeated"] = "second cycle"
+
+        control = root_file.mkdir("Control")
+        control["duplicate"] = "control copy"
+        control["h_mass"] = histogram
+
+        root_file["metadata"] = "unsupported catalogue object"
+
+    return output_path
+
+
+def _generate_object_only_root(output_path: Path) -> Path:
+    """Write a ROOT file with browseable objects but no event container."""
+
+    histogram = np.histogram(
+        np.array([1.0, 2.0, 3.0], dtype=np.float64),
+        bins=np.array([0.0, 2.0, 4.0], dtype=np.float64),
+    )
+    with uproot.recreate(output_path) as root_file:
+        analysis = root_file.mkdir("Analysis")
+        analysis["h_values"] = histogram
+        analysis["note"] = "metadata only"
+    return output_path
+
+
 @pytest.fixture(autouse=True)
 def clear_streamlit_caches() -> None:
     """Prevent cached reads and scenes from leaking between temporary fixtures."""
@@ -136,6 +177,18 @@ def mixed_event_containers_path(tmp_path: Path) -> Path:
     return _generate_mixed_event_containers(
         tmp_path / "test_mixed_event_containers.root", n_events=12, seed=20250831
     )
+
+
+@pytest.fixture
+def catalogue_root_path(tmp_path: Path) -> Path:
+    return _generate_catalogue_root(
+        tmp_path / "test_catalogue.root", n_events=12, seed=20250831
+    )
+
+
+@pytest.fixture
+def object_only_root_path(tmp_path: Path) -> Path:
+    return _generate_object_only_root(tmp_path / "test_objects_only.root")
 
 
 @pytest.fixture

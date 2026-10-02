@@ -46,6 +46,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         "Plotter",
         "Event inspection",
         "Branches",
+        "ROOT objects",
         "Geometry",
         "Help",
     ]
@@ -106,6 +107,56 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         if button.key == "plot_save_cached_download_code"
     )
     assert code_download.label == "Download plot code"
+
+
+def test_root_object_browser_shows_nontrivial_catalogue(catalogue_root_path) -> None:
+    at = _load_root_file(make_app_test(), catalogue_root_path)
+
+    assert not at.exception
+    assert "ROOT objects" in [tab.label for tab in at.tabs]
+    table = next(
+        dataframe.value
+        for dataframe in at.dataframe
+        if {"ROOT class", "kind", "cycle", "path"}.issubset(dataframe.value.columns)
+    )
+    assert {
+        "Events",
+        "Analysis",
+        "Analysis/nested",
+        "Analysis/nested/Events",
+        "Analysis/h_mass",
+        "Control/h_mass",
+        "Analysis/repeated",
+        "metadata",
+    }.issubset(set(table["path"]))
+    assert table.loc[table["path"] == "Analysis/repeated", "cycle"].item() == 2
+
+    at.toggle(key="root_object_show_all_cycles").set_value(True).run()
+    table = next(
+        dataframe.value
+        for dataframe in at.dataframe
+        if {"ROOT class", "kind", "cycle", "path"}.issubset(dataframe.value.columns)
+    )
+    repeated = table[table["path"] == "Analysis/repeated"]
+    assert repeated["cycle"].tolist() == [1, 2]
+
+
+def test_object_only_root_file_remains_browseable(object_only_root_path) -> None:
+    at = _load_root_file(make_app_test(), object_only_root_path)
+
+    assert not at.exception
+    assert [tab.label for tab in at.tabs] == ["ROOT objects", "Geometry"]
+    assert any(
+        "No TTrees or RNTuples containing event data were found" in info.value for info in at.info
+    )
+    table = next(
+        dataframe.value
+        for dataframe in at.dataframe
+        if {"ROOT class", "kind", "cycle", "path"}.issubset(dataframe.value.columns)
+    )
+    assert set(table["path"]) >= {"Analysis", "Analysis/h_values", "Analysis/note"}
+    assert "histogram" in set(table["kind"])
+    assert "other" in set(table["kind"])
 
 
 def test_new_single_particle_variable_controls_are_available(root_path) -> None:
