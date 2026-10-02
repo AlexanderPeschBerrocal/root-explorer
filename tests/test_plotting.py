@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
+from root_explorer.analysis.histograms import build_histogram_1d
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
@@ -162,6 +163,12 @@ def test_kde_failure_warns_without_hiding_histogram() -> None:
             "grid": False,
         },
         title="signed weights",
+        histogram_1d=build_histogram_1d(
+            np.array([1.0, 2.0, 3.0]),
+            3,
+            weights=np.array([1.0, -1.0, 2.0]),
+            label="x",
+        ),
         weights=np.array([1.0, -1.0, 2.0]),
     )
 
@@ -389,19 +396,22 @@ def test_raster_resolution_validation_rejects_oversized_or_invalid_exports() -> 
     plt.close(figure)
 
 
-def test_weighted_histogram_uses_weighted_default_y_label() -> None:
+def test_weighted_histogram_uses_prepared_y_label() -> None:
     fig, ax = plt.subplots()
+    values = np.array([1.0, 2.0])
+    weights = np.array([2.0, 3.0])
     render_static_plot(
         fig,
         ax,
         "1D histogram",
-        np.array([1.0, 2.0]),
+        values,
         None,
         "pt",
-        "",
+        "sum weights (genWeight)",
         {"bins_x": 10, "log_y": False, "grid": False},
         title="weighted",
-        weights=np.array([2.0, 3.0]),
+        histogram_1d=build_histogram_1d(values, 10, weights=weights, label="pt"),
+        weights=weights,
         weight_branch="genWeight",
     )
 
@@ -421,6 +431,9 @@ def test_logarithmic_axes_for_histogram_and_scatter() -> None:
         "entries",
         {"bins_x": 3, "log_x": True, "log_y": True, "grid": False},
         title="log histogram",
+        histogram_1d=build_histogram_1d(
+            np.array([1.0, 2.0, 4.0]), 3, label="x"
+        ),
     )
     assert histogram_axes.get_xscale() == "log"
     assert histogram_axes.get_yscale() == "log"
@@ -571,6 +584,7 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
             "entries",
             {"bins_x": 2, "log_x": True, "grid": False},
             title="invalid log-x histogram",
+            histogram_1d=build_histogram_1d(np.array([0.0, 1.0]), 2, label="x"),
         )
     plt.close(invalid_x_figure)
 
@@ -586,6 +600,12 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
             "weighted entries",
             {"bins_x": 2, "log_y": True, "grid": False},
             title="invalid weighted log histogram",
+            histogram_1d=build_histogram_1d(
+                np.array([1.0, 2.0]),
+                2,
+                weights=np.array([-1.0, -1.0]),
+                label="x",
+            ),
             weights=np.array([-1.0, -1.0]),
         )
     plt.close(histogram_figure)
@@ -657,6 +677,7 @@ def test_1d_reference_line_is_drawn_at_requested_value() -> None:
         "entries",
         {"bins_x": 3, "log_y": False, "grid": False},
         title="reference",
+        histogram_1d=build_histogram_1d(np.array([1.0, 2.0, 3.0]), 3, label="x"),
         reference_x=2.0,
         reference_label="threshold = 2",
     )
