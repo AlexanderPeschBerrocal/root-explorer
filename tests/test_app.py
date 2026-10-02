@@ -117,7 +117,7 @@ def test_root_object_browser_shows_nontrivial_catalogue(catalogue_root_path) -> 
     at = _load_root_file(make_app_test(), catalogue_root_path)
 
     assert not at.exception
-    assert "Branches and objects" in [tab.label for tab in at.tabs]
+    assert "Fields and objects" in [tab.label for tab in at.tabs]
     table = next(
         dataframe.value
         for dataframe in at.dataframe
