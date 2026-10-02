@@ -89,19 +89,19 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E4",
-    "E7",
-    "E9",
-    "F",
-    "I",
-    "UP",
-    "B",
-    "SIM",
-    "C4",
-    "PIE",
-    "RUF",
-    "NPY",
-    "PERF",
+    "E4",    # pycodestyle: imports
+    "E7",    # pycodestyle: statements
+    "E9",    # pycodestyle: runtime/syntax errors
+    "F",     # Pyflakes: unused imports, undefined names, ...
+    "I",     # isort
+    "UP",    # pyupgrade: automatically update older python code to use modern syntax for newer versions
+    "B",     # flake8-bugbear: catches likely bugs and design problems
+    "SIM",   # flake8-simplify: simplifies code
+    "C4",    # flake8-comprehensions: detects unnecessary list/set/dict comprehensions
+    "PIE",   # flake8-pie: Miscellaneous rules for code quality and maintainability
+    "RUF",   # Ruff-specific rules: Ruff own rules for code quality (suspicious code, complexity, etc.)
+    "NPY",   # NumPy-specific rules: enforces best practices for NumPy code
+    "PERF",  # Perflint: minor performance optimizations
 ]
 
 [tool.ruff.format]
@@ -112,10 +112,10 @@ docstring-code-format = true
 [tool.bumpversion]
 parse = """(?x)
     (?P<release>
-        (?:[1-9][0-9]{3})\.
+        (?:[1-9][0-9]{3})\\.
         (?:1[0-2]|[1-9])
     )
-    \.(?P<patch>\d+)
+    \\.(?P<patch>\\d+)
 """
 serialize = ["{release}.{patch}"]
 
