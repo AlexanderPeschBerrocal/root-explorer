@@ -45,8 +45,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert [tab.label for tab in at.tabs] == [
         "Plotter",
         "Event inspection",
-        "Branches",
-        "ROOT objects",
+        "Branches and objects",
         "Geometry",
         "Help",
     ]
@@ -82,7 +81,12 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert not at.toggle(key="plot_show_field_details").value
     assert at.toggle(key="event_show_field_details").label == "Show branch details in selectors"
     assert not at.toggle(key="event_show_field_details").value
-    assert {"structure", "dtype"}.issubset(at.dataframe[0].value.columns)
+    branch_table = next(
+        dataframe.value
+        for dataframe in at.dataframe
+        if {"structure", "dtype"}.issubset(dataframe.value.columns)
+    )
+    assert {"structure", "dtype"}.issubset(branch_table.columns)
     initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     assert at.selectbox(key="x_branch").value == "Muon_pt"
@@ -113,7 +117,7 @@ def test_root_object_browser_shows_nontrivial_catalogue(catalogue_root_path) -> 
     at = _load_root_file(make_app_test(), catalogue_root_path)
 
     assert not at.exception
-    assert "ROOT objects" in [tab.label for tab in at.tabs]
+    assert "Branches and objects" in [tab.label for tab in at.tabs]
     table = next(
         dataframe.value
         for dataframe in at.dataframe
@@ -130,6 +134,18 @@ def test_root_object_browser_shows_nontrivial_catalogue(catalogue_root_path) -> 
         "metadata",
     }.issubset(set(table["path"]))
     assert table.loc[table["path"] == "Analysis/repeated", "cycle"].item() == 2
+
+    object_table_index = next(
+        i
+        for i, dataframe in enumerate(at.dataframe)
+        if {"ROOT class", "kind", "cycle", "path"}.issubset(dataframe.value.columns)
+    )
+    field_table_index = next(
+        i
+        for i, dataframe in enumerate(at.dataframe)
+        if {"structure", "dtype"}.issubset(dataframe.value.columns)
+    )
+    assert object_table_index < field_table_index
 
     at.toggle(key="root_object_show_all_cycles").set_value(True).run()
     table = next(
@@ -361,6 +377,7 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
     assert (
         next(widget for widget in at.selectbox if widget.label == "Event dataset").value == "Events"
     )
+    assert "Fields and objects" in [tab.label for tab in at.tabs]
     assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
     assert at.toggle(key="plot_show_field_details").label == "Show field details in selectors"

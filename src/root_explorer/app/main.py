@@ -10,7 +10,7 @@ from .. import __version__
 from ..config import APP_TITLE
 from .geometry import render_geometry_sidebar, render_geometry_tab
 from .input import invalidate_data_results, render_data_input
-from .pages import render_field_tab, render_help_tab, render_root_objects_tab
+from .pages import render_contents_tab, render_help_tab, render_root_objects_browser
 from .plotting import render_event_plot_tab, render_plot_tab
 from .ranking import render_event_selection
 
@@ -48,26 +48,28 @@ def main() -> None:
     if context is None:
         root_objects_tab, geometry_tab = st.tabs(["ROOT objects", "Geometry"])
         with root_objects_tab:
-            render_root_objects_tab(file_context.catalogue, file_name=file_context.root_path)
+            render_root_objects_browser(file_context.catalogue, file_name=file_context.root_path)
         with geometry_tab:
             render_geometry_tab(geometry)
         return
 
     invalidate_data_results(context)
-    plot_tab, event_tab, field_tab, root_objects_tab, geometry_tab, help_tab = st.tabs(
+    contents_label = f"{context.data_item_plural.title()} and objects"
+    plot_tab, event_tab, contents_tab, geometry_tab, help_tab = st.tabs(
         [
             "Plotter",
             "Event inspection",
-            context.data_item_plural.title(),
-            "ROOT objects",
+            contents_label,
             "Geometry",
             "Help",
         ]
     )
-    with field_tab:
-        render_field_tab(context)
-    with root_objects_tab:
-        render_root_objects_tab(file_context.catalogue, file_name=file_context.root_path)
+    with contents_tab:
+        render_contents_tab(
+            context,
+            file_context.catalogue,
+            file_name=file_context.root_path,
+        )
     with geometry_tab:
         render_geometry_tab(geometry)
     with help_tab:

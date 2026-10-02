@@ -13,12 +13,15 @@ from .state import DataContext
 from .tables import render_dataframe
 
 
-def render_field_tab(context: DataContext) -> None:
-    """Render the branch or field and collection browser."""
+def render_field_browser(context: DataContext) -> None:
+    """Render metadata for the selected event container's branches or fields."""
 
     item_name = context.data_item_name
     item_plural = context.data_item_plural
-    st.subheader(f"{item_name.title()} and collection browser", anchor=False)
+    st.subheader(
+        f"Selected {context.container_kind}: {context.event_container_name}",
+        anchor=False,
+    )
     st.markdown(f"#### {item_plural.title()}", anchors=False)
     query = st.text_input(f"Filter {item_plural}", value="", key="field_table_filter")
     dataframe = pd.DataFrame(
@@ -76,14 +79,14 @@ def _root_object_display_name(info: RootObjectInfo) -> str:
     return f"{prefix}{info.name}"
 
 
-def render_root_objects_tab(
+def render_root_objects_browser(
     catalogue: tuple[RootObjectInfo, ...],
     *,
     file_name: str | None = None,
 ) -> None:
     """Render the metadata-only ROOT directory/object catalogue."""
 
-    st.subheader("ROOT object browser", anchor=False)
+    st.subheader("ROOT file contents", anchor=False)
     if file_name:
         st.caption(
             f"Objects in `{file_name}`. Objects are not loaded until a later workflow needs them."
@@ -133,6 +136,19 @@ def render_root_objects_tab(
 
     if not objects:
         st.info("No ROOT objects match the current filter.")
+
+
+def render_contents_tab(
+    context: DataContext,
+    catalogue: tuple[RootObjectInfo, ...],
+    *,
+    file_name: str | None = None,
+) -> None:
+    """Render file-level ROOT objects followed by the selected event-container schema."""
+
+    render_root_objects_browser(catalogue, file_name=file_name)
+    st.divider()
+    render_field_browser(context)
 
 
 def render_help_tab(context: DataContext) -> None:
