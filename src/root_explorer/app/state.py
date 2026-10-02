@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import FieldInfo
+from ..models import FieldInfo, RootObjectInfo
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,15 @@ class DataContext:
     @property
     def data_item_plural(self) -> str:
         return "fields" if self.data_item_name == "field" else "branches"
+
+
+@dataclass(frozen=True)
+class RootFileContext:
+    """Selected ROOT file metadata plus optional event-data context."""
+
+    root_path: str
+    catalogue: tuple[RootObjectInfo, ...]
+    data: DataContext | None
 
 
 @dataclass(frozen=True)

@@ -41,8 +41,16 @@ def main() -> None:
         "A general-purpose Streamlit app for interactive plotting and event inspection of HEP ROOT TTrees and RNTuples in the web browser."
     )
     with st.sidebar:
-        context = render_data_input()
+        file_context = render_data_input()
         geometry = render_geometry_sidebar()
+
+    context = file_context.data
+    if context is None:
+        st.info("This ROOT file has no event dataset to plot.")
+        geometry_tab = st.tabs(["Geometry"])[0]
+        with geometry_tab:
+            render_geometry_tab(geometry)
+        return
 
     invalidate_data_results(context)
     plot_tab, event_tab, field_tab, geometry_tab, help_tab = st.tabs(
