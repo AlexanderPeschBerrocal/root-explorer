@@ -5,9 +5,12 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from ..io.root import filter_root_objects
+from ..models import RootObjectInfo
 from .controls import field_structure_label
 from .results import collection_summary
 from .state import DataContext
+from .tables import render_dataframe
 
 
 def render_field_tab(context: DataContext) -> None:
@@ -63,6 +66,73 @@ def render_field_tab(context: DataContext) -> None:
     st.dataframe(
         collection_summary(context.field_info, item_name=item_name), width="stretch", height=540
     )
+
+
+def _root_object_display_name(info: RootObjectInfo) -> str:
+    """Return an indented display label that preserves directory hierarchy."""
+
+    depth = info.path.count("/")
+    prefix = "" if depth == 0 else "    " * (depth - 1) + "↳ "
+    return f"{prefix}{info.name}"
+
+
+def render_root_objects_tab(
+    catalogue: tuple[RootObjectInfo, ...],
+    *,
+    file_name: str | None = None,
+) -> None:
+    """Render the metadata-only ROOT directory/object catalogue."""
+
+    st.subheader("ROOT object browser", anchor=False)
+    if file_name:
+        st.caption(
+            f"Objects in `{file_name}`. Objects are not loaded until a later workflow needs them."
+        )
+
+    show_all_cycles = st.toggle(
+        "Show all ROOT cycles",
+        value=False,
+        key="root_object_show_all_cycles",
+        help="By default only the highest cycle for each object path is shown.",
+    )
+    query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
+
+    objects = filter_root_objects(catalogue, latest_only=not show_all_cycles)
+    if query:
+        folded = query.casefold()
+        objects = tuple(
+            info
+            for info in objects
+            if folded
+            in " ".join(
+                (
+                    info.path,
+                    info.name,
+                    info.classname,
+                    info.kind,
+                    info.parent,
+                    "" if info.cycle is None else str(info.cycle),
+                )
+            ).casefold()
+        )
+
+    dataframe = pd.DataFrame(
+        [
+            {
+                "object": _root_object_display_name(info),
+                "ROOT class": info.classname,
+                "kind": info.kind,
+                "cycle": info.cycle,
+                "path": info.path,
+            }
+            for info in objects
+        ],
+        columns=["object", "ROOT class", "kind", "cycle", "path"],
+    )
+    render_dataframe(dataframe, height=540)
+
+    if not objects:
+        st.info("No ROOT objects match the current filter.")
 
 
 def render_help_tab(context: DataContext) -> None:

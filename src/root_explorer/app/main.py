@@ -10,7 +10,7 @@ from .. import __version__
 from ..config import APP_TITLE
 from .geometry import render_geometry_sidebar, render_geometry_tab
 from .input import invalidate_data_results, render_data_input
-from .pages import render_field_tab, render_help_tab
+from .pages import render_field_tab, render_help_tab, render_root_objects_tab
 from .plotting import render_event_plot_tab, render_plot_tab
 from .ranking import render_event_selection
 
@@ -46,18 +46,28 @@ def main() -> None:
 
     context = file_context.data
     if context is None:
-        st.info("This ROOT file has no event dataset to plot.")
-        geometry_tab = st.tabs(["Geometry"])[0]
+        root_objects_tab, geometry_tab = st.tabs(["ROOT objects", "Geometry"])
+        with root_objects_tab:
+            render_root_objects_tab(file_context.catalogue, file_name=file_context.root_path)
         with geometry_tab:
             render_geometry_tab(geometry)
         return
 
     invalidate_data_results(context)
-    plot_tab, event_tab, field_tab, geometry_tab, help_tab = st.tabs(
-        ["Plotter", "Event inspection", context.data_item_plural.title(), "Geometry", "Help"]
+    plot_tab, event_tab, field_tab, root_objects_tab, geometry_tab, help_tab = st.tabs(
+        [
+            "Plotter",
+            "Event inspection",
+            context.data_item_plural.title(),
+            "ROOT objects",
+            "Geometry",
+            "Help",
+        ]
     )
     with field_tab:
         render_field_tab(context)
+    with root_objects_tab:
+        render_root_objects_tab(file_context.catalogue, file_name=file_context.root_path)
     with geometry_tab:
         render_geometry_tab(geometry)
     with help_tab:
