@@ -355,6 +355,8 @@ def test_basic_histogram_export_omits_unselected_features() -> None:
 
     compile(source, "basic_histogram_export.py", "exec")
     assert "def evaluate_branch_variable(" in source
+    assert "def build_histogram_1d(" in source
+    assert "import hist" in source
     assert "def evaluate_variable(" not in source
     assert "def evaluate_magnitude_3d_variable(" not in source
     assert "def draw_kde_1d(" not in source
@@ -392,6 +394,8 @@ def test_plain_2d_histogram_export_omits_optional_overlays() -> None:
 
     compile(source, "plain_2d_histogram_export.py", "exec")
     assert "def draw_histogram_2d_linear(" in source
+    assert "def build_histogram_1d(" not in source
+    assert "import hist" not in source
     assert "def draw_histogram_2d_log(" not in source
     assert "def draw_kde_2d(" not in source
     assert "def draw_highest_density_contours(" not in source
@@ -470,6 +474,8 @@ def test_coloured_scatter_export_excludes_histogram_features() -> None:
 
     assert "def draw_colored_scatter_2d_linear(" in source
     assert "def calculate_color_clipping(" in source
+    assert "def build_histogram_1d(" not in source
+    assert "import hist" not in source
     assert "def draw_histogram_1d(" not in source
     assert "def draw_histogram_2d_" not in source
     assert "def draw_kde_" not in source

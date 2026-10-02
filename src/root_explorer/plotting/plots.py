@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import hist
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -860,21 +861,24 @@ def create_static_figure(style: dict[str, Any]):
 
 def draw_histogram_1d(
     ax: Any,
-    x: np.ndarray,
-    x_label: str,
+    histogram: hist.Hist,
     y_label: str,
-    style: dict[str, Any],
     *,
-    weights: np.ndarray | None,
-    weight_branch: str | None,
     reference_x: float | None,
     reference_label: str | None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Draw the base 1D histogram and return its counts and bin edges."""
+) -> None:
+    """Draw a prepared 1D histogram without recomputing its binning semantics."""
 
-    histogram_counts, histogram_edges, _ = ax.hist(x, bins=style["bins_x"], weights=weights)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label or ("entries" if weights is None else f"sum weights ({weight_branch})"))
+    histogram_counts = np.asarray(histogram.values(), dtype=float)
+    histogram_edges = np.asarray(histogram.axes[0].edges, dtype=float)
+    ax.bar(
+        histogram_edges[:-1],
+        histogram_counts,
+        width=np.diff(histogram_edges),
+        align="edge",
+    )
+    ax.set_xlabel(histogram.axes[0].label)
+    ax.set_ylabel(y_label)
     if reference_x is not None:
         ax.axvline(
             reference_x,
@@ -884,7 +888,6 @@ def draw_histogram_1d(
             label=reference_label or f"x = {reference_x:g}",
         )
         ax.legend()
-    return histogram_counts, histogram_edges
 
 
 def draw_histogram_2d_linear(
@@ -1100,6 +1103,7 @@ def render_static_plot(
     style: dict[str, Any],
     *,
     title: str,
+    histogram_1d: hist.Hist | None = None,
     weights: np.ndarray | None = None,
     weight_branch: str | None = None,
     color: np.ndarray | None = None,
@@ -1110,17 +1114,17 @@ def render_static_plot(
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
-        histogram_counts, histogram_edges = draw_histogram_1d(
+        if histogram_1d is None:
+            raise ValueError("1D histogram rendering requires a prepared histogram.")
+        draw_histogram_1d(
             ax,
-            x,
-            x_label,
+            histogram_1d,
             y_label,
-            style,
-            weights=weights,
-            weight_branch=weight_branch,
             reference_x=reference_x,
             reference_label=reference_label,
         )
+        histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
+        histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
         if style.get("show_kde", False):
             warning = draw_kde_1d_overlay(ax, x, histogram_edges, style, weights=weights)
             if warning is not None:

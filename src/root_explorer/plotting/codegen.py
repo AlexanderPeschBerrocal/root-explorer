@@ -12,6 +12,7 @@ from ..analysis.arrays import (
     histogram_weights_for_values,
     validate_variable_event_shapes,
 )
+from ..analysis.histograms import build_histogram_1d
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import VariableEvaluator, variable_evaluator
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
@@ -115,7 +116,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     if has_quantile:
         roots.append(calculate_quantile_result)
     if spec.plot_type == "1D histogram":
-        roots.append(draw_histogram_1d)
+        roots.extend([build_histogram_1d, draw_histogram_1d])
         if show_kde:
             roots.append(draw_kde_1d_overlay)
         if log_x:
@@ -422,15 +423,25 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
 
+    if spec.plot_type == "1D histogram":
+        lines.extend(
+            [
+                "histogram_1d = build_histogram_1d(",
+                "    x, int(PLOT.style['bins_x']), weights=weights, label=x_label,",
+                ")",
+            ]
+        )
+
     lines.extend(["figure, axes = create_static_figure(PLOT.style)", "warnings = []"])
     if spec.plot_type == "1D histogram":
         lines.extend(
             [
-                "histogram_counts, histogram_edges = draw_histogram_1d(",
-                "    axes, x, x_label, y_label, PLOT.style, weights=weights,",
-                "    weight_branch=PLOT.weight_branch, reference_x=reference_x,",
+                "draw_histogram_1d(",
+                "    axes, histogram_1d, y_label, reference_x=reference_x,",
                 "    reference_label=reference_label,",
                 ")",
+                "histogram_counts = histogram_1d.values()",
+                "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )
         if plan.show_kde:

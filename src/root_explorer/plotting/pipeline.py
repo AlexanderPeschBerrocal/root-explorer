@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import hist
 import numpy as np
 
 from ..analysis.arrays import (
@@ -14,6 +15,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
+from ..analysis.histograms import build_histogram_1d
 from ..analysis.statistics import (
     QuantileResult,
     ThresholdResult,
@@ -64,6 +66,7 @@ class PreparedStaticPlot:
     y: np.ndarray | None
     weights: np.ndarray | None
     color: np.ndarray | None
+    histogram_1d: hist.Hist | None
     x_label: str
     y_label: str
     color_label: str | None
@@ -208,12 +211,23 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
     title = spec.labels.get("title") or (
         f"Event {spec.event_index}" if spec.event_index is not None else spec.plot_type
     )
+    histogram_1d = (
+        build_histogram_1d(
+            x,
+            int(spec.style["bins_x"]),
+            weights=weights,
+            label=x_label,
+        )
+        if spec.plot_type == "1D histogram"
+        else None
+    )
 
     return PreparedStaticPlot(
         x=x,
         y=y,
         weights=weights,
         color=color,
+        histogram_1d=histogram_1d,
         x_label=x_label,
         y_label=y_label,
         color_label=color_label,
@@ -245,6 +259,7 @@ def render_prepared_static_plot(
         prepared.y_label,
         spec.style,
         title=prepared.title,
+        histogram_1d=prepared.histogram_1d,
         weights=prepared.weights,
         weight_branch=spec.weight_branch,
         color=color,

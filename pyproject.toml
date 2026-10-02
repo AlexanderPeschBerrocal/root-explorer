@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "awkward",
+    "hist",
     "matplotlib",
     "numpy",
     "pandas",

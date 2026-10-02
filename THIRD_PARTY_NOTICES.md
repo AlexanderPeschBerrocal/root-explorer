@@ -8,6 +8,7 @@ The direct runtime dependencies declared in `pyproject.toml` currently include:
 | Package | Licence |
 | --- | --- |
 | Awkward Array | BSD-3-Clause |
+| Hist | BSD-3-Clause |
 | Matplotlib | Matplotlib licence (PSF-compatible) |
 | NumPy | BSD-3-Clause and additional permissive licences for bundled components |
 | pandas | BSD-3-Clause |

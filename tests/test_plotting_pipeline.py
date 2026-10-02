@@ -48,6 +48,10 @@ def test_static_pipeline_prepares_weighted_cut_histogram(root_path) -> None:
     assert len(prepared.x) == len(prepared.weights)
     assert prepared.x_label == "Muon pT"
     assert prepared.y_label == "sum weights (genWeight)"
+    assert prepared.histogram_1d is not None
+    assert prepared.histogram_1d.axes[0].label == "Muon pT"
+    assert prepared.histogram_1d.values().sum() == pytest.approx(prepared.weights.sum())
+    assert prepared.histogram_1d.variances() is not None
     assert prepared.reference_x == 25.0
     assert prepared.threshold_result is not None
 
