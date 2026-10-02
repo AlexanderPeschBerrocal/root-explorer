@@ -181,9 +181,7 @@ def mixed_event_containers_path(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def catalogue_root_path(tmp_path: Path) -> Path:
-    return _generate_catalogue_root(
-        tmp_path / "test_catalogue.root", n_events=12, seed=20250831
-    )
+    return _generate_catalogue_root(tmp_path / "test_catalogue.root", n_events=12, seed=20250831)
 
 
 @pytest.fixture
