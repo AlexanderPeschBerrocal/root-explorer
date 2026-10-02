@@ -132,7 +132,7 @@ def render_root_objects_browser(
         ],
         columns=["object", "ROOT class", "kind", "cycle", "path"],
     )
-    render_dataframe(dataframe, height=540)
+    render_dataframe(dataframe, height="content")
 
     if not objects:
         st.info("No ROOT objects match the current filter.")
