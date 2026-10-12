@@ -494,9 +494,9 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 ]
             )
         if plan.log_x:
-            lines.append("apply_log_x_axis(axes, xedges)")
+            lines.append("apply_log_x_axis(axes, x)")
         if plan.log_y:
-            lines.append("apply_log_y_axis(axes, yedges)")
+            lines.append("apply_log_y_axis(axes, y)")
     elif plan.has_color:
         renderer = (
             "draw_colored_scatter_2d_log" if plan.log_color else "draw_colored_scatter_2d_linear"
