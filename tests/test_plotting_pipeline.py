@@ -83,3 +83,56 @@ def test_static_pipeline_rejects_missing_y_variable() -> None:
 
     with pytest.raises(ValueError, match="requires a y variable"):
         prepare_static_plot(spec)
+
+
+def test_static_pipeline_prepares_2d_histogram_for_render(root_path, monkeypatch) -> None:
+    import numpy as np
+
+    spec = StaticPlotSpec(
+        root_path=str(root_path),
+        tree_name="Events",
+        entry_start=0,
+        entry_stop=10,
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        color_spec=None,
+        weight_branch="genWeight",
+        cut_specs=(),
+        cut_bounds=(),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 8,
+            "bins_y": 6,
+            "log_x": False,
+            "log_y": False,
+            "log_z": False,
+            "grid": False,
+        },
+        labels={"custom_x": "pT", "custom_y": "eta"},
+    )
+    prepared = prepare_static_plot(spec)
+    histogram = prepared.histogram_2d
+    assert histogram is not None
+    assert prepared.histogram_1d is None
+    assert histogram.axes[0].label == "pT"
+    assert histogram.axes[1].label == "eta"
+    values, xedges, yedges = np.histogram2d(
+        prepared.x, prepared.y, bins=(8, 6), weights=prepared.weights
+    )
+    np.testing.assert_allclose(histogram.values(), values)
+    np.testing.assert_allclose(histogram.axes[0].edges, xedges)
+    np.testing.assert_allclose(histogram.axes[1].edges, yedges)
+    assert histogram.variances() is not None
+
+    def forbid_rebinning(*args, **kwargs):
+        raise AssertionError("Rendering must not recompute histogram bins")
+
+    monkeypatch.setattr(np, "histogram2d", forbid_rebinning)
+    figure, warnings = render_prepared_static_plot(spec, prepared)
+    assert warnings == []
+    np.testing.assert_allclose(
+        figure.axes[0].collections[0].get_array().reshape(-1), values.T.ravel()
+    )
+    plt.close(figure)

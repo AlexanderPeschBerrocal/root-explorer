@@ -12,7 +12,7 @@ from ..analysis.arrays import (
     histogram_weights_for_values,
     validate_variable_event_shapes,
 )
-from ..analysis.histograms import build_histogram_1d
+from ..analysis.histograms import build_histogram_1d, build_histogram_2d
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import VariableEvaluator, variable_evaluator
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
@@ -27,8 +27,7 @@ from .plots import (
     draw_colored_scatter_2d_linear,
     draw_colored_scatter_2d_log,
     draw_histogram_1d,
-    draw_histogram_2d_linear,
-    draw_histogram_2d_log,
+    draw_histogram_2d,
     draw_histogram_contours,
     draw_kde_1d_overlay,
     draw_kde_2d_overlay,
@@ -124,7 +123,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         if log_y:
             roots.append(apply_log_histogram_y_axis)
     elif spec.plot_type == "2D histogram":
-        roots.append(draw_histogram_2d_log if log_z else draw_histogram_2d_linear)
+        roots.extend([build_histogram_2d, draw_histogram_2d])
         if show_contours:
             roots.append(draw_histogram_contours)
         if show_kde:
@@ -432,6 +431,16 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
 
+    if spec.plot_type == "2D histogram":
+        lines.extend(
+            [
+                "histogram_2d = build_histogram_2d(",
+                "    x, y, int(PLOT.style['bins_x']), int(PLOT.style['bins_y']),",
+                "    weights=weights, x_label=x_label, y_label=y_label,",
+                ")",
+            ]
+        )
+
     lines.extend(["figure, axes = create_static_figure(PLOT.style)", "warnings = []"])
     if spec.plot_type == "1D histogram":
         lines.extend(
@@ -457,19 +466,21 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         if plan.log_y:
             lines.append("apply_log_histogram_y_axis(axes, histogram_counts)")
     elif spec.plot_type == "2D histogram":
-        renderer = "draw_histogram_2d_log" if plan.log_z else "draw_histogram_2d_linear"
         lines.extend(
             [
-                f"histogram, xedges, yedges = {renderer}(",
-                "    figure, axes, x, y, x_label, y_label, PLOT.style, weights=weights,",
-                "    weight_branch=PLOT.weight_branch,",
+                "draw_histogram_2d(",
+                "    figure, axes, histogram_2d,",
+                "    log_scale=PLOT.style['log_z'],",
+                "    colorbar_label=('entries' if weights is None else f'sum weights ({PLOT.weight_branch})'),",
                 ")",
+                "xedges = histogram_2d.axes[0].edges",
+                "yedges = histogram_2d.axes[1].edges",
             ]
         )
         if plan.show_contours:
             lines.extend(
                 [
-                    "warning = draw_histogram_contours(axes, histogram, xedges, yedges, PLOT.style)",
+                    "warning = draw_histogram_contours(axes, histogram_2d, PLOT.style)",
                     "if warning is not None:",
                     "    warnings.append(warning)",
                 ]

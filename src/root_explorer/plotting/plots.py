@@ -605,54 +605,26 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
     }
 
 
-def safe_hist2d(
-    ax,
-    x: np.ndarray,
-    y: np.ndarray,
-    bins_x: int,
-    bins_y: int,
-    log_scale: bool,
-    weights: np.ndarray | None = None,
-):
-    h, xedges, yedges = histogram2d_values(x, y, bins_x, bins_y, weights=weights)
-    return draw_hist2d(ax, h, xedges, yedges, log_scale)
+def draw_hist2d_linear(ax: Any, histogram: hist.Hist):
+    """Draw visible contents of a prepared 2D histogram with a linear colour scale."""
+    values = np.asarray(histogram.values(), dtype=float)
+    return ax.pcolormesh(histogram.axes[0].edges, histogram.axes[1].edges, values.T, shading="auto")
 
 
-def histogram2d_values(
-    x: np.ndarray,
-    y: np.ndarray,
-    bins_x: int,
-    bins_y: int,
-    *,
-    weights: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute the shared histogram used by the color mesh and contours."""
-
-    return np.histogram2d(x, y, bins=(bins_x, bins_y), weights=weights)
-
-
-def draw_hist2d_linear(ax, h: np.ndarray, xedges: np.ndarray, yedges: np.ndarray):
-    """Draw precomputed 2D histogram values with a linear colour scale."""
-
-    return ax.pcolormesh(xedges, yedges, h.T, shading="auto")
-
-
-def draw_hist2d_log(ax, h: np.ndarray, xedges: np.ndarray, yedges: np.ndarray):
-    """Draw precomputed 2D histogram values with a logarithmic colour scale."""
-
-    positive = h[np.isfinite(h) & (h > 0)]
+def draw_hist2d_log(ax: Any, histogram: hist.Hist):
+    """Draw visible contents with the existing logarithmic-colour fallback."""
+    values = np.asarray(histogram.values(), dtype=float)
+    positive = values[np.isfinite(values) & (values > 0)]
     norm = None
     if len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
         norm = LogNorm(vmin=float(np.nanmin(positive)), vmax=float(np.nanmax(positive)))
-    return ax.pcolormesh(xedges, yedges, h.T, shading="auto", norm=norm)
-
-
-def draw_hist2d(ax, h, xedges, yedges, log_scale: bool):
-    """Draw precomputed 2D histogram values."""
-
-    if log_scale:
-        return draw_hist2d_log(ax, h, xedges, yedges)
-    return draw_hist2d_linear(ax, h, xedges, yedges)
+    return ax.pcolormesh(
+        histogram.axes[0].edges,
+        histogram.axes[1].edges,
+        values.T,
+        shading="auto",
+        norm=norm,
+    )
 
 
 def draw_highest_density_contours(
@@ -890,56 +862,21 @@ def draw_histogram_1d(
         ax.legend()
 
 
-def draw_histogram_2d_linear(
+def draw_histogram_2d(
     fig: Any,
     ax: Any,
-    x: np.ndarray,
-    y: np.ndarray,
-    x_label: str,
-    y_label: str,
-    style: dict[str, Any],
+    histogram: hist.Hist,
     *,
-    weights: np.ndarray | None,
-    weight_branch: str | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Draw the base 2D histogram with a linear colour scale."""
-
-    histogram, xedges, yedges = histogram2d_values(
-        x, y, style["bins_x"], style["bins_y"], weights=weights
-    )
-    mesh = draw_hist2d_linear(ax, histogram, xedges, yedges)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    fig.colorbar(
-        mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
-    )
-    return histogram, xedges, yedges
-
-
-def draw_histogram_2d_log(
-    fig: Any,
-    ax: Any,
-    x: np.ndarray,
-    y: np.ndarray,
-    x_label: str,
-    y_label: str,
-    style: dict[str, Any],
-    *,
-    weights: np.ndarray | None,
-    weight_branch: str | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Draw the base 2D histogram with a logarithmic colour scale."""
-
-    histogram, xedges, yedges = histogram2d_values(
-        x, y, style["bins_x"], style["bins_y"], weights=weights
-    )
-    mesh = draw_hist2d_log(ax, histogram, xedges, yedges)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    fig.colorbar(
-        mesh, ax=ax, label="entries" if weights is None else f"sum weights ({weight_branch})"
-    )
-    return histogram, xedges, yedges
+    log_scale: bool,
+    colorbar_label: str,
+) -> None:
+    """Render a prepared 2D histogram, without reconstructing its binning."""
+    if len(histogram.axes) != 2:
+        raise ValueError("2D histogram rendering requires exactly two axes.")
+    mesh = draw_hist2d_log(ax, histogram) if log_scale else draw_hist2d_linear(ax, histogram)
+    ax.set_xlabel(histogram.axes[0].label)
+    ax.set_ylabel(histogram.axes[1].label)
+    fig.colorbar(mesh, ax=ax, label=colorbar_label)
 
 
 def draw_scatter_2d(
@@ -1065,16 +1002,17 @@ def draw_kde_2d_overlay(
 
 def draw_histogram_contours(
     ax: Any,
-    histogram: np.ndarray,
-    xedges: np.ndarray,
-    yedges: np.ndarray,
+    histogram: hist.Hist,
     style: dict[str, Any],
 ) -> str | None:
-    """Draw selected highest-density contours, returning a displayable warning on failure."""
-
+    """Draw selected contours from a prepared histogram's visible bins."""
     try:
         draw_highest_density_contours(
-            ax, histogram, xedges, yedges, style.get("contour_levels", [])
+            ax,
+            np.asarray(histogram.values(), dtype=float),
+            np.asarray(histogram.axes[0].edges, dtype=float),
+            np.asarray(histogram.axes[1].edges, dtype=float),
+            style.get("contour_levels", []),
         )
     except ContourConfigurationError as exc:
         return str(exc)
@@ -1104,6 +1042,7 @@ def render_static_plot(
     *,
     title: str,
     histogram_1d: hist.Hist | None = None,
+    histogram_2d: hist.Hist | None = None,
     weights: np.ndarray | None = None,
     weight_branch: str | None = None,
     color: np.ndarray | None = None,
@@ -1132,29 +1071,35 @@ def render_static_plot(
         apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
 
     elif plot_type == "2D histogram":
-        if y is None:
-            raise ValueError("2D histogram requires a y variable.")
-        draw_histogram = draw_histogram_2d_log if style["log_z"] else draw_histogram_2d_linear
-        histogram, xedges, yedges = draw_histogram(
+        if histogram_2d is None:
+            raise ValueError("2D histogram rendering requires a prepared histogram.")
+        draw_histogram_2d(
             fig,
             ax,
-            x,
-            y,
-            x_label,
-            y_label,
-            style,
-            weights=weights,
-            weight_branch=weight_branch,
+            histogram_2d,
+            log_scale=bool(style["log_z"]),
+            colorbar_label="entries" if weights is None else f"sum weights ({weight_branch})",
         )
         if style.get("show_contours", False):
-            warning = draw_histogram_contours(ax, histogram, xedges, yedges, style)
+            warning = draw_histogram_contours(ax, histogram_2d, style)
             if warning is not None:
                 warnings.append(warning)
         if style.get("show_kde", False):
-            warning = draw_kde_2d_overlay(ax, x, y, xedges, yedges, style, weights=weights)
+            if y is None:
+                raise ValueError("2D histogram KDE requires y observations.")
+            warning = draw_kde_2d_overlay(
+                ax,
+                x,
+                y,
+                histogram_2d.axes[0].edges,
+                histogram_2d.axes[1].edges,
+                style,
+                weights=weights,
+            )
             if warning is not None:
                 warnings.append(warning)
-        apply_log_axis_scales(ax, style, x=x, y=y)
+        if y is not None:
+            apply_log_axis_scales(ax, style, x=x, y=y)
 
     elif plot_type == "2D scatter":
         if y is None:
