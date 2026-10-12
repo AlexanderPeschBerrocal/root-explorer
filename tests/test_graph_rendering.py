@@ -20,15 +20,14 @@ def style(**overrides):
 
 
 def test_graph_retains_original_point_order():
-    graph = GraphData(x=np.array([2., 1., 3.]), y=np.array([4., 5., 6.]))
+    graph = GraphData(x=np.array([2.0, 1.0, 3.0]), y=np.array([4.0, 5.0, 6.0]))
     fig = render_graph_data(graph, style(), {})
     np.testing.assert_array_equal(fig.axes[0].lines[0].get_xdata(), graph.x)
 
 
 def test_graph_titles_and_overrides():
     graph = GraphData(
-        x=np.array([1.]), y=np.array([2.]), title="Original",
-        x_label="pT", y_label="Efficiency"
+        x=np.array([1.0]), y=np.array([2.0]), title="Original", x_label="pT", y_label="Efficiency"
     )
     fig = render_graph_data(graph, style(), {"custom_x": "Momentum"})
     assert fig.axes[0].get_title() == "Original"
@@ -38,8 +37,10 @@ def test_graph_titles_and_overrides():
 
 def test_errors_are_used_when_visible():
     graph = GraphData(
-        x=np.array([1., 2.]), y=np.array([3., 4.]),
-        yerr_low=np.array([0.1, 0.2]), yerr_high=np.array([0.4, 0.5]),
+        x=np.array([1.0, 2.0]),
+        y=np.array([3.0, 4.0]),
+        yerr_low=np.array([0.1, 0.2]),
+        yerr_high=np.array([0.4, 0.5]),
     )
     fig = render_graph_data(graph, style(show_errors=True), {})
     assert fig.axes[0].collections
@@ -47,8 +48,10 @@ def test_errors_are_used_when_visible():
 
 def test_log_axis_rejects_crossing_uncertainty():
     graph = GraphData(
-        x=np.array([1.]), y=np.array([0.2]),
-        yerr_low=np.array([0.3]), yerr_high=np.array([0.1]),
+        x=np.array([1.0]),
+        y=np.array([0.2]),
+        yerr_low=np.array([0.3]),
+        yerr_high=np.array([0.1]),
     )
     with pytest.raises(InvalidAxisScaleError, match="uncertainties cross zero"):
         render_graph_data(graph, style(log_y=True), {})

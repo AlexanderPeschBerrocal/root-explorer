@@ -10,7 +10,8 @@ from root_explorer.plotting.graphs import GraphPlotSpec
 
 def test_graph_export_is_standalone():
     spec = GraphPlotSpec(
-        "file.root", "Efficiency/graph;2",
+        "file.root",
+        "Efficiency/graph;2",
         {"fig_width": 8, "fig_height": 6, "graph_mode": "Markers"},
         {"title": "Efficiency"},
     )

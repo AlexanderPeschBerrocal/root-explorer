@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -35,29 +34,21 @@ def _graph_controls(graph, object_id: str) -> tuple[dict[str, Any], dict[str, st
         "Drawing mode", ("Markers", "Line", "Line + markers"), key="graph_drawing_mode"
     )
     if graph.xerr_low is not None or graph.yerr_low is not None:
-        style["show_errors"] = st.checkbox(
-            "Show error bars", value=True, key="graph_show_errors"
-        )
-    style["marker_size"] = st.slider(
-        "Marker size", 0.5, 20.0, 5.0, key="graph_marker_size"
-    )
-    style["line_width"] = st.slider(
-        "Line width", 0.5, 10.0, 1.5, key="graph_line_width"
-    )
-    style["fig_width"] = st.slider(
-        "Figure width", 4.0, 16.0, 8.0, key="graph_fig_width"
-    )
-    style["fig_height"] = st.slider(
-        "Figure height", 3.0, 12.0, 6.0, key="graph_fig_height"
-    )
+        style["show_errors"] = st.checkbox("Show error bars", value=True, key="graph_show_errors")
+    style["marker_size"] = st.slider("Marker size", 0.5, 20.0, 5.0, key="graph_marker_size")
+    style["line_width"] = st.slider("Line width", 0.5, 10.0, 1.5, key="graph_line_width")
+    style["fig_width"] = st.slider("Figure width", 4.0, 16.0, 8.0, key="graph_fig_width")
+    style["fig_height"] = st.slider("Figure height", 3.0, 12.0, 6.0, key="graph_fig_height")
     style["display_dpi"] = 200
     style["log_x"] = st.checkbox("Log x-axis", key="graph_log_x")
     style["log_y"] = st.checkbox("Log y-axis", key="graph_log_y")
     style["grid"] = st.checkbox("Grid", value=True, key="graph_grid")
     manual = st.checkbox("Apply manual axis limits", key="graph_manual_limits")
     for key, title in (
-        ("x_min_text", "x minimum"), ("x_max_text", "x maximum"),
-        ("y_min_text", "y minimum"), ("y_max_text", "y maximum"),
+        ("x_min_text", "x minimum"),
+        ("x_max_text", "x maximum"),
+        ("y_min_text", "y minimum"),
+        ("y_max_text", "y maximum"),
     ):
         style[key] = st.text_input(title, key=f"graph_{key}") if manual else ""
     st.markdown("#### Labels", anchors=False)
@@ -88,7 +79,9 @@ def render_graph_controls(
     style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path)))))
     # A deliberate Open action triggers the initial plot. A mere row selection does not.
     make_plot = st.button(
-        "Make plot", key="graph_make_plot", type="primary",
+        "Make plot",
+        key="graph_make_plot",
+        type="primary",
         shortcut="P" if shortcuts_enabled else None,
     )
     if "root_graph_result" not in st.session_state or make_plot:
@@ -96,6 +89,7 @@ def render_graph_controls(
             spec = GraphPlotSpec(root_path, object_path, style, labels)
             figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code
+
             st.session_state["root_graph_result"] = {
                 "kind": "matplotlib",
                 "figure": figure,
@@ -111,7 +105,10 @@ def render_graph_controls(
 
 def render_graph_output() -> None:
     show_cached_plot_result(
-        "root_graph_result", export_prefix="graph", save_button_key="graph_save",
-        make_plot_label="Make plot", make_plot_shortcut="P",
+        "root_graph_result",
+        export_prefix="graph",
+        save_button_key="graph_save",
+        make_plot_label="Make plot",
+        make_plot_shortcut="P",
         empty_message="Configure the graph and click Make plot.",
     )

@@ -12,7 +12,6 @@ from ..models import RootObjectInfo
 from .controls import field_structure_label
 from .results import collection_summary
 from .state import DataContext
-from .tables import render_dataframe
 
 
 def render_field_browser(context: DataContext) -> None:
@@ -101,7 +100,9 @@ def render_root_objects_browser(
             st.caption(f"Objects in `{file_name}`. Selecting a row does not load its contents.")
 
         show_all_cycles = st.toggle(
-            "Show all ROOT cycles", value=False, key="root_object_show_all_cycles",
+            "Show all ROOT cycles",
+            value=False,
+            key="root_object_show_all_cycles",
             help="By default only the highest cycle for each object path is shown.",
         )
         query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
@@ -109,11 +110,19 @@ def render_root_objects_browser(
         if query:
             folded = query.casefold()
             objects = tuple(
-                info for info in objects
-                if folded in " ".join((
-                    info.path, info.name, info.classname, info.kind, info.parent,
-                    "" if info.cycle is None else str(info.cycle),
-                )).casefold()
+                info
+                for info in objects
+                if folded
+                in " ".join(
+                    (
+                        info.path,
+                        info.name,
+                        info.classname,
+                        info.kind,
+                        info.parent,
+                        "" if info.cycle is None else str(info.cycle),
+                    )
+                ).casefold()
             )
         dataframe = pd.DataFrame(
             [
@@ -135,9 +144,7 @@ def render_root_objects_browser(
             compact,
             tuple(info.qualified_path for info in objects),
         )
-        selection_key = hashlib.sha256(
-            repr(catalogue_identity).encode("utf-8")
-        ).hexdigest()[:16]
+        selection_key = hashlib.sha256(repr(catalogue_identity).encode("utf-8")).hexdigest()[:16]
         selection = st.dataframe(
             shown,
             width="stretch",
@@ -162,7 +169,9 @@ def render_root_objects_browser(
                         shortcut="O" if shortcuts_enabled else None,
                     ):
                         st.session_state["root_inspector_open"] = (
-                            file_name, info.qualified_path, info.classname
+                            file_name,
+                            info.qualified_path,
+                            info.classname,
                         )
                         st.session_state.pop("root_graph_result", None)
                         st.rerun()
@@ -187,9 +196,7 @@ def render_root_objects_browser(
     from .graph_viewer import render_graph_controls, render_graph_output
 
     with left:
-        render_graph_controls(
-            opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
-        )
+        render_graph_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
     with right:
         render_graph_output()
 
@@ -203,9 +210,7 @@ def render_contents_tab(
 ) -> None:
     """Render file-level ROOT objects followed by the selected event-container schema."""
 
-    render_root_objects_browser(
-        catalogue, file_name=file_name, shortcuts_enabled=shortcuts_enabled
-    )
+    render_root_objects_browser(catalogue, file_name=file_name, shortcuts_enabled=shortcuts_enabled)
     st.divider()
     render_field_browser(context)
 

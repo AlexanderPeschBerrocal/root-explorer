@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from ..io.graphs import read_graph
@@ -32,9 +31,7 @@ def _error_array(low: np.ndarray | None, high: np.ndarray | None) -> np.ndarray 
     return np.stack((low, high))
 
 
-def render_graph_data(
-    graph: GraphData, style: dict[str, Any], labels: dict[str, str]
-) -> Any:
+def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str, str]) -> Any:
     """Draw all stored points in order, without altering graph semantics."""
     if graph.x.shape != graph.y.shape or graph.x.ndim != 1:
         raise ValueError("Graph coordinates must be aligned one-dimensional arrays.")
@@ -59,12 +56,20 @@ def render_graph_data(
     else:
         graph_x, graph_y = graph.x, graph.y
 
-    if bool(style.get("log_x", False)) and xerr is not None and show_errors:
-        if np.any(graph_x - xerr[0] <= 0):
-            raise InvalidAxisScaleError("X uncertainties cross zero on a logarithmic x-axis.")
-    if bool(style.get("log_y", False)) and yerr is not None and show_errors:
-        if np.any(graph_y - yerr[0] <= 0):
-            raise InvalidAxisScaleError("Y uncertainties cross zero on a logarithmic y-axis.")
+    if (
+        bool(style.get("log_x", False))
+        and xerr is not None
+        and show_errors
+        and np.any(graph_x - xerr[0] <= 0)
+    ):
+        raise InvalidAxisScaleError("X uncertainties cross zero on a logarithmic x-axis.")
+    if (
+        bool(style.get("log_y", False))
+        and yerr is not None
+        and show_errors
+        and np.any(graph_y - yerr[0] <= 0)
+    ):
+        raise InvalidAxisScaleError("Y uncertainties cross zero on a logarithmic y-axis.")
 
     if show_errors and (xerr is not None or yerr is not None):
         ax.errorbar(
@@ -101,6 +106,4 @@ def render_graph_data(
 
 def render_graph_plot(spec: GraphPlotSpec) -> Any:
     """Load and render the selected graph using the canonical graph renderer."""
-    return render_graph_data(
-        read_graph(spec.root_path, spec.object_path), spec.style, spec.labels
-    )
+    return render_graph_data(read_graph(spec.root_path, spec.object_path), spec.style, spec.labels)

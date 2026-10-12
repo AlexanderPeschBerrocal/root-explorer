@@ -43,9 +43,7 @@ def test_coordinates_and_title_are_preserved(kind):
     graph = graph_data_from_object(make_graph(kind))
     np.testing.assert_array_equal(graph.x, [2, 1, 3])
     np.testing.assert_array_equal(graph.y, [4, 5, 6])
-    assert (graph.title, graph.x_label, graph.y_label) == (
-        "Efficiency", "Photon pT", "Efficiency"
-    )
+    assert (graph.title, graph.x_label, graph.y_label) == ("Efficiency", "Photon pT", "Efficiency")
 
 
 def test_plain_graph_has_no_errors():
