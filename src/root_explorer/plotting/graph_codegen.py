@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from ..io.graphs import read_graph
 from .graphs import GraphPlotSpec, render_graph_data
 from .sourcegen import bundle_python_source, python_source_literal
-from ..io.graphs import read_graph
 
 
 def generate_graph_plot_code(spec: GraphPlotSpec) -> str:
