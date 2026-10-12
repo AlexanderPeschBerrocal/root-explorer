@@ -162,21 +162,18 @@ def render_root_objects_browser(
             if 0 <= row < len(objects):
                 info = objects[row]
                 st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
-                if info.kind == "graph":
-                    if st.button(
-                        "Open selected object",
-                        key="root_object_open",
-                        shortcut="O" if shortcuts_enabled else None,
-                    ):
-                        st.session_state["root_inspector_open"] = (
-                            file_name,
-                            info.qualified_path,
-                            info.classname,
-                        )
-                        st.session_state.pop("root_graph_result", None)
-                        st.rerun()
-                else:
-                    st.info("Plot inspection is not yet available for this ROOT object type.")
+                if info.kind == "graph" and st.button(
+                    "Open selected object",
+                    key="root_object_open",
+                    shortcut="O" if shortcuts_enabled else None,
+                ):
+                    st.session_state["root_inspector_open"] = (
+                        file_name,
+                        info.qualified_path,
+                        info.classname,
+                    )
+                    st.session_state.pop("root_graph_result", None)
+                    st.rerun()
 
     if opened is None:
         render_catalogue(compact=False)

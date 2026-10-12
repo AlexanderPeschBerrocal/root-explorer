@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,11 @@ def _error_array(low: np.ndarray | None, high: np.ndarray | None) -> np.ndarray 
     return np.stack((low, high))
 
 
+def nonfinite_coordinate_count(graph: GraphData) -> int:
+    """Return how many coordinate pairs cannot be represented by Matplotlib."""
+    return int(np.count_nonzero(~(np.isfinite(graph.x) & np.isfinite(graph.y))))
+
+
 def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str, str]) -> Any:
     """Draw all stored points in order, without altering graph semantics."""
     if graph.x.shape != graph.y.shape or graph.x.ndim != 1:
@@ -46,9 +52,15 @@ def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str,
     marker = "o" if mode != "Line" else "None"
     linestyle = "-" if mode != "Markers" else "None"
     valid = np.isfinite(graph.x) & np.isfinite(graph.y)
-    if not np.all(valid):
+    omitted_points = nonfinite_coordinate_count(graph)
+    if omitted_points:
         # Do not silently drop values from GraphData: only exclude invalid points
         # from the Matplotlib call.
+        warnings.warn(
+            f"Omitted {omitted_points} graph point(s) with non-finite coordinates.",
+            UserWarning,
+            stacklevel=2,
+        )
         graph_x = graph.x[valid]
         graph_y = graph.y[valid]
         xerr = xerr[:, valid] if xerr is not None else None

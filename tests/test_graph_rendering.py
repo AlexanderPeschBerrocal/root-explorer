@@ -55,3 +55,16 @@ def test_log_axis_rejects_crossing_uncertainty():
     )
     with pytest.raises(InvalidAxisScaleError, match="uncertainties cross zero"):
         render_graph_data(graph, style(log_y=True), {})
+
+
+def test_nonfinite_coordinates_are_omitted_with_a_warning() -> None:
+    graph = GraphData(
+        x=np.array([2.0, np.nan, 1.0, np.inf]),
+        y=np.array([4.0, 5.0, 6.0, 7.0]),
+    )
+
+    with pytest.warns(UserWarning, match="Omitted 2 graph point"):
+        fig = render_graph_data(graph, style(), {})
+
+    np.testing.assert_array_equal(fig.axes[0].lines[0].get_xdata(), [2.0, 1.0])
+    np.testing.assert_array_equal(graph.x, [2.0, np.nan, 1.0, np.inf])

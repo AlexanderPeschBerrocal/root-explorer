@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 
 from ..io.graphs import UnsupportedGraphError, read_graph
-from ..plotting.graphs import GraphPlotSpec, render_graph_data
+from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError
 from .results import show_cached_plot_result
 
@@ -76,6 +76,9 @@ def render_graph_controls(
         st.warning(str(exc))
         return
     st.caption(f"Points: {len(graph.x):,}")
+    omitted_points = nonfinite_coordinate_count(graph)
+    if omitted_points:
+        st.warning(f"Omitted {omitted_points} graph point(s) with non-finite coordinates.")
     style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path)))))
     # A deliberate Open action triggers the initial plot. A mere row selection does not.
     make_plot = st.button(
