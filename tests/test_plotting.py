@@ -310,8 +310,13 @@ def test_negative_weighted_bins_warn_without_hiding_the_histogram() -> None:
         },
         title="signed weights",
         histogram_2d=build_histogram_2d(
-            np.array([0.0, 1.0]), np.array([0.0, 1.0]), 2, 2,
-            weights=np.array([-1.0, 2.0]), x_label="x", y_label="y",
+            np.array([0.0, 1.0]),
+            np.array([0.0, 1.0]),
+            2,
+            2,
+            weights=np.array([-1.0, 2.0]),
+            x_label="x",
+            y_label="y",
         ),
         weights=np.array([-1.0, 2.0]),
     )
@@ -632,8 +637,12 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
         },
         title="log color only",
         histogram_2d=build_histogram_2d(
-            np.array([1.0, 2.0, 2.0]), np.array([1.0, 2.0, 2.0]),
-            2, 2, x_label="x", y_label="y",
+            np.array([1.0, 2.0, 2.0]),
+            np.array([1.0, 2.0, 2.0]),
+            2,
+            2,
+            x_label="x",
+            y_label="y",
         ),
     )
     assert histogram_2d_axes.get_xscale() == "linear"
@@ -811,3 +820,22 @@ def test_scatter_colorbar_marks_only_actual_clipping(monkeypatch) -> None:
     )
     assert captured["extend"] == "both"
     plt.close(figure)
+
+
+def test_2d_renderer_requires_prepared_histogram() -> None:
+    figure, axes = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="requires a prepared histogram"):
+            render_static_plot(
+                figure,
+                axes,
+                "2D histogram",
+                np.array([0.0, 1.0]),
+                np.array([0.0, 1.0]),
+                "x",
+                "y",
+                {"log_z": False, "grid": False},
+                title="missing prepared histogram",
+            )
+    finally:
+        plt.close(figure)

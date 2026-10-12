@@ -393,10 +393,10 @@ def test_plain_2d_histogram_export_omits_optional_overlays() -> None:
     source = generate_static_plot_code(request)
 
     compile(source, "plain_2d_histogram_export.py", "exec")
-    assert "def draw_histogram_2d_linear(" in source
+    assert "def draw_histogram_2d(" in source
+    assert "def build_histogram_2d(" in source
     assert "def build_histogram_1d(" not in source
-    assert "import hist" not in source
-    assert "def draw_histogram_2d_log(" not in source
+    assert "import hist" in source
     assert "def draw_kde_2d(" not in source
     assert "def draw_highest_density_contours(" not in source
     assert "def draw_colored_scatter_2d_" not in source
@@ -546,3 +546,38 @@ def test_export_rejects_interactive_3d_request() -> None:
 
     with pytest.raises(ValueError, match="not available"):
         generate_static_plot_code(request)
+
+
+def test_exported_weighted_log_2d_histogram_matches_pipeline(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        weight_branch="genWeight",
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 7,
+            "bins_y": 9,
+            "log_x": False,
+            "log_y": False,
+            "log_z": True,
+            "show_contours": False,
+            "show_kde": False,
+            "grid": False,
+        },
+    )
+    prepared, canonical, generated = _execute_export(request)
+    try:
+        assert prepared.histogram_2d is not None
+        assert prepared.histogram_2d.variances() is not None
+        np.testing.assert_allclose(
+            np.asarray(generated.axes[0].collections[0].get_array()),
+            np.asarray(canonical.axes[0].collections[0].get_array()),
+        )
+        assert len(generated.axes) == len(canonical.axes) == 2
+        assert generated.axes[1].get_ylabel() == canonical.axes[1].get_ylabel()
+    finally:
+        plt.close(canonical)
+        plt.close(generated)

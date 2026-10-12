@@ -225,8 +225,13 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
 
     histogram_2d = (
         build_histogram_2d(
-            x, y, int(spec.style["bins_x"]), int(spec.style["bins_y"]),
-            weights=weights, x_label=x_label, y_label=y_label,
+            x,
+            y,
+            int(spec.style["bins_x"]),
+            int(spec.style["bins_y"]),
+            weights=weights,
+            x_label=x_label,
+            y_label=y_label,
         )
         if spec.plot_type == "2D histogram" and y is not None
         else None

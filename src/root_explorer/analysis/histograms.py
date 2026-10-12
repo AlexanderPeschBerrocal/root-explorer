@@ -82,6 +82,7 @@ def _numpy_compatible_fill_values(values: np.ndarray, edges: np.ndarray) -> np.n
     adjusted[on_upper_edge] = np.nextafter(upper_edge, float(edges[-2]))
     return adjusted
 
+
 def build_histogram_2d(
     x: np.ndarray,
     y: np.ndarray,
@@ -115,7 +116,9 @@ def build_histogram_2d(
 
     for bins, axis_name in ((bins_x, "x"), (bins_y, "y")):
         if int(bins) != bins or int(bins) <= 0:
-            raise ValueError(f"The number of {axis_name} histogram bins must be a positive integer.")
+            raise ValueError(
+                f"The number of {axis_name} histogram bins must be a positive integer."
+            )
 
     for bounds, axis_name in ((x_range, "x"), (y_range, "y")):
         if bounds is not None:

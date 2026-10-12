@@ -608,9 +608,7 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
 def draw_hist2d_linear(ax: Any, histogram: hist.Hist):
     """Draw visible contents of a prepared 2D histogram with a linear colour scale."""
     values = np.asarray(histogram.values(), dtype=float)
-    return ax.pcolormesh(
-        histogram.axes[0].edges, histogram.axes[1].edges, values.T, shading="auto"
-    )
+    return ax.pcolormesh(histogram.axes[0].edges, histogram.axes[1].edges, values.T, shading="auto")
 
 
 def draw_hist2d_log(ax: Any, histogram: hist.Hist):
@@ -621,8 +619,11 @@ def draw_hist2d_log(ax: Any, histogram: hist.Hist):
     if len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
         norm = LogNorm(vmin=float(np.nanmin(positive)), vmax=float(np.nanmax(positive)))
     return ax.pcolormesh(
-        histogram.axes[0].edges, histogram.axes[1].edges, values.T,
-        shading="auto", norm=norm,
+        histogram.axes[0].edges,
+        histogram.axes[1].edges,
+        values.T,
+        shading="auto",
+        norm=norm,
     )
 
 
@@ -1007,7 +1008,8 @@ def draw_histogram_contours(
     """Draw selected contours from a prepared histogram's visible bins."""
     try:
         draw_highest_density_contours(
-            ax, np.asarray(histogram.values(), dtype=float),
+            ax,
+            np.asarray(histogram.values(), dtype=float),
             np.asarray(histogram.axes[0].edges, dtype=float),
             np.asarray(histogram.axes[1].edges, dtype=float),
             style.get("contour_levels", []),
@@ -1072,7 +1074,9 @@ def render_static_plot(
         if histogram_2d is None:
             raise ValueError("2D histogram rendering requires a prepared histogram.")
         draw_histogram_2d(
-            fig, ax, histogram_2d,
+            fig,
+            ax,
+            histogram_2d,
             log_scale=bool(style["log_z"]),
             colorbar_label="entries" if weights is None else f"sum weights ({weight_branch})",
         )
@@ -1084,16 +1088,18 @@ def render_static_plot(
             if y is None:
                 raise ValueError("2D histogram KDE requires y observations.")
             warning = draw_kde_2d_overlay(
-                ax, x, y, histogram_2d.axes[0].edges, histogram_2d.axes[1].edges,
-                style, weights=weights,
+                ax,
+                x,
+                y,
+                histogram_2d.axes[0].edges,
+                histogram_2d.axes[1].edges,
+                style,
+                weights=weights,
             )
             if warning is not None:
                 warnings.append(warning)
-        apply_log_axis_scales(
-            ax, style,
-            x=np.asarray(histogram_2d.axes[0].edges, dtype=float),
-            y=np.asarray(histogram_2d.axes[1].edges, dtype=float),
-        )
+        if y is not None:
+            apply_log_axis_scales(ax, style, x=x, y=y)
 
     elif plot_type == "2D scatter":
         if y is None:

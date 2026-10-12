@@ -61,6 +61,7 @@ def test_histogram_rejects_invalid_explicit_range(
     with pytest.raises(ValueError, match="range bounds"):
         build_histogram_1d(np.array([0.5]), 2, value_range=value_range)
 
+
 @pytest.mark.parametrize(
     "x, y",
     [
@@ -69,9 +70,7 @@ def test_histogram_rejects_invalid_explicit_range(
         (np.array([], dtype=float), np.array([], dtype=float)),
     ],
 )
-def test_unweighted_2d_histogram_matches_numpy_visible_bins(
-    x: np.ndarray, y: np.ndarray
-) -> None:
+def test_unweighted_2d_histogram_matches_numpy_visible_bins(x: np.ndarray, y: np.ndarray) -> None:
     histogram = build_histogram_2d(x, y, 4, 3, x_label="x observable", y_label="y observable")
     values, x_edges, y_edges = np.histogram2d(x, y, bins=(4, 3))
 
@@ -151,6 +150,4 @@ def test_2d_histogram_rejects_invalid_bins(bins_x, bins_y) -> None:
 )
 def test_2d_histogram_rejects_invalid_ranges(x_range, y_range) -> None:
     with pytest.raises(ValueError, match="range bounds"):
-        build_histogram_2d(
-            np.array([0.5]), np.array([0.5]), 2, 2, x_range=x_range, y_range=y_range
-        )
+        build_histogram_2d(np.array([0.5]), np.array([0.5]), 2, 2, x_range=x_range, y_range=y_range)
