@@ -32,7 +32,10 @@ def _graph_member_array(graph: Any, member: str, n_points: int) -> np.ndarray:
 
 def _graph_title_fields(graph: Any) -> tuple[str, str, str]:
     """Decode ROOT's conventional 'title;x axis;y axis' convention."""
-    raw = str(graph.member("fTitle") or "")
+    try:
+        raw = str(graph.member("fTitle") or "")
+    except (KeyError, AttributeError):
+        raw = ""
     parts = raw.split(";")
     title = parts[0].strip()
     x_label = parts[1].strip() if len(parts) > 1 else ""
