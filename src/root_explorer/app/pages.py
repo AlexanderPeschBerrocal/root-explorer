@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pandas as pd
 import streamlit as st
 
@@ -83,6 +85,7 @@ def render_root_objects_browser(
     catalogue: tuple[RootObjectInfo, ...],
     *,
     file_name: str | None = None,
+    shortcuts_enabled: bool = True,
 ) -> None:
     """Browse metadata and open a selected graph deliberately, not on single click."""
 
@@ -126,10 +129,22 @@ def render_root_objects_browser(
             columns=["object", "ROOT class", "kind", "cycle", "path"],
         )
         shown = dataframe[["object", "ROOT class"]] if compact else dataframe
+        # A changed filter, cycle view or layout must not reuse an old row index.
+        catalogue_identity = (
+            file_name,
+            compact,
+            tuple(info.qualified_path for info in objects),
+        )
+        selection_key = hashlib.sha256(
+            repr(catalogue_identity).encode("utf-8")
+        ).hexdigest()[:16]
         selection = st.dataframe(
-            shown, width="stretch", height="content",
-            on_select="rerun", selection_mode="single-row",
-            key="root_object_row_selection",
+            shown,
+            width="stretch",
+            height="content",
+            on_select="rerun",
+            selection_mode="single-row",
+            key=f"root_object_selection_{selection_key}",
         )
         if not objects:
             st.info("No ROOT objects match the current filter.")
@@ -141,7 +156,11 @@ def render_root_objects_browser(
                 info = objects[row]
                 st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
                 if info.kind == "graph":
-                    if st.button("Open selected object", key="root_object_open"):
+                    if st.button(
+                        "Open selected object",
+                        key="root_object_open",
+                        shortcut="O" if shortcuts_enabled else None,
+                    ):
                         st.session_state["root_inspector_open"] = (
                             file_name, info.qualified_path, info.classname
                         )
@@ -157,15 +176,21 @@ def render_root_objects_browser(
     left, right = st.columns([0.36, 0.64], gap="large")
     with left:
         render_catalogue(compact=True)
-        if st.button("Close inspection", key="root_inspector_close"):
+        if st.button(
+            "Close inspection",
+            key="root_inspector_close",
+            shortcut="Esc" if shortcuts_enabled else None,
+        ):
             st.session_state.pop("root_inspector_open", None)
             st.session_state.pop("root_graph_result", None)
             st.rerun()
+    from .graph_viewer import render_graph_controls, render_graph_output
+
     with left:
-        from .graph_viewer import render_graph_controls
-        render_graph_controls(opened[0], opened[1], opened[2])
+        render_graph_controls(
+            opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+        )
     with right:
-        from .graph_viewer import render_graph_output
         render_graph_output()
 
 
@@ -174,10 +199,13 @@ def render_contents_tab(
     catalogue: tuple[RootObjectInfo, ...],
     *,
     file_name: str | None = None,
+    shortcuts_enabled: bool = True,
 ) -> None:
     """Render file-level ROOT objects followed by the selected event-container schema."""
 
-    render_root_objects_browser(catalogue, file_name=file_name)
+    render_root_objects_browser(
+        catalogue, file_name=file_name, shortcuts_enabled=shortcuts_enabled
+    )
     st.divider()
     render_field_browser(context)
 

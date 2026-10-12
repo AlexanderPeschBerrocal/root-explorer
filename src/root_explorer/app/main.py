@@ -46,9 +46,15 @@ def main() -> None:
 
     context = file_context.data
     if context is None:
-        root_objects_tab, geometry_tab = st.tabs(["ROOT objects", "Geometry"])
+        root_objects_tab, geometry_tab = st.tabs(
+            ["ROOT objects", "Geometry"], key="object_only_tabs", on_change="rerun"
+        )
         with root_objects_tab:
-            render_root_objects_browser(file_context.catalogue, file_name=file_context.root_path)
+            render_root_objects_browser(
+                file_context.catalogue,
+                file_name=file_context.root_path,
+                shortcuts_enabled=bool(root_objects_tab.open),
+            )
         with geometry_tab:
             render_geometry_tab(geometry)
         return
@@ -62,20 +68,23 @@ def main() -> None:
             contents_label,
             "Geometry",
             "Help",
-        ]
+        ],
+        key="event_file_tabs",
+        on_change="rerun",
     )
     with contents_tab:
         render_contents_tab(
             context,
             file_context.catalogue,
             file_name=file_context.root_path,
+            shortcuts_enabled=bool(contents_tab.open),
         )
     with geometry_tab:
         render_geometry_tab(geometry)
     with help_tab:
         render_help_tab(context)
     with plot_tab:
-        render_plot_tab(context, geometry)
+        render_plot_tab(context, geometry, shortcuts_enabled=bool(plot_tab.open))
     with event_tab:
         event_index = render_event_selection(context)
         render_event_plot_tab(context, geometry, event_index)
