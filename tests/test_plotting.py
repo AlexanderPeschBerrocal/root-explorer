@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
-from root_explorer.analysis.histograms import build_histogram_1d
+from root_explorer.analysis.histograms import build_histogram_1d, build_histogram_2d
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
     ContourConfigurationError,
@@ -198,6 +198,7 @@ def test_singular_2d_kde_warns_without_hiding_histogram() -> None:
             "grid": False,
         },
         title="singular KDE",
+        histogram_2d=build_histogram_2d(x, 2.0 * x, 5, 5, x_label="x", y_label="y"),
     )
 
     assert len(warnings) == 1
@@ -308,6 +309,10 @@ def test_negative_weighted_bins_warn_without_hiding_the_histogram() -> None:
             "grid": False,
         },
         title="signed weights",
+        histogram_2d=build_histogram_2d(
+            np.array([0.0, 1.0]), np.array([0.0, 1.0]), 2, 2,
+            weights=np.array([-1.0, 2.0]), x_label="x", y_label="y",
+        ),
         weights=np.array([-1.0, 2.0]),
     )
 
@@ -626,6 +631,10 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
             "grid": False,
         },
         title="log color only",
+        histogram_2d=build_histogram_2d(
+            np.array([1.0, 2.0, 2.0]), np.array([1.0, 2.0, 2.0]),
+            2, 2, x_label="x", y_label="y",
+        ),
     )
     assert histogram_2d_axes.get_xscale() == "linear"
     assert histogram_2d_axes.get_yscale() == "linear"

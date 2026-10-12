@@ -15,7 +15,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
-from ..analysis.histograms import build_histogram_1d
+from ..analysis.histograms import build_histogram_1d, build_histogram_2d
 from ..analysis.statistics import (
     QuantileResult,
     ThresholdResult,
@@ -67,6 +67,7 @@ class PreparedStaticPlot:
     weights: np.ndarray | None
     color: np.ndarray | None
     histogram_1d: hist.Hist | None
+    histogram_2d: hist.Hist | None
     x_label: str
     y_label: str
     color_label: str | None
@@ -222,12 +223,22 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         else None
     )
 
+    histogram_2d = (
+        build_histogram_2d(
+            x, y, int(spec.style["bins_x"]), int(spec.style["bins_y"]),
+            weights=weights, x_label=x_label, y_label=y_label,
+        )
+        if spec.plot_type == "2D histogram" and y is not None
+        else None
+    )
+
     return PreparedStaticPlot(
         x=x,
         y=y,
         weights=weights,
         color=color,
         histogram_1d=histogram_1d,
+        histogram_2d=histogram_2d,
         x_label=x_label,
         y_label=y_label,
         color_label=color_label,
@@ -260,6 +271,7 @@ def render_prepared_static_plot(
         spec.style,
         title=prepared.title,
         histogram_1d=prepared.histogram_1d,
+        histogram_2d=prepared.histogram_2d,
         weights=prepared.weights,
         weight_branch=spec.weight_branch,
         color=color,
