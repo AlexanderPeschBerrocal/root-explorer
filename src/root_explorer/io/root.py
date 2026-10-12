@@ -1,10 +1,10 @@
-"""Format-neutral ROOT event-container access for the application and analysis helpers."""
+"""Metadata-first ROOT catalogue and event-container access helpers."""
 
 from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any
 
 import awkward as ak
@@ -12,9 +12,120 @@ import numpy as np
 import streamlit as st
 import uproot
 
-from ..models import FieldInfo, FieldStructure
+from ..models import FieldInfo, FieldStructure, RootObjectInfo, RootObjectKind
 
 _ROOT_LEAFLIST_RE = re.compile(r"(?:[^:/]+(?:\[[^\]]+\])*/[BbSsIiFfDdLlOoGgCc](?::|$))+")
+
+
+def split_root_cycle(key: str) -> tuple[str, int | None]:
+    """Split a ROOT key into its cycle-free path and optional cycle number."""
+
+    path, separator, cycle_text = key.rpartition(";")
+    if separator and cycle_text.isdigit():
+        return path, int(cycle_text)
+    return key, None
+
+
+def classify_root_object(classname: str) -> RootObjectKind:
+    """Classify a ROOT classname without deserialising the corresponding object."""
+
+    if classname.startswith("TDirectory"):
+        return "directory"
+    if classname == "TTree" or classname.startswith("TNtuple"):
+        return "ttree"
+    if classname == "RNTuple" or classname.endswith("::RNTuple"):
+        return "rntuple"
+    if classname.startswith(("TH1", "TH2", "TH3", "TProfile")):
+        return "histogram"
+    if classname.startswith("TGraph"):
+        return "graph"
+    if classname == "RooWorkspace" or classname.endswith("::RooWorkspace"):
+        return "workspace"
+    return "other"
+
+
+def _root_object_sort_key(info: RootObjectInfo) -> tuple[str, str, int]:
+    return (info.path.casefold(), info.path, -1 if info.cycle is None else info.cycle)
+
+
+def build_root_catalogue(root_file: Any) -> tuple[RootObjectInfo, ...]:
+    """Return metadata for all keyed ROOT objects without loading their payloads."""
+
+    catalogue: list[RootObjectInfo] = []
+    for key, classname in root_file.classnames(recursive=True, cycle=True).items():
+        path, cycle = split_root_cycle(str(key))
+        parent, separator, name = path.rpartition("/")
+        if not separator:
+            parent = ""
+            name = path
+        catalogue.append(
+            RootObjectInfo(
+                path=path,
+                name=name,
+                classname=str(classname),
+                parent=parent,
+                cycle=cycle,
+                kind=classify_root_object(str(classname)),
+            )
+        )
+    return tuple(sorted(catalogue, key=_root_object_sort_key))
+
+
+@st.cache_data(show_spinner=False)
+def get_root_catalogue(path: str) -> tuple[RootObjectInfo, ...]:
+    """Open a ROOT file and return its metadata-only object catalogue."""
+
+    with uproot.open(path) as root_file:
+        return build_root_catalogue(root_file)
+
+
+def latest_root_objects(catalogue: Sequence[RootObjectInfo]) -> tuple[RootObjectInfo, ...]:
+    """Return only the highest ROOT cycle for every cycle-free object path."""
+
+    latest: dict[str, RootObjectInfo] = {}
+    for info in catalogue:
+        previous = latest.get(info.path)
+        previous_cycle = -1 if previous is None or previous.cycle is None else previous.cycle
+        current_cycle = -1 if info.cycle is None else info.cycle
+        if previous is None or current_cycle >= previous_cycle:
+            latest[info.path] = info
+    return tuple(sorted(latest.values(), key=_root_object_sort_key))
+
+
+def filter_root_objects(
+    catalogue: Sequence[RootObjectInfo],
+    *,
+    kinds: Collection[RootObjectKind] | None = None,
+    latest_only: bool = True,
+) -> tuple[RootObjectInfo, ...]:
+    """Filter catalogue entries by kind, optionally keeping only the latest cycles."""
+
+    objects = latest_root_objects(catalogue) if latest_only else tuple(catalogue)
+    if kinds is None:
+        return objects
+    return tuple(info for info in objects if info.kind in kinds)
+
+
+def event_container_infos(
+    catalogue: Sequence[RootObjectInfo], *, latest_only: bool = True
+) -> tuple[RootObjectInfo, ...]:
+    """Return TTree and RNTuple catalogue entries."""
+
+    return filter_root_objects(
+        catalogue,
+        kinds={"ttree", "rntuple"},
+        latest_only=latest_only,
+    )
+
+
+def event_container_kind_from_info(info: RootObjectInfo) -> str:
+    """Return the user-facing event-container type from catalogue metadata."""
+
+    if info.kind == "rntuple":
+        return "RNTuple"
+    if info.kind == "ttree":
+        return "TTree"
+    raise TypeError(f"ROOT object is not an event container: {info.classname}")
 
 
 def parse_cli_rootfile() -> str | None:
@@ -52,13 +163,9 @@ def event_container_kind(obj: Any) -> str:
 
 
 def walk_event_containers(root_file: Any) -> list[str]:
-    """Return readable TTree and RNTuple paths, including nested folders."""
+    """Return readable TTree and RNTuple paths from the shared ROOT catalogue."""
 
-    names: list[str] = []
-    for key, obj in root_file.items(recursive=True):
-        if is_event_container(obj):
-            names.append(key.split(";")[0])
-    return sorted(set(names))
+    return [info.path for info in event_container_infos(build_root_catalogue(root_file))]
 
 
 @st.cache_data(show_spinner=False)

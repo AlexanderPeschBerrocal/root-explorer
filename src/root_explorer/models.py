@@ -15,6 +15,37 @@ FieldStructure = Literal[
 ]
 
 
+RootObjectKind = Literal[
+    "directory",
+    "ttree",
+    "rntuple",
+    "histogram",
+    "graph",
+    "workspace",
+    "other",
+]
+
+
+@dataclass(frozen=True)
+class RootObjectInfo:
+    """Metadata-only description of one keyed object in a ROOT file."""
+
+    path: str
+    name: str
+    classname: str
+    parent: str
+    cycle: int | None
+    kind: RootObjectKind
+
+    @property
+    def qualified_path(self) -> str:
+        """Return the ROOT path including its cycle when one is available."""
+
+        if self.cycle is None:
+            return self.path
+        return f"{self.path};{self.cycle}"
+
+
 @dataclass(frozen=True)
 class FieldInfo:
     """Small summary of one field in an event container."""

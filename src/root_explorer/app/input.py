@@ -8,19 +8,19 @@ import streamlit as st
 
 from ..config import DEFAULT_MAX_ENTRIES
 from ..io.root import (
-    event_container_kind,
+    event_container_infos,
+    event_container_kind_from_info,
     get_entry_count,
     get_field_info,
+    get_root_catalogue,
     numeric_fields,
-    open_root_file,
     parse_cli_rootfile,
-    walk_event_containers,
 )
 from .results import store_uploaded_file
-from .state import DataContext
+from .state import DataContext, RootFileContext
 
 
-def render_data_input() -> DataContext:
+def render_data_input() -> RootFileContext:
     """Render sidebar ROOT input controls and return the selected data context.
 
     This function deliberately uses ``st.stop`` for invalid or incomplete input,
@@ -53,18 +53,25 @@ def render_data_input() -> DataContext:
         st.stop()
 
     try:
-        root_file = open_root_file(root_path)
+        catalogue = get_root_catalogue(root_path)
     except Exception as exc:
         st.error(f"Could not open ROOT file: {exc}")
         st.stop()
 
-    available_containers = walk_event_containers(root_file)
-    if not available_containers:
-        st.error("No TTrees or RNTuples containing event data were found.")
-        st.stop()
+    available_container_infos = event_container_infos(catalogue)
+    if not available_container_infos:
+        st.info(
+            "No TTrees or RNTuples containing event data were found. "
+            "The ROOT object browser remains available."
+        )
+        return RootFileContext(root_path=root_path, catalogue=catalogue, data=None)
 
+    available_containers = [info.path for info in available_container_infos]
     event_container_name = st.selectbox("Event dataset", available_containers, index=0)
-    container_kind = event_container_kind(root_file[event_container_name])
+    selected_container = next(
+        info for info in available_container_infos if info.path == event_container_name
+    )
+    container_kind = event_container_kind_from_info(selected_container)
     n_entries = get_entry_count(root_path, event_container_name)
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
@@ -87,7 +94,7 @@ def render_data_input() -> DataContext:
         st.stop()
 
     field_info = get_field_info(root_path, event_container_name)
-    return DataContext(
+    data_context = DataContext(
         root_path=root_path,
         event_container_name=event_container_name,
         n_entries=n_entries,
@@ -97,6 +104,7 @@ def render_data_input() -> DataContext:
         fields=numeric_fields(field_info),
         container_kind=container_kind,
     )
+    return RootFileContext(root_path=root_path, catalogue=catalogue, data=data_context)
 
 
 def invalidate_data_results(context: DataContext) -> None:

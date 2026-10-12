@@ -83,6 +83,90 @@ def test_get_field_info_exposes_useful_source_documentation(monkeypatch) -> None
     assert info["empty"].description is None
 
 
+class _MetadataOnlyRootFile:
+    """Fake ROOT directory that fails if discovery tries to load object payloads."""
+
+    def classnames(self, *, recursive: bool, cycle: bool) -> dict[str, str]:
+        assert recursive
+        assert cycle
+        return {
+            "Events;1": "TTree",
+            "Analysis;1": "TDirectoryFile",
+            "Analysis/h_mass;2": "TH1D",
+            "Analysis/note;1": "TObjString",
+        }
+
+    def items(self, *args, **kwargs):
+        raise AssertionError("catalogue discovery must not call items()")
+
+    def __getitem__(self, key):
+        raise AssertionError(f"catalogue discovery must not load {key}")
+
+
+@pytest.mark.parametrize(
+    ("classname", "expected_kind"),
+    [
+        ("TDirectoryFile", "directory"),
+        ("TTree", "ttree"),
+        ("TNtuple", "ttree"),
+        ("ROOT::RNTuple", "rntuple"),
+        ("TH1D", "histogram"),
+        ("TH2F", "histogram"),
+        ("TProfile", "histogram"),
+        ("TGraphAsymmErrors", "graph"),
+        ("RooWorkspace", "workspace"),
+        ("TObjString", "other"),
+    ],
+)
+def test_root_object_classification_is_deterministic(classname: str, expected_kind: str) -> None:
+    assert root_io.classify_root_object(classname) == expected_kind
+
+
+def test_root_catalogue_discovery_does_not_load_payload_objects() -> None:
+    root_file = _MetadataOnlyRootFile()
+
+    catalogue = root_io.build_root_catalogue(root_file)
+
+    by_path = {info.path: info for info in catalogue}
+    assert by_path["Events"].kind == "ttree"
+    assert by_path["Analysis"].kind == "directory"
+    assert by_path["Analysis/h_mass"].kind == "histogram"
+    assert by_path["Analysis/h_mass"].cycle == 2
+    assert by_path["Analysis/note"].kind == "other"
+    assert root_io.walk_event_containers(root_file) == ["Events"]
+
+
+def test_nontrivial_root_catalogue_resolves_hierarchy_cycles_and_duplicate_names(
+    catalogue_root_path,
+) -> None:
+    catalogue = root_io.get_root_catalogue(str(catalogue_root_path))
+    latest = root_io.latest_root_objects(catalogue)
+    by_path = {info.path: info for info in latest}
+
+    assert by_path["Events"].kind == "ttree"
+    assert by_path["Analysis"].kind == "directory"
+    assert by_path["Analysis/nested"].kind == "directory"
+    assert by_path["Analysis/nested/Events"].kind == "rntuple"
+    assert by_path["Analysis/h_mass"].kind == "histogram"
+    assert by_path["Control/h_mass"].kind == "histogram"
+    assert by_path["metadata"].kind == "other"
+
+    assert by_path["Analysis/duplicate"].parent == "Analysis"
+    assert by_path["Control/duplicate"].parent == "Control"
+    assert by_path["Analysis/duplicate"].name == by_path["Control/duplicate"].name == "duplicate"
+
+    repeated = [info for info in catalogue if info.path == "Analysis/repeated"]
+    assert len(repeated) == 2
+    assert [info.cycle for info in repeated] == [1, 2]
+    assert by_path["Analysis/repeated"].cycle == 2
+    assert by_path["Analysis/repeated"].qualified_path == "Analysis/repeated;2"
+
+    assert [info.path for info in root_io.event_container_infos(catalogue)] == [
+        "Analysis/nested/Events",
+        "Events",
+    ]
+
+
 @pytest.mark.parametrize(
     ("form", "expected"),
     [
