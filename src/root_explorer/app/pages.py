@@ -84,58 +84,89 @@ def render_root_objects_browser(
     *,
     file_name: str | None = None,
 ) -> None:
-    """Render the metadata-only ROOT directory/object catalogue."""
+    """Browse metadata and open a selected graph deliberately, not on single click."""
 
-    st.subheader("ROOT file contents", anchor=False)
-    if file_name:
-        st.caption(
-            f"Objects in `{file_name}`. Objects are not loaded until a later workflow needs them."
+    opened = st.session_state.get("root_inspector_open")
+    if opened is not None and opened[0] != file_name:
+        st.session_state.pop("root_inspector_open", None)
+        st.session_state.pop("root_graph_result", None)
+        opened = None
+
+    def render_catalogue(*, compact: bool) -> None:
+        st.subheader("ROOT file contents", anchor=False)
+        if file_name:
+            st.caption(f"Objects in `{file_name}`. Selecting a row does not load its contents.")
+
+        show_all_cycles = st.toggle(
+            "Show all ROOT cycles", value=False, key="root_object_show_all_cycles",
+            help="By default only the highest cycle for each object path is shown.",
         )
-
-    show_all_cycles = st.toggle(
-        "Show all ROOT cycles",
-        value=False,
-        key="root_object_show_all_cycles",
-        help="By default only the highest cycle for each object path is shown.",
-    )
-    query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
-
-    objects = filter_root_objects(catalogue, latest_only=not show_all_cycles)
-    if query:
-        folded = query.casefold()
-        objects = tuple(
-            info
-            for info in objects
-            if folded
-            in " ".join(
-                (
-                    info.path,
-                    info.name,
-                    info.classname,
-                    info.kind,
-                    info.parent,
+        query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
+        objects = filter_root_objects(catalogue, latest_only=not show_all_cycles)
+        if query:
+            folded = query.casefold()
+            objects = tuple(
+                info for info in objects
+                if folded in " ".join((
+                    info.path, info.name, info.classname, info.kind, info.parent,
                     "" if info.cycle is None else str(info.cycle),
-                )
-            ).casefold()
+                )).casefold()
+            )
+        dataframe = pd.DataFrame(
+            [
+                {
+                    "object": _root_object_display_name(info),
+                    "ROOT class": info.classname,
+                    "kind": info.kind,
+                    "cycle": info.cycle,
+                    "path": info.path,
+                }
+                for info in objects
+            ],
+            columns=["object", "ROOT class", "kind", "cycle", "path"],
         )
+        shown = dataframe[["object", "ROOT class"]] if compact else dataframe
+        selection = st.dataframe(
+            shown, width="stretch", height="content",
+            on_select="rerun", selection_mode="single-row",
+            key="root_object_row_selection",
+        )
+        if not objects:
+            st.info("No ROOT objects match the current filter.")
+            return
+        rows = selection.selection.rows
+        if rows:
+            row = rows[0]
+            if 0 <= row < len(objects):
+                info = objects[row]
+                st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
+                if info.kind == "graph":
+                    if st.button("Open selected object", key="root_object_open"):
+                        st.session_state["root_inspector_open"] = (
+                            file_name, info.qualified_path, info.classname
+                        )
+                        st.session_state.pop("root_graph_result", None)
+                        st.rerun()
+                else:
+                    st.info("Plot inspection is not yet available for this ROOT object type.")
 
-    dataframe = pd.DataFrame(
-        [
-            {
-                "object": _root_object_display_name(info),
-                "ROOT class": info.classname,
-                "kind": info.kind,
-                "cycle": info.cycle,
-                "path": info.path,
-            }
-            for info in objects
-        ],
-        columns=["object", "ROOT class", "kind", "cycle", "path"],
-    )
-    render_dataframe(dataframe, height="content")
+    if opened is None:
+        render_catalogue(compact=False)
+        return
 
-    if not objects:
-        st.info("No ROOT objects match the current filter.")
+    left, right = st.columns([0.36, 0.64], gap="large")
+    with left:
+        render_catalogue(compact=True)
+        if st.button("Close inspection", key="root_inspector_close"):
+            st.session_state.pop("root_inspector_open", None)
+            st.session_state.pop("root_graph_result", None)
+            st.rerun()
+    with left:
+        from .graph_viewer import render_graph_controls
+        render_graph_controls(opened[0], opened[1], opened[2])
+    with right:
+        from .graph_viewer import render_graph_output
+        render_graph_output()
 
 
 def render_contents_tab(
