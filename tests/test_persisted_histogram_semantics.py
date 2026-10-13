@@ -215,7 +215,10 @@ def test_sparse_profile1d_distinguishes_empty_bins_from_measured_zero(tmp_path):
         )
         try:
             vertices = fig.axes[0].patches[0].get_path().vertices
-            assert np.isnan(vertices).any()
+            # Matplotlib discards non-finite staircase segments from the
+            # Path. No vertex may remain in the empty first bin (x < 1).
+            assert len(vertices) > 0
+            assert np.min(vertices[:, 0]) >= 1.0
         finally:
             plt.close(fig)
     np.testing.assert_array_equal(data.histogram.values(), [0.0, 0.0, 3.0])
