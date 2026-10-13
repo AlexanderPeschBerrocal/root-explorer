@@ -8,7 +8,6 @@ import sys
 
 import hist
 import numpy as np
-import pytest
 import uproot
 from uproot.writing.identify import to_TAxis, to_TProfile, to_TProfile2D
 
@@ -141,7 +140,8 @@ def test_export_executes_without_root_explorer_import(tmp_path):
         root_file["hist"] = np.histogram([1.5, 2.5, 2.6], bins=3, range=(1.0, 4.0))
 
     spec = HistogramPlotSpec(
-        str(path), "hist;1",
+        str(path),
+        "hist;1",
         {"fig_width": 7.0, "fig_height": 5.0, "histogram_mode": "Step"},
         {"title": "Reproducible"},
     )
