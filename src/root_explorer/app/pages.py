@@ -86,12 +86,13 @@ def render_root_objects_browser(
     file_name: str | None = None,
     shortcuts_enabled: bool = True,
 ) -> None:
-    """Browse metadata and open a selected graph deliberately, not on single click."""
+    """Browse metadata and open supported plot objects deliberately."""
 
     opened = st.session_state.get("root_inspector_open")
     if opened is not None and opened[0] != file_name:
         st.session_state.pop("root_inspector_open", None)
         st.session_state.pop("root_graph_result", None)
+        st.session_state.pop("root_histogram_result", None)
         opened = None
 
     def render_catalogue(*, compact: bool) -> None:
@@ -162,7 +163,7 @@ def render_root_objects_browser(
             if 0 <= row < len(objects):
                 info = objects[row]
                 st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
-                if info.kind == "graph" and st.button(
+                if info.kind in {"graph", "histogram"} and st.button(
                     "Open selected object",
                     key="root_object_open",
                     shortcut="O" if shortcuts_enabled else None,
@@ -192,10 +193,18 @@ def render_root_objects_browser(
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
-    with left:
-        render_graph_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
-    with right:
-        render_graph_output()
+    if opened[2].startswith(("TH1", "TH2", "TProfile")):
+        from .histogram_viewer import render_histogram_controls, render_histogram_output
+
+        with left:
+            render_histogram_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
+        with right:
+            render_histogram_output()
+    else:
+        with left:
+            render_graph_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
+        with right:
+            render_graph_output()
 
 
 def render_contents_tab(
