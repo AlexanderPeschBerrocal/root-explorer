@@ -69,3 +69,32 @@ def test_reads_nested_graph_and_explicit_root_cycles() -> None:
 def test_rejects_non_graph_objects_gracefully() -> None:
     with pytest.raises(UnsupportedGraphError, match="TH1D"):
         read_graph(str(GRAPH_FIXTURE), "histogram_1d;1")
+
+
+def test_reads_graph_title_from_histogram_axes_when_root_splits_title() -> None:
+    """ROOT's TGraph::SetTitle persists axis labels in fHistogram, not fTitle."""
+
+    class RootLike:
+        def __init__(self, **members):
+            self.members = members
+
+        def member(self, name, none_if_missing=False):
+            if none_if_missing:
+                return self.members.get(name)
+            return self.members[name]
+
+    from root_explorer.io.graphs import _graph_title_fields
+
+    histogram = RootLike(
+        fXaxis=RootLike(fTitle="Time [ns]"),
+        fYaxis=RootLike(fTitle="Amplitude"),
+    )
+    graph = RootLike(fTitle="Plain graph", fHistogram=histogram)
+    assert _graph_title_fields(graph) == ("Plain graph", "Time [ns]", "Amplitude")
+
+    # Files that store the full semicolon form (and graphs without fHistogram)
+    # must remain backwards compatible.
+    legacy = RootLike(fTitle="Plain graph;Time [ns];Amplitude")
+    assert _graph_title_fields(legacy) == ("Plain graph", "Time [ns]", "Amplitude")
+    unlabeled = RootLike(fTitle="Plain graph")
+    assert _graph_title_fields(unlabeled) == ("Plain graph", "", "")

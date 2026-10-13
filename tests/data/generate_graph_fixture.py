@@ -108,6 +108,9 @@ def generate(output_path: Path = OUTPUT_PATH) -> Path:
         second_cycle.Write()
 
         histogram_1d = ROOT.TH1D("histogram_1d", "One-dimensional histogram", 3, 0.0, 3.0)
+        # Explicit Sumw2 is essential when a bin is filled with a weight:
+        # the variance of the 2.0-weight entry must be 2.0**2 = 4.0.
+        histogram_1d.Sumw2()
         histogram_1d.Fill(0.5)
         histogram_1d.Fill(1.5, 2.0)
         histogram_1d.Write()

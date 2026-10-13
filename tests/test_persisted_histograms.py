@@ -30,14 +30,14 @@ def _style(**changes):
     return {"fig_width": 8.0, "fig_height": 5.0, **changes}
 
 
-def test_reads_root_histogram_1d_without_sumw2():
+def test_reads_root_histogram_1d_with_sumw2():
     data = read_histogram(str(FIXTURE), "histogram_1d;1")
     assert data.kind == "COUNT"
     assert data.histogram.ndim == 1
     np.testing.assert_allclose(data.histogram.values(), [1.0, 2.0, 0.0])
-    # The pre-existing fixture was filled without Sumw2(): ROOT falls back to
-    # bin contents for variances, not squares of the original fill weights.
-    np.testing.assert_allclose(data.histogram.variances(), [1.0, 2.0, 0.0])
+    # The regenerated fixture explicitly enables Sumw2 before filling:
+    # the variance of a bin filled once with weight 2 is 2**2, not 2.
+    np.testing.assert_allclose(data.histogram.variances(), [1.0, 4.0, 0.0])
 
 
 def test_reads_root_histogram_2d():
