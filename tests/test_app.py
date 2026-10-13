@@ -175,6 +175,30 @@ def test_object_only_root_file_remains_browseable(object_only_root_path) -> None
     assert "other" in set(table["kind"])
 
 
+def test_object_only_root_file_can_render_histogram(object_only_root_path) -> None:
+    """Persisted histogram plotting must work without any TTree/RNTuple."""
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    at.session_state["root_inspector_open"] = (
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
+    )
+    at.run()
+
+    assert not at.exception
+    assert at.selectbox(key="hist_mode_Analysis/h_values;1").value == "Step"
+    result = at.session_state["root_histogram_result"]
+    assert result["kind"] == "matplotlib"
+    assert result["figure"].axes[0].get_title()
+    assert "read_histogram" in result["code"]
+    download = next(
+        button
+        for button in at.get("download_button")
+        if button.key == "histogram_save_download_code"
+    )
+    assert download.label == "Download plot code"
+
+
 def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     mode = at.selectbox(key="x_mode")

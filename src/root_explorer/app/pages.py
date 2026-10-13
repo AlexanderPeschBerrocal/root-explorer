@@ -195,7 +195,7 @@ def render_root_objects_browser(
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
-    if opened[2].startswith(("TH1", "TH2", "TProfile")):
+    if opened[2].startswith(("TH1", "TH2", "TH3", "TProfile")):
         from .histogram_viewer import render_histogram_controls, render_histogram_output
 
         with left:
