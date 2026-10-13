@@ -15,6 +15,7 @@ from root_explorer.io.histograms import (
     UnsupportedHistogramError,
     read_histogram,
 )
+from root_explorer.plotting.histograms import histogram_errors
 from root_explorer.plotting.histogram_codegen import generate_histogram_plot_code
 from root_explorer.plotting.histograms import (
     HistogramPlotSpec,
@@ -78,6 +79,56 @@ def test_renderer_and_standalone_export(name):
         assert "read_histogram" in source
     finally:
         plt.close(figure)
+
+
+
+
+@pytest.mark.parametrize(
+    ("object_path", "classname", "expected_means", "expected_errors"),
+    [
+        (
+            "profile_1d;1",
+            "TProfile",
+            [3.0, 3.0, 6.0],
+            [np.sqrt(0.5), np.sqrt(8.0 / 9.0), np.sqrt(0.5)],
+        ),
+        (
+            "nested/profile_2d;1",
+            "TProfile2D",
+            [[3.0, 2.0], [6.0, 10.0]],
+            [[np.sqrt(0.5), np.sqrt(0.5)], [np.sqrt(0.5), np.sqrt(0.5)]],
+        ),
+    ],
+)
+def test_committed_root_profiles_preserve_means_and_errors(
+    object_path, classname, expected_means, expected_errors
+):
+    """Validate the actual PyROOT-produced fixture, not only Uproot-created files."""
+    with uproot.open(FIXTURE) as root_file:
+        assert object_path in root_file, (
+            "The committed test_objects.root has not been regenerated with profiles. "
+            "Run python tests/data/generate_graph_fixture.py and commit the result."
+        )
+        source = root_file[object_path]
+        assert source.classname == classname
+        assert source.kind == "MEAN"
+        np.testing.assert_allclose(source.values(), expected_means)
+        np.testing.assert_allclose(source.errors(), expected_errors)
+
+    data = read_histogram(str(FIXTURE), object_path)
+    assert data.is_profile
+    assert data.histogram.ndim == (2 if classname == "TProfile2D" else 1)
+    np.testing.assert_allclose(data.histogram.values(), expected_means)
+    np.testing.assert_allclose(histogram_errors(data), expected_errors)
+    assert data.x_label == "#eta"
+
+    if classname == "TProfile2D":
+        assert data.y_label == "p_{T} [GeV]"
+        assert data.colorbar_label == "Mean response"
+        np.testing.assert_allclose(data.histogram.variances(), np.square(expected_errors))
+    else:
+        assert data.y_label == "Mean E [GeV]"
+        np.testing.assert_allclose(data.histogram.values(flow=True), [11.0, 3.0, 3.0, 6.0, 12.0])
 
 
 def test_log_scale_fails_without_positive_bins(tmp_path):

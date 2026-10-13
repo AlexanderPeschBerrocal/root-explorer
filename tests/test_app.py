@@ -546,3 +546,39 @@ def test_histogram_open_action_object_only_file(object_only_root_path) -> None:
     assert not at.exception
     assert at.session_state["root_inspector_open"][1] == "Analysis/h_values;1"
     assert at.session_state["root_histogram_result"]["kind"] == "matplotlib"
+
+
+@pytest.mark.parametrize(
+    ("target", "classname", "dimension"),
+    [
+        ("profile_1d;1", "TProfile", 1),
+        ("nested/profile_2d;1", "TProfile2D", 2),
+    ],
+)
+def test_profile_open_action_from_browser(target, classname, dimension) -> None:
+    """Exercise the full browser workflow against the committed PyROOT profiles."""
+    root_file = PROJECT_ROOT / "tests" / "data" / "test_objects.root"
+    at = _load_root_file(make_app_test(), root_file)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    option = f"{target.split(';')[0]} ({classname})"
+    assert option in selector.options, (
+        "Regenerate tests/data/test_objects.root using tests/data/generate_graph_fixture.py"
+    )
+    selector.select(option).run()
+    at.button(key="root_object_open").click().run()
+
+    assert not at.exception
+    assert at.session_state["root_inspector_open"][1:] == (target, classname)
+    result = at.session_state["root_histogram_result"]
+    assert result["kind"] == "matplotlib"
+    assert target in result["code"]
+    assert any("Profile: bin values are means" in caption.value for caption in at.caption)
+    if dimension == 1:
+        assert at.selectbox(key=f"hist_mode_{target}").value == "Error bars"
+        assert result["figure"].axes[0].containers
+    else:
+        assert at.selectbox(key="hist_cmap").value == "viridis"
+        assert len(result["figure"].axes) == 2  # Main plot and colour bar.

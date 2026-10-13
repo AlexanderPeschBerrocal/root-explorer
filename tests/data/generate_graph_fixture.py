@@ -1,4 +1,4 @@
-"""Generate the small committed ROOT-object fixture used by graph integration tests.
+"""Generate the committed ROOT-object fixture used by graph and histogram tests.
 
 Run with an environment that provides PyROOT, NumPy, and Uproot:
 
@@ -30,7 +30,7 @@ def _graph(
 
 
 def generate(output_path: Path = OUTPUT_PATH) -> Path:
-    """Write graphs, histograms, and a small event TTree into ``output_path``."""
+    """Write graphs, histograms, profiles, and an event TTree into ``output_path``."""
     x = np.array([2.0, 1.0, 3.0], dtype=np.float64)
     y = np.array([4.0, 5.0, 6.0], dtype=np.float64)
     xerr = np.array([0.05, 0.10, 0.15], dtype=np.float64)
@@ -71,6 +71,31 @@ def generate(output_path: Path = OUTPUT_PATH) -> Path:
         nested_graph.SetName("nested_graph")
         nested_graph.SetTitle("Nested graph;Nested x;Nested y")
         nested_graph.Write()
+
+        # Store a profile inside a TDirectory to test nested-object browsing.
+        # ROOT profiles contain bin means and uncertainties, not event counts.
+        profile_2d = ROOT.TProfile2D(
+            "profile_2d",
+            "Mean response;#eta;p_{T} [GeV];Mean response",
+            2,
+            0.0,
+            2.0,
+            2,
+            0.0,
+            2.0,
+        )
+        for eta, pt, response in (
+            (0.5, 0.5, 2.0),
+            (0.5, 0.5, 4.0),
+            (0.5, 1.5, 1.0),
+            (0.5, 1.5, 3.0),
+            (1.5, 0.5, 5.0),
+            (1.5, 0.5, 7.0),
+            (1.5, 1.5, 9.0),
+            (1.5, 1.5, 11.0),
+        ):
+            profile_2d.Fill(eta, pt, response)
+        profile_2d.Write()
         root_file.cd()
 
         first_cycle = _graph(ROOT.TGraph, x, y)
@@ -91,6 +116,26 @@ def generate(output_path: Path = OUTPUT_PATH) -> Path:
         )
         histogram_2d.Fill(0.5, 1.5)
         histogram_2d.Write()
+
+        # Three visible eta bins with known means and standard errors.
+        # Flow entries are deliberate: their contents must be retained even
+        # while the plotting interface does not expose flow bins.
+        profile_1d = ROOT.TProfile(
+            "profile_1d", "Mean deposited energy;#eta;Mean E [GeV]", 3, 0.0, 3.0
+        )
+        for eta, energy in (
+            (-0.5, 11.0),
+            (0.5, 2.0),
+            (0.5, 4.0),
+            (1.5, 1.0),
+            (1.5, 3.0),
+            (1.5, 5.0),
+            (2.5, 5.0),
+            (2.5, 7.0),
+            (3.5, 12.0),
+        ):
+            profile_1d.Fill(eta, energy)
+        profile_1d.Write()
     finally:
         root_file.Close()
 
