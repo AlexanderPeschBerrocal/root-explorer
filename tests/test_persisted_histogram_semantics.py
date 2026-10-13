@@ -161,3 +161,122 @@ def test_export_executes_without_root_explorer_import(tmp_path):
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_sparse_profile1d_distinguishes_empty_bins_from_measured_zero(tmp_path):
+    """Occupancy must not be inferred from the value or error of a bin."""
+    import matplotlib.pyplot as plt
+
+    from root_explorer.plotting.histograms import visible_profile_occupancy
+
+    path = tmp_path / "sparse_profile1d.root"
+    # Three regular bins: empty, occupied with mean zero, occupied with mean 3.
+    # One underflow observation proves occupancy retains flow semantics.
+    root_file_data = to_TProfile(
+        fName="sparse",
+        fTitle="Sparse profile;x;mean",
+        data=np.array([8.0, 0.0, 0.0, 6.0, 0.0]),
+        fEntries=4.0,
+        fTsumw=4.0,
+        fTsumw2=4.0,
+        fTsumwx=0.0,
+        fTsumwx2=0.0,
+        fTsumwy=14.0,
+        fTsumwy2=52.0,
+        fSumw2=np.array([64.0, 0.0, 0.0, 20.0, 0.0]),
+        fBinEntries=np.array([1.0, 0.0, 1.0, 2.0, 0.0]),
+        fBinSumw2=np.array([], dtype=float),
+        fXaxis=to_TAxis(fName="xaxis", fTitle="x", fNbins=3, fXmin=0, fXmax=3),
+    )
+    with uproot.recreate(path) as root_file:
+        root_file["sparse"] = root_file_data
+    data = read_histogram(str(path), "sparse")
+    np.testing.assert_array_equal(data.profile_entries, [1.0, 0.0, 1.0, 2.0, 0.0])
+    np.testing.assert_array_equal(data.histogram.values(), [0.0, 0.0, 3.0])
+    np.testing.assert_array_equal(visible_profile_occupancy(data), [False, True, True])
+
+    # Markers must not include the empty bin; a genuine zero mean must remain.
+    fig = render_histogram_data(
+        data,
+        {"fig_width": 6, "fig_height": 4, "histogram_mode": "Error bars"},
+        {},
+    )
+    try:
+        points = fig.axes[0].lines[0]
+        np.testing.assert_allclose(points.get_xdata(), [1.5, 2.5])
+        np.testing.assert_allclose(points.get_ydata(), [0.0, 3.0])
+    finally:
+        plt.close(fig)
+
+    # Step and filled modes must break across missing bins, not invent zeros.
+    for mode in ("Step", "Filled", "Step + error bars"):
+        fig = render_histogram_data(
+            data, {"fig_width": 6, "fig_height": 4, "histogram_mode": mode}, {}
+        )
+        try:
+            vertices = fig.axes[0].patches[0].get_path().vertices
+            assert np.isnan(vertices).any()
+        finally:
+            plt.close(fig)
+    np.testing.assert_array_equal(data.histogram.values(), [0.0, 0.0, 3.0])
+
+
+def test_sparse_profile2d_masks_empty_cells_but_not_measured_zero(tmp_path):
+    """Profile occupancy is stored in ROOT's effective bin-entry array."""
+    import matplotlib.pyplot as plt
+
+    from root_explorer.plotting.histograms import visible_profile_occupancy
+
+    path = tmp_path / "sparse_profile2d.root"
+    raw = np.zeros(16)
+    raw[5] = 0.0  # Bin (0, 0) is occupied, with mean exactly zero.
+    raw[10] = 6.0  # Bin (1, 1) is occupied, with mean three.
+    entries = np.zeros(16)
+    entries[[5, 10]] = 2.0
+    second_moment = np.zeros(16)
+    second_moment[[5, 10]] = [2.0, 20.0]
+    profile = to_TProfile2D(
+        fName="sparse2d",
+        fTitle="Sparse 2D;x;y;mean",
+        data=raw,
+        fEntries=4.0,
+        fTsumw=4.0,
+        fTsumw2=4.0,
+        fTsumwx=0.0,
+        fTsumwx2=0.0,
+        fTsumwy=0.0,
+        fTsumwy2=0.0,
+        fTsumwxy=0.0,
+        fTsumwz=6.0,
+        fTsumwz2=22.0,
+        fSumw2=second_moment,
+        fBinEntries=entries,
+        fBinSumw2=np.array([], dtype=float),
+        fXaxis=_axis("xaxis", "x"),
+        fYaxis=_axis("yaxis", "y"),
+    )
+    with uproot.recreate(path) as root_file:
+        root_file["sparse2d"] = profile
+    data = read_histogram(str(path), "sparse2d")
+    expected_occupancy = np.array([[True, False], [False, True]])
+    np.testing.assert_array_equal(visible_profile_occupancy(data), expected_occupancy)
+    np.testing.assert_array_equal(data.histogram.values(), [[0.0, 0.0], [0.0, 3.0]])
+
+    for style in (
+        {"fig_width": 6, "fig_height": 4},
+        {"fig_width": 6, "fig_height": 4, "log_z": True},
+    ):
+        fig = render_histogram_data(data, style, {})
+        try:
+            mesh = fig.axes[0].collections[0]
+            masked = np.ma.getmaskarray(mesh.get_array()).reshape(2, 2)
+            expected = ~expected_occupancy.T
+            if style.get("log_z"):
+                expected |= np.array([[True, False], [False, False]])
+            np.testing.assert_array_equal(masked, expected)
+            if not style.get("log_z"):
+                np.testing.assert_allclose(np.ma.compressed(mesh.get_array()), [0, 3])
+        finally:
+            plt.close(fig)
+
+    np.testing.assert_array_equal(data.histogram.values(), [[0.0, 0.0], [0.0, 3.0]])
