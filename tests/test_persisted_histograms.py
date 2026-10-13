@@ -15,10 +15,10 @@ from root_explorer.io.histograms import (
     UnsupportedHistogramError,
     read_histogram,
 )
-from root_explorer.plotting.histograms import histogram_errors
 from root_explorer.plotting.histogram_codegen import generate_histogram_plot_code
 from root_explorer.plotting.histograms import (
     HistogramPlotSpec,
+    histogram_errors,
     render_histogram_data,
 )
 
@@ -79,8 +79,6 @@ def test_renderer_and_standalone_export(name):
         assert "read_histogram" in source
     finally:
         plt.close(figure)
-
-
 
 
 @pytest.mark.parametrize(
