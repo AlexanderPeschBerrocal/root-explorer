@@ -502,3 +502,50 @@ def test_2d_scatter_offers_log_color_scale(root_path) -> None:
     at.selectbox(key="plot_type").select("2D scatter").run()
     at.checkbox(key="plot_color_points").check().run()
     assert at.checkbox(key="plot_log_color_2d").label == "log color scale"
+
+
+@pytest.mark.parametrize(
+    ("target", "classname", "dimension"),
+    [
+        ("histogram_1d;1", "TH1D", 1),
+        ("histogram_2d;1", "TH2D", 2),
+    ],
+)
+def test_histogram_open_action_from_browser(target, classname, dimension) -> None:
+    """The browser must expose Open before an inspection session exists."""
+    root_file = PROJECT_ROOT / "tests" / "data" / "test_objects.root"
+    at = _load_root_file(make_app_test(), root_file)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+
+    # Exercise the real controls rather than assigning root_inspector_open.
+    selector = next(
+        item for item in at.selectbox if item.label == "Object to inspect"
+    )
+    assert target in selector.options
+    selector.select(target).run()
+    assert not at.exception
+    at.button(key="root_object_open").click().run()
+    assert not at.exception
+    opened = at.session_state["root_inspector_open"]
+    assert opened[1:] == (target, classname)
+    assert at.session_state["root_histogram_result"]["kind"] == "matplotlib"
+    if dimension == 1:
+        assert at.selectbox(key=f"hist_mode_{target}").value == "Step"
+    else:
+        assert at.selectbox(key="hist_cmap").value == "viridis"
+
+
+def test_histogram_open_action_object_only_file(object_only_root_path) -> None:
+    """The fallback action must work without a TTree or RNTuple."""
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+    selector = next(
+        item for item in at.selectbox if item.label == "Object to inspect"
+    )
+    selector.select("Analysis/h_values;1").run()
+    at.button(key="root_object_open").click().run()
+    assert not at.exception
+    assert at.session_state["root_inspector_open"][1] == "Analysis/h_values;1"
+    assert at.session_state["root_histogram_result"]["kind"] == "matplotlib"
