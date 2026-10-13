@@ -55,7 +55,8 @@ def render_histogram_controls(
         )
     else:
         style["cmap"] = st.selectbox(
-            "Colour map", ("viridis", "plasma", "inferno", "magma", "cividis", "Greys", "coolwarm"),
+            "Colour map",
+            ("viridis", "plasma", "inferno", "magma", "cividis", "Greys", "coolwarm"),
             key="hist_cmap",
         )
         style["log_z"] = st.checkbox("Log colour scale", key="hist_log_z")
@@ -64,8 +65,10 @@ def render_histogram_controls(
     style["grid"] = st.checkbox("Grid", key="hist_grid")
     manual = st.checkbox("Apply manual axis limits", key="hist_manual_limits")
     for key, title in (
-        ("x_min_text", "x minimum"), ("x_max_text", "x maximum"),
-        ("y_min_text", "y minimum"), ("y_max_text", "y maximum"),
+        ("x_min_text", "x minimum"),
+        ("x_max_text", "x maximum"),
+        ("y_min_text", "y minimum"),
+        ("y_max_text", "y maximum"),
     ):
         style[key] = st.text_input(title, key=f"hist_{key}") if manual else ""
     st.markdown("#### Labels", anchors=False)
@@ -80,7 +83,9 @@ def render_histogram_controls(
             "Colour-bar label", value=data.colorbar_label, key=f"hist_z_{identity}"
         )
     make_plot = st.button(
-        "Make plot", key="hist_make_plot", type="primary",
+        "Make plot",
+        key="hist_make_plot",
+        type="primary",
         shortcut="P" if shortcuts_enabled else None,
     )
     if "root_histogram_result" not in st.session_state or make_plot:
@@ -90,18 +95,28 @@ def render_histogram_controls(
             from ..plotting.histogram_codegen import generate_histogram_plot_code
 
             st.session_state["root_histogram_result"] = {
-                "kind": "matplotlib", "figure": figure,
+                "kind": "matplotlib",
+                "figure": figure,
                 "code": generate_histogram_plot_code(spec),
-                "save_name": "root_histogram", "warnings": [],
+                "save_name": "root_histogram",
+                "warnings": [],
             }
-        except (InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError, ValueError) as exc:
+        except (
+            InvalidAxisLimitError,
+            InvalidAxisScaleError,
+            InvalidColorScaleError,
+            ValueError,
+        ) as exc:
             st.session_state.pop("root_histogram_result", None)
             st.warning(str(exc))
 
 
 def render_histogram_output() -> None:
     show_cached_plot_result(
-        "root_histogram_result", export_prefix="histogram",
-        save_button_key="histogram_save", make_plot_label="Make plot",
-        make_plot_shortcut="P", empty_message="Configure the histogram and click Make plot.",
+        "root_histogram_result",
+        export_prefix="histogram",
+        save_button_key="histogram_save",
+        make_plot_label="Make plot",
+        make_plot_shortcut="P",
+        empty_message="Configure the histogram and click Make plot.",
     )

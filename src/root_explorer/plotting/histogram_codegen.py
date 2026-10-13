@@ -9,7 +9,9 @@ from .sourcegen import bundle_python_source, python_source_literal
 
 def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
     """Vendor only selected ROOT histogram I/O and rendering helpers."""
-    helpers = bundle_python_source(HistogramPlotSpec, read_histogram, render_histogram_data).rstrip()
+    helpers = bundle_python_source(
+        HistogramPlotSpec, read_histogram, render_histogram_data
+    ).rstrip()
     return (
         '"""Standalone ROOT histogram exported by ROOT Explorer."""\n\n'
         f"{helpers}\n\n"

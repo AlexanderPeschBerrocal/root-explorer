@@ -199,12 +199,16 @@ def render_root_objects_browser(
         from .histogram_viewer import render_histogram_controls, render_histogram_output
 
         with left:
-            render_histogram_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
+            render_histogram_controls(
+                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+            )
         with right:
             render_histogram_output()
     else:
         with left:
-            render_graph_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
+            render_graph_controls(
+                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+            )
         with right:
             render_graph_output()
 

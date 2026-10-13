@@ -72,9 +72,8 @@ def _profile2d_fallback(obj: object) -> hist.Hist:
 def histogram_from_object(obj: object) -> PersistedHistogram:
     """Adapt a deserialised Uproot histogram without rebinning its contents."""
     classname = str(getattr(obj, "classname", type(obj).__name__))
-    if (
-        not classname.startswith(("TH1", "TH2", "TProfile"))
-        or classname.startswith(("TH2Poly", "TH3", "TProfile3D"))
+    if not classname.startswith(("TH1", "TH2", "TProfile")) or classname.startswith(
+        ("TH2Poly", "TH3", "TProfile3D")
     ):
         raise UnsupportedHistogramError(
             f"ROOT class {classname} is not supported for persisted histogram plotting."
@@ -103,9 +102,7 @@ def histogram_from_object(obj: object) -> PersistedHistogram:
     z_label = _axis_title(obj, "fZaxis", parts[3].strip() if len(parts) > 3 else "")
 
     profile_variances = (
-        np.asarray(obj.variances(flow=False), dtype=float).copy()
-        if kind == "MEAN"
-        else None
+        np.asarray(obj.variances(flow=False), dtype=float).copy() if kind == "MEAN" else None
     )
     return PersistedHistogram(
         histogram=histogram,
@@ -113,7 +110,14 @@ def histogram_from_object(obj: object) -> PersistedHistogram:
         kind=kind,
         title=title,
         x_label=x_label or "x",
-        y_label=y_label or ("Mean" if kind == "MEAN" and histogram.ndim == 1 else "Entries" if histogram.ndim == 1 else "y"),
+        y_label=y_label
+        or (
+            "Mean"
+            if kind == "MEAN" and histogram.ndim == 1
+            else "Entries"
+            if histogram.ndim == 1
+            else "y"
+        ),
         colorbar_label=z_label or ("Mean" if kind == "MEAN" else "Bin content"),
         profile_variances=profile_variances,
     )

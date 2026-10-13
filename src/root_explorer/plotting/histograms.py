@@ -59,7 +59,12 @@ def render_histogram_data(
                 errors = histogram_errors(data)
                 centers = (edges[:-1] + edges[1:]) / 2
                 ax.errorbar(
-                    centers, values, yerr=errors, fmt="o", markersize=4, capsize=2,
+                    centers,
+                    values,
+                    yerr=errors,
+                    fmt="o",
+                    markersize=4,
+                    capsize=2,
                     linestyle="none",
                 )
             if style.get("log_x", False):
@@ -77,11 +82,13 @@ def render_histogram_data(
                 raise InvalidColorScaleError("Log colour scale requires positive bin contents.")
             # Delegate mesh creation and colourbar layout to the shared renderer.
             draw_histogram_2d(
-                fig, ax, h, log_scale=log_z,
+                fig,
+                ax,
+                h,
+                log_scale=log_z,
                 colorbar_label=labels.get("custom_z") or data.colorbar_label,
             )
             cmap = str(style.get("cmap", "viridis"))
-            fig.axes[-1].collections  # Ensure a colourbar axis exists.
             mesh = ax.collections[0]
             mesh.set_cmap(colormaps[cmap])
             if log_z:
@@ -90,7 +97,9 @@ def render_histogram_data(
                 if lo == hi:
                     hi = np.nextafter(hi, np.inf)
                 mesh.set_norm(LogNorm(vmin=lo, vmax=hi))
-                mesh.set_array(np.ma.masked_where(~np.isfinite(values.T) | (values.T <= 0), values.T).ravel())
+                mesh.set_array(
+                    np.ma.masked_where(~np.isfinite(values.T) | (values.T <= 0), values.T).ravel()
+                )
             if style.get("log_x", False):
                 if np.any(np.asarray(h.axes[0].edges) <= 0):
                     raise InvalidAxisScaleError("Log x-axis requires positive histogram edges.")
@@ -115,4 +124,6 @@ def render_histogram_data(
 
 
 def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
-    return render_histogram_data(read_histogram(spec.root_path, spec.object_path), spec.style, spec.labels)
+    return render_histogram_data(
+        read_histogram(spec.root_path, spec.object_path), spec.style, spec.labels
+    )
