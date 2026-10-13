@@ -10,8 +10,8 @@ from pathlib import Path
 from types import ModuleType
 
 import matplotlib.pyplot as plt
-from matplotlib.container import ErrorbarContainer
 import numpy as np
+from matplotlib.container import ErrorbarContainer
 import pytest
 import uproot
 
