@@ -37,7 +37,7 @@ def render_histogram_controls(
         st.warning(str(exc))
         return
     h = data.histogram
-    st.caption(" × ".join(f"{len(axis)} bins" for axis in h.axes))
+    st.caption(" x ".join(f"{len(axis)} bins" for axis in h.axes))
     if data.is_profile:
         st.caption("Profile: bin values are means, not event counts.")
     else:

@@ -29,12 +29,14 @@ def _style(**changes):
     return {"fig_width": 8.0, "fig_height": 5.0, **changes}
 
 
-def test_reads_root_histogram_1d_with_weights():
+def test_reads_root_histogram_1d_without_sumw2():
     data = read_histogram(str(FIXTURE), "histogram_1d;1")
     assert data.kind == "COUNT"
     assert data.histogram.ndim == 1
     np.testing.assert_allclose(data.histogram.values(), [1.0, 2.0, 0.0])
-    np.testing.assert_allclose(data.histogram.variances(), [1.0, 4.0, 0.0])
+    # The pre-existing fixture was filled without Sumw2(): ROOT falls back to
+    # bin contents for variances, not squares of the original fill weights.
+    np.testing.assert_allclose(data.histogram.variances(), [1.0, 2.0, 0.0])
 
 
 def test_reads_root_histogram_2d():
