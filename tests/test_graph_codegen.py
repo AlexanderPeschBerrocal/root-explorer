@@ -10,10 +10,12 @@ from pathlib import Path
 from types import ModuleType
 
 import matplotlib.pyplot as plt
+from matplotlib.container import ErrorbarContainer
 import numpy as np
 import pytest
 import uproot
 
+from root_explorer.io.graphs import read_graph
 from root_explorer.plotting.graph_codegen import generate_graph_plot_code
 from root_explorer.plotting.graphs import GraphPlotSpec, render_graph_plot
 
@@ -55,6 +57,22 @@ def _execute_export(spec: GraphPlotSpec):
 def _line_data(figure) -> tuple[np.ndarray, np.ndarray]:
     line = figure.axes[0].lines[0]
     return np.asarray(line.get_xdata()), np.asarray(line.get_ydata())
+
+
+def _errorbar_segments(figure) -> tuple[np.ndarray, np.ndarray]:
+    """Extract horizontal and vertical error-bar endpoints from Matplotlib."""
+    containers = [
+        container
+        for container in figure.axes[0].containers
+        if isinstance(container, ErrorbarContainer)
+    ]
+    assert len(containers) == 1
+    barlinecols = containers[0].lines[2]
+    assert len(barlinecols) == 2
+    return (
+        np.asarray(barlinecols[0].get_segments(), dtype=float),
+        np.asarray(barlinecols[1].get_segments(), dtype=float),
+    )
 
 
 def test_graph_export_is_standalone():
@@ -146,6 +164,52 @@ def test_executed_graph_export_matches_canonical_renderer(
         assert generated_axis.lines[0].get_markersize() == canonical_axis.lines[0].get_markersize()
         assert generated_axis.lines[0].get_linewidth() == canonical_axis.lines[0].get_linewidth()
         assert len(generated_axis.collections) == len(canonical_axis.collections)
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
+
+
+@pytest.mark.parametrize("object_path", ["symmetric_graph;1", "asymmetric_graph;1"])
+def test_exported_graph_errorbar_segments_match_stored_uncertainties(object_path: str) -> None:
+    """Compare exported error-bar endpoints with actual stored ROOT uncertainties."""
+    spec = GraphPlotSpec(
+        str(GRAPH_FIXTURE),
+        object_path,
+        {
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "graph_mode": "Line + markers",
+            "show_errors": True,
+        },
+        {},
+    )
+    graph = read_graph(spec.root_path, spec.object_path)
+    assert graph.xerr_low is not None and graph.xerr_high is not None
+    assert graph.yerr_low is not None and graph.yerr_high is not None
+
+    expected_x = np.stack(
+        (
+            np.column_stack((graph.x - graph.xerr_low, graph.y)),
+            np.column_stack((graph.x + graph.xerr_high, graph.y)),
+        ),
+        axis=1,
+    )
+    expected_y = np.stack(
+        (
+            np.column_stack((graph.x, graph.y - graph.yerr_low)),
+            np.column_stack((graph.x, graph.y + graph.yerr_high)),
+        ),
+        axis=1,
+    )
+
+    canonical_figure, generated_figure = _execute_export(spec)
+    try:
+        canonical_x, canonical_y = _errorbar_segments(canonical_figure)
+        generated_x, generated_y = _errorbar_segments(generated_figure)
+        np.testing.assert_allclose(canonical_x, expected_x)
+        np.testing.assert_allclose(canonical_y, expected_y)
+        np.testing.assert_allclose(generated_x, canonical_x)
+        np.testing.assert_allclose(generated_y, canonical_y)
     finally:
         plt.close(canonical_figure)
         plt.close(generated_figure)

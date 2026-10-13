@@ -6,6 +6,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from ..io.graphs import read_graph
@@ -42,7 +43,6 @@ def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str,
     if graph.x.shape != graph.y.shape or graph.x.ndim != 1:
         raise ValueError("Graph coordinates must be aligned one-dimensional arrays.")
 
-    fig, ax = create_static_figure(style)
     xerr = _error_array(graph.xerr_low, graph.xerr_high)
     yerr = _error_array(graph.yerr_low, graph.yerr_high)
     show_errors = bool(style.get("show_errors", True))
@@ -83,37 +83,43 @@ def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str,
     ):
         raise InvalidAxisScaleError("Y uncertainties cross zero on a logarithmic y-axis.")
 
-    if show_errors and (xerr is not None or yerr is not None):
-        ax.errorbar(
-            graph_x,
-            graph_y,
-            xerr=xerr,
-            yerr=yerr,
-            marker=marker,
-            linestyle=linestyle,
-            markersize=float(style.get("marker_size", 5)),
-            linewidth=float(style.get("line_width", 1.5)),
-            capsize=2,
-        )
-    else:
-        ax.plot(
-            graph_x,
-            graph_y,
-            marker=marker,
-            linestyle=linestyle,
-            markersize=float(style.get("marker_size", 5)),
-            linewidth=float(style.get("line_width", 1.5)),
-        )
-    ax.set_title(labels.get("title") or graph.title or "ROOT graph")
-    ax.set_xlabel(labels.get("custom_x") or graph.x_label or "x")
-    ax.set_ylabel(labels.get("custom_y") or graph.y_label or "y")
-    if len(graph_x) > 0:
-        apply_log_axis_scales(ax, style, x=graph_x, y=graph_y)
-    apply_axis_limits(ax, style)
-    if style.get("grid", True):
-        ax.grid(alpha=0.3)
-    fig.tight_layout()
-    return fig
+    # Close the figure if plotting, axis validation, or layout fails.
+    fig, ax = create_static_figure(style)
+    try:
+        if show_errors and (xerr is not None or yerr is not None):
+            ax.errorbar(
+                graph_x,
+                graph_y,
+                xerr=xerr,
+                yerr=yerr,
+                marker=marker,
+                linestyle=linestyle,
+                markersize=float(style.get("marker_size", 5)),
+                linewidth=float(style.get("line_width", 1.5)),
+                capsize=2,
+            )
+        else:
+            ax.plot(
+                graph_x,
+                graph_y,
+                marker=marker,
+                linestyle=linestyle,
+                markersize=float(style.get("marker_size", 5)),
+                linewidth=float(style.get("line_width", 1.5)),
+            )
+        ax.set_title(labels.get("title") or graph.title or "ROOT graph")
+        ax.set_xlabel(labels.get("custom_x") or graph.x_label or "x")
+        ax.set_ylabel(labels.get("custom_y") or graph.y_label or "y")
+        if len(graph_x) > 0:
+            apply_log_axis_scales(ax, style, x=graph_x, y=graph_y)
+        apply_axis_limits(ax, style)
+        if style.get("grid", True):
+            ax.grid(alpha=0.3)
+        fig.tight_layout()
+        return fig
+    except Exception:
+        plt.close(fig)
+        raise
 
 
 def render_graph_plot(spec: GraphPlotSpec) -> Any:

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 from root_explorer.models import GraphData
 from root_explorer.plotting.graphs import render_graph_data
-from root_explorer.plotting.plots import InvalidAxisScaleError
+from root_explorer.plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError
 
 matplotlib.use("Agg")
 
@@ -55,6 +56,41 @@ def test_log_axis_rejects_crossing_uncertainty():
     )
     with pytest.raises(InvalidAxisScaleError, match="uncertainties cross zero"):
         render_graph_data(graph, style(log_y=True), {})
+
+
+@pytest.mark.parametrize(
+    ("graph", "invalid_style", "expected_error"),
+    [
+        (
+            GraphData(
+                x=np.array([1.0]),
+                y=np.array([0.2]),
+                yerr_low=np.array([0.3]),
+                yerr_high=np.array([0.1]),
+            ),
+            {"log_y": True},
+            InvalidAxisScaleError,
+        ),
+        (
+            GraphData(x=np.array([-1.0, 2.0]), y=np.array([1.0, 2.0])),
+            {"log_x": True},
+            InvalidAxisScaleError,
+        ),
+        (
+            GraphData(x=np.array([1.0, 2.0]), y=np.array([1.0, 2.0])),
+            {"x_min_text": "3", "x_max_text": "1"},
+            InvalidAxisLimitError,
+        ),
+    ],
+)
+def test_failed_graph_rendering_closes_matplotlib_figure(
+    graph: GraphData, invalid_style: dict[str, object], expected_error: type[Exception]
+) -> None:
+    """Early and post-creation validation failures must leave no open figure."""
+    existing_figures = set(plt.get_fignums())
+    with pytest.raises(expected_error):
+        render_graph_data(graph, style(**invalid_style), {})
+    assert set(plt.get_fignums()) == existing_figures
 
 
 def test_nonfinite_coordinates_are_omitted_with_a_warning() -> None:
