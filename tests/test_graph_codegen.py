@@ -11,9 +11,9 @@ from types import ModuleType
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.container import ErrorbarContainer
 import pytest
 import uproot
+from matplotlib.container import ErrorbarContainer
 
 from root_explorer.io.graphs import read_graph
 from root_explorer.plotting.graph_codegen import generate_graph_plot_code
