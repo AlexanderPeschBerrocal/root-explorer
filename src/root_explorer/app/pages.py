@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pandas as pd
 import streamlit as st
 
@@ -10,7 +12,6 @@ from ..models import RootObjectInfo
 from .controls import field_structure_label
 from .results import collection_summary
 from .state import DataContext
-from .tables import render_dataframe
 
 
 def render_field_browser(context: DataContext) -> None:
@@ -83,59 +84,118 @@ def render_root_objects_browser(
     catalogue: tuple[RootObjectInfo, ...],
     *,
     file_name: str | None = None,
+    shortcuts_enabled: bool = True,
 ) -> None:
-    """Render the metadata-only ROOT directory/object catalogue."""
+    """Browse metadata and open a selected graph deliberately, not on single click."""
 
-    st.subheader("ROOT file contents", anchor=False)
-    if file_name:
-        st.caption(
-            f"Objects in `{file_name}`. Objects are not loaded until a later workflow needs them."
+    opened = st.session_state.get("root_inspector_open")
+    if opened is not None and opened[0] != file_name:
+        st.session_state.pop("root_inspector_open", None)
+        st.session_state.pop("root_graph_result", None)
+        opened = None
+
+    def render_catalogue(*, compact: bool) -> None:
+        st.subheader("ROOT file contents", anchor=False)
+        if file_name:
+            st.caption(f"Objects in `{file_name}`. Selecting a row does not load its contents.")
+
+        show_all_cycles = st.toggle(
+            "Show all ROOT cycles",
+            value=False,
+            key="root_object_show_all_cycles",
+            help="By default only the highest cycle for each object path is shown.",
         )
-
-    show_all_cycles = st.toggle(
-        "Show all ROOT cycles",
-        value=False,
-        key="root_object_show_all_cycles",
-        help="By default only the highest cycle for each object path is shown.",
-    )
-    query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
-
-    objects = filter_root_objects(catalogue, latest_only=not show_all_cycles)
-    if query:
-        folded = query.casefold()
-        objects = tuple(
-            info
-            for info in objects
-            if folded
-            in " ".join(
-                (
-                    info.path,
-                    info.name,
-                    info.classname,
-                    info.kind,
-                    info.parent,
-                    "" if info.cycle is None else str(info.cycle),
-                )
-            ).casefold()
+        query = st.text_input("Filter ROOT objects", value="", key="root_object_filter")
+        objects = filter_root_objects(catalogue, latest_only=not show_all_cycles)
+        if query:
+            folded = query.casefold()
+            objects = tuple(
+                info
+                for info in objects
+                if folded
+                in " ".join(
+                    (
+                        info.path,
+                        info.name,
+                        info.classname,
+                        info.kind,
+                        info.parent,
+                        "" if info.cycle is None else str(info.cycle),
+                    )
+                ).casefold()
+            )
+        dataframe = pd.DataFrame(
+            [
+                {
+                    "object": _root_object_display_name(info),
+                    "ROOT class": info.classname,
+                    "kind": info.kind,
+                    "cycle": info.cycle,
+                    "path": info.path,
+                }
+                for info in objects
+            ],
+            columns=["object", "ROOT class", "kind", "cycle", "path"],
         )
+        shown = dataframe[["object", "ROOT class"]] if compact else dataframe
+        # A changed filter, cycle view or layout must not reuse an old row index.
+        catalogue_identity = (
+            file_name,
+            compact,
+            tuple(info.qualified_path for info in objects),
+        )
+        selection_key = hashlib.sha256(repr(catalogue_identity).encode("utf-8")).hexdigest()[:16]
+        selection = st.dataframe(
+            shown,
+            width="stretch",
+            height="content",
+            on_select="rerun",
+            selection_mode="single-row",
+            key=f"root_object_selection_{selection_key}",
+        )
+        if not objects:
+            st.info("No ROOT objects match the current filter.")
+            return
+        rows = selection.selection.rows
+        if rows:
+            row = rows[0]
+            if 0 <= row < len(objects):
+                info = objects[row]
+                st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
+                if info.kind == "graph" and st.button(
+                    "Open selected object",
+                    key="root_object_open",
+                    shortcut="O" if shortcuts_enabled else None,
+                ):
+                    st.session_state["root_inspector_open"] = (
+                        file_name,
+                        info.qualified_path,
+                        info.classname,
+                    )
+                    st.session_state.pop("root_graph_result", None)
+                    st.rerun()
 
-    dataframe = pd.DataFrame(
-        [
-            {
-                "object": _root_object_display_name(info),
-                "ROOT class": info.classname,
-                "kind": info.kind,
-                "cycle": info.cycle,
-                "path": info.path,
-            }
-            for info in objects
-        ],
-        columns=["object", "ROOT class", "kind", "cycle", "path"],
-    )
-    render_dataframe(dataframe, height="content")
+    if opened is None:
+        render_catalogue(compact=False)
+        return
 
-    if not objects:
-        st.info("No ROOT objects match the current filter.")
+    left, right = st.columns([0.36, 0.64], gap="large")
+    with left:
+        render_catalogue(compact=True)
+        if st.button(
+            "Close inspection",
+            key="root_inspector_close",
+            shortcut="Esc" if shortcuts_enabled else None,
+        ):
+            st.session_state.pop("root_inspector_open", None)
+            st.session_state.pop("root_graph_result", None)
+            st.rerun()
+    from .graph_viewer import render_graph_controls, render_graph_output
+
+    with left:
+        render_graph_controls(opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled)
+    with right:
+        render_graph_output()
 
 
 def render_contents_tab(
@@ -143,10 +203,11 @@ def render_contents_tab(
     catalogue: tuple[RootObjectInfo, ...],
     *,
     file_name: str | None = None,
+    shortcuts_enabled: bool = True,
 ) -> None:
     """Render file-level ROOT objects followed by the selected event-container schema."""
 
-    render_root_objects_browser(catalogue, file_name=file_name)
+    render_root_objects_browser(catalogue, file_name=file_name, shortcuts_enabled=shortcuts_enabled)
     st.divider()
     render_field_browser(context)
 

@@ -104,7 +104,9 @@ class PlotRequest:
         )
 
 
-def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
+def render_plot_tab(
+    context: DataContext, geometry: GeometryState, *, shortcuts_enabled: bool = True
+) -> None:
     """Render controls and output for plotting the selected entry range."""
 
     controls, output = st.columns([0.36, 0.64], gap="large")
@@ -121,6 +123,7 @@ def render_plot_tab(context: DataContext, geometry: GeometryState) -> None:
             default_opacity_2d=0.45,
             default_opacity_3d=0.65,
             save_name="root_explorer_plot",
+            shortcuts_enabled=shortcuts_enabled,
         )
     with output:
         st.subheader("Output", anchor=False)
@@ -162,6 +165,7 @@ def _render_plot_controls(
     default_opacity_2d: float,
     default_opacity_3d: float,
     save_name: str,
+    shortcuts_enabled: bool = True,
 ) -> tuple[PlotRequest, bool]:
     """Render the shared plot-control surface with stable per-tab widget keys."""
 
@@ -259,7 +263,7 @@ def _render_plot_controls(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",
         key=f"{prefix}_make",
-        shortcut="Shift+P" if is_event_plot else "P",
+        shortcut=("Shift+P" if is_event_plot else "P") if shortcuts_enabled else None,
     )
     return (
         PlotRequest(

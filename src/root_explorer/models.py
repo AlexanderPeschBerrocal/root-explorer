@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
+
 FieldStructure = Literal[
     "scalar",
     "regular",
@@ -44,6 +46,21 @@ class RootObjectInfo:
         if self.cycle is None:
             return self.path
         return f"{self.path};{self.cycle}"
+
+
+@dataclass(frozen=True)
+class GraphData:
+    """Point coordinates, uncertainties, and labels detached from Uproot models."""
+
+    x: np.ndarray
+    y: np.ndarray
+    xerr_low: np.ndarray | None = None
+    xerr_high: np.ndarray | None = None
+    yerr_low: np.ndarray | None = None
+    yerr_high: np.ndarray | None = None
+    title: str = ""
+    x_label: str = ""
+    y_label: str = ""
 
 
 @dataclass(frozen=True)
