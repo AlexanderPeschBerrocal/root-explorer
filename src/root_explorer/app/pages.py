@@ -189,12 +189,15 @@ def render_root_objects_browser(
             st.caption(
                 f"Ready to open: `{selected_info.qualified_path}` ({selected_info.classname})"
             )
-        if st.button(
-            "Open selected object",
-            key="root_object_open",
-            shortcut="O" if shortcuts_enabled else None,
-            disabled=selected_info is None,
-        ) and selected_info is not None:
+        if (
+            st.button(
+                "Open selected object",
+                key="root_object_open",
+                shortcut="O" if shortcuts_enabled else None,
+                disabled=selected_info is None,
+            )
+            and selected_info is not None
+        ):
             st.session_state["root_inspector_open"] = (
                 file_name,
                 selected_info.qualified_path,

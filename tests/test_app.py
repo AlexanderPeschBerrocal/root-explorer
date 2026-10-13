@@ -519,9 +519,7 @@ def test_histogram_open_action_from_browser(target, classname, dimension) -> Non
     assert at.button(key="root_object_open").label == "Open selected object"
 
     # Exercise the real controls rather than assigning root_inspector_open.
-    selector = next(
-        item for item in at.selectbox if item.label == "Object to inspect"
-    )
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
     assert target in selector.options
     selector.select(target).run()
     assert not at.exception
@@ -541,9 +539,7 @@ def test_histogram_open_action_object_only_file(object_only_root_path) -> None:
     at = _load_root_file(make_app_test(), object_only_root_path)
     assert not at.exception
     assert at.button(key="root_object_open").label == "Open selected object"
-    selector = next(
-        item for item in at.selectbox if item.label == "Object to inspect"
-    )
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
     selector.select("Analysis/h_values;1").run()
     at.button(key="root_object_open").click().run()
     assert not at.exception
