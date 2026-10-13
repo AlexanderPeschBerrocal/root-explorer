@@ -20,6 +20,9 @@ class PersistedHistogram:
     `histogram` contains all bins, including flow bins. `profile_variances`
     contains visible *variances on the mean* for profiles, as calculated by
     Uproot/ROOT; they must not be interpreted as Poisson count variances.
+    `profile_entries` stores ROOT's effective number of entries, including
+    flow bins. It distinguishes an empty profile bin from a measured mean of
+    zero, which have identical numerical histogram values.
     """
 
     histogram: hist.Hist
@@ -30,6 +33,7 @@ class PersistedHistogram:
     y_label: str
     colorbar_label: str
     profile_variances: np.ndarray | None = None
+    profile_entries: np.ndarray | None = None
 
     @property
     def is_profile(self) -> bool:
@@ -101,9 +105,17 @@ def histogram_from_object(obj: object) -> PersistedHistogram:
     y_label = _axis_title(obj, "fYaxis", parts[2].strip() if len(parts) > 2 else "")
     z_label = _axis_title(obj, "fZaxis", parts[3].strip() if len(parts) > 3 else "")
 
-    profile_variances = (
-        np.asarray(obj.variances(flow=False), dtype=float).copy() if kind == "MEAN" else None
-    )
+    profile_variances = None
+    profile_entries = None
+    if kind == "MEAN":
+        # Effective entries provide occupancy independently of the bin mean:
+        # a populated bin with mean zero must remain visible.
+        profile_variances = np.asarray(obj.variances(flow=False), dtype=float).copy()
+        profile_entries = np.asarray(obj.counts(flow=True), dtype=float).copy()
+        if profile_entries.shape != np.asarray(histogram.values(flow=True)).shape:
+            raise UnsupportedHistogramError(
+                f"Profile occupancy dimensions do not match {classname} histogram bins."
+            )
     return PersistedHistogram(
         histogram=histogram,
         classname=classname,
@@ -120,6 +132,7 @@ def histogram_from_object(obj: object) -> PersistedHistogram:
         ),
         colorbar_label=z_label or ("Mean" if kind == "MEAN" else "Bin content"),
         profile_variances=profile_variances,
+        profile_entries=profile_entries,
     )
 
 
