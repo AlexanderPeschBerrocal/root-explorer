@@ -157,25 +157,52 @@ def render_root_objects_browser(
         if not objects:
             st.info("No ROOT objects match the current filter.")
             return
+        # The dataframe selection is controlled by the browser frontend. When
+        # selection events are unavailable (or no row is selected), provide an
+        # explicit object selector so the Open action is never hidden.
+        candidates = tuple(info for info in objects if info.kind in {"graph", "histogram"})
+        selected_info = None
         rows = selection.selection.rows
         if rows:
             row = rows[0]
-            if 0 <= row < len(objects):
-                info = objects[row]
-                st.caption(f"Selected: `{info.qualified_path}` ({info.classname})")
-                if info.kind in {"graph", "histogram"} and st.button(
-                    "Open selected object",
-                    key="root_object_open",
-                    shortcut="O" if shortcuts_enabled else None,
-                ):
-                    st.session_state["root_inspector_open"] = (
-                        file_name,
-                        info.qualified_path,
-                        info.classname,
-                    )
-                    st.session_state.pop("root_graph_result", None)
-                    st.session_state.pop("root_histogram_result", None)
-                    st.rerun()
+            if 0 <= row < len(objects) and objects[row].kind in {"graph", "histogram"}:
+                selected_info = objects[row]
+
+        if selected_info is None and candidates:
+            candidate_paths = [info.qualified_path for info in candidates]
+            fallback_path = st.selectbox(
+                "Object to inspect",
+                candidate_paths,
+                format_func=lambda path: next(
+                    f"{info.path} ({info.classname})"
+                    for info in candidates
+                    if info.qualified_path == path
+                ),
+                key=f"root_object_target_{selection_key}",
+                help="Use this selector if clicking a row does not select it.",
+            )
+            selected_info = next(
+                info for info in candidates if info.qualified_path == fallback_path
+            )
+
+        if selected_info is not None:
+            st.caption(
+                f"Ready to open: `{selected_info.qualified_path}` ({selected_info.classname})"
+            )
+        if st.button(
+            "Open selected object",
+            key="root_object_open",
+            shortcut="O" if shortcuts_enabled else None,
+            disabled=selected_info is None,
+        ) and selected_info is not None:
+            st.session_state["root_inspector_open"] = (
+                file_name,
+                selected_info.qualified_path,
+                selected_info.classname,
+            )
+            st.session_state.pop("root_graph_result", None)
+            st.session_state.pop("root_histogram_result", None)
+            st.rerun()
 
     if opened is None:
         render_catalogue(compact=False)
