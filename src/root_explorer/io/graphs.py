@@ -40,6 +40,29 @@ def _graph_title_fields(graph: Any) -> tuple[str, str, str]:
     title = parts[0].strip()
     x_label = parts[1].strip() if len(parts) > 1 else ""
     y_label = parts[2].strip() if len(parts) > 2 else ""
+
+    # ROOT's TGraph::SetTitle("title;x;y") splits the string: TGraph's
+    # fTitle retains just the main title while the axis titles are persisted
+    # in the accompanying TH1F (fHistogram). Older files may instead retain
+    # the full semicolon-delimited fTitle, so support both representations.
+    if not x_label or not y_label:
+        try:
+            histogram = graph.member("fHistogram", none_if_missing=True)
+        except (AttributeError, KeyError):
+            histogram = None
+        if histogram is not None:
+            for axis_member, current in (("fXaxis", x_label), ("fYaxis", y_label)):
+                if current:
+                    continue
+                try:
+                    axis = histogram.member(axis_member)
+                    axis_label = str(axis.member("fTitle") or "").strip()
+                except (AttributeError, KeyError):
+                    axis_label = ""
+                if axis_member == "fXaxis":
+                    x_label = axis_label
+                else:
+                    y_label = axis_label
     return title, x_label, y_label
 
 

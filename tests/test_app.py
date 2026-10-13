@@ -175,6 +175,30 @@ def test_object_only_root_file_remains_browseable(object_only_root_path) -> None
     assert "other" in set(table["kind"])
 
 
+def test_object_only_root_file_can_render_histogram(object_only_root_path) -> None:
+    """Persisted histogram plotting must work without any TTree/RNTuple."""
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    at.session_state["root_inspector_open"] = (
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
+    )
+    at.run()
+
+    assert not at.exception
+    assert at.selectbox(key="hist_mode_Analysis/h_values;1").value == "Step"
+    result = at.session_state["root_histogram_result"]
+    assert result["kind"] == "matplotlib"
+    assert result["figure"].axes[0].get_title()
+    assert "read_histogram" in result["code"]
+    download = next(
+        button
+        for button in at.get("download_button")
+        if button.key == "histogram_save_download_code"
+    )
+    assert download.label == "Download plot code"
+
+
 def test_new_single_particle_variable_controls_are_available(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     mode = at.selectbox(key="x_mode")
@@ -478,3 +502,83 @@ def test_2d_scatter_offers_log_color_scale(root_path) -> None:
     at.selectbox(key="plot_type").select("2D scatter").run()
     at.checkbox(key="plot_color_points").check().run()
     assert at.checkbox(key="plot_log_color_2d").label == "log color scale"
+
+
+@pytest.mark.parametrize(
+    ("target", "classname", "dimension"),
+    [
+        ("histogram_1d;1", "TH1D", 1),
+        ("histogram_2d;1", "TH2D", 2),
+    ],
+)
+def test_histogram_open_action_from_browser(target, classname, dimension) -> None:
+    """The browser must expose Open before an inspection session exists."""
+    root_file = PROJECT_ROOT / "tests" / "data" / "test_objects.root"
+    at = _load_root_file(make_app_test(), root_file)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+
+    # Exercise the real controls rather than assigning root_inspector_open.
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    option = f"{target.split(';')[0]} ({classname})"
+    assert option in selector.options
+    selector.select(option).run()
+    assert not at.exception
+    at.button(key="root_object_open").click().run()
+    assert not at.exception
+    opened = at.session_state["root_inspector_open"]
+    assert opened[1:] == (target, classname)
+    assert at.session_state["root_histogram_result"]["kind"] == "matplotlib"
+    if dimension == 1:
+        assert at.selectbox(key=f"hist_mode_{target}").value == "Step"
+    else:
+        assert at.selectbox(key="hist_cmap").value == "viridis"
+
+
+def test_histogram_open_action_object_only_file(object_only_root_path) -> None:
+    """The fallback action must work without a TTree or RNTuple."""
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    selector.select("Analysis/h_values (TH1D)").run()
+    at.button(key="root_object_open").click().run()
+    assert not at.exception
+    assert at.session_state["root_inspector_open"][1] == "Analysis/h_values;1"
+    assert at.session_state["root_histogram_result"]["kind"] == "matplotlib"
+
+
+@pytest.mark.parametrize(
+    ("target", "classname", "dimension"),
+    [
+        ("profile_1d;1", "TProfile", 1),
+        ("nested/profile_2d;1", "TProfile2D", 2),
+    ],
+)
+def test_profile_open_action_from_browser(target, classname, dimension) -> None:
+    """Exercise the full browser workflow against the committed PyROOT profiles."""
+    root_file = PROJECT_ROOT / "tests" / "data" / "test_objects.root"
+    at = _load_root_file(make_app_test(), root_file)
+    assert not at.exception
+    assert at.button(key="root_object_open").label == "Open selected object"
+
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    option = f"{target.split(';')[0]} ({classname})"
+    assert option in selector.options, (
+        "Regenerate tests/data/test_objects.root using tests/data/generate_graph_fixture.py"
+    )
+    selector.select(option).run()
+    at.button(key="root_object_open").click().run()
+
+    assert not at.exception
+    assert at.session_state["root_inspector_open"][1:] == (target, classname)
+    result = at.session_state["root_histogram_result"]
+    assert result["kind"] == "matplotlib"
+    assert target in result["code"]
+    assert any("Profile: bin values are means" in caption.value for caption in at.caption)
+    if dimension == 1:
+        assert at.selectbox(key=f"hist_mode_{target}").value == "Error bars"
+        assert result["figure"].axes[0].containers
+    else:
+        assert at.selectbox(key="hist_cmap").value == "viridis"
+        assert len(result["figure"].axes) == 2  # Main plot and colour bar.
