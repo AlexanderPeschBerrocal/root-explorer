@@ -174,6 +174,7 @@ def render_root_objects_browser(
                         info.classname,
                     )
                     st.session_state.pop("root_graph_result", None)
+                    st.session_state.pop("root_histogram_result", None)
                     st.rerun()
 
     if opened is None:
@@ -190,6 +191,7 @@ def render_root_objects_browser(
         ):
             st.session_state.pop("root_inspector_open", None)
             st.session_state.pop("root_graph_result", None)
+            st.session_state.pop("root_histogram_result", None)
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
