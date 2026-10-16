@@ -296,6 +296,13 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
                 has_negative_weights=negative,
             )
 
+    if (
+        normalisation_result is not None
+        and normalisation_result.valid
+        and not spec.labels.get("custom_y")
+    ):
+        y_label = "Normalised density"
+
     histogram_2d = (
         build_histogram_2d(
             x,
