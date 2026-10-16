@@ -56,10 +56,48 @@ def show_cached_plot_result(
     summary = result.get("summary")
     if summary is not None:
         render_dataframe(summary)
+        sample_caption = "Summary statistics describe all finite observations remaining after cuts."
+        if result.get("plot_type") in {"1D histogram", "2D histogram"}:
+            sample_caption += " Histogram limits and flow settings do not change the sample."
+        st.caption(sample_caption)
 
-    correlation_result = result.get("correlation_result")
-    if isinstance(correlation_result, CorrelationResult):
-        _show_correlation_result(correlation_result)
+    fig = result["figure"]
+    kind = result["kind"]
+
+    if kind == "plotly":
+        st.plotly_chart(fig, width="stretch")
+    elif kind == "matplotlib":
+        st.pyplot(fig, width="stretch")
+    else:
+        st.error(f"Unknown cached plot kind: {kind}")
+        return
+
+    for warning in result.get("warnings", []):
+        st.warning(warning)
+
+    color_clipping_result = result.get("color_clipping_result")
+    if isinstance(color_clipping_result, ColorClippingResult):
+        _show_color_clipping_result(color_clipping_result)
+
+    flow_summary = result.get("histogram_flow_summary")
+    if flow_summary is not None:
+        st.markdown("#### Histogram flow", anchors=False)
+        st.caption(
+            f"Nominal range: [{flow_summary.lower:g}, {flow_summary.upper:g}] · "
+            f"mode: {result.get('histogram_flow_mode', 'ignore')}."
+        )
+        rows = []
+        for title, name in (
+            ("Underflow", "underflow"),
+            ("In range", "in_range"),
+            ("Overflow", "overflow"),
+        ):
+            row = {"Region": title, "Entries": getattr(flow_summary, f"{name}_entries")}
+            if flow_summary.weighted:
+                row["Sum of weights"] = getattr(flow_summary, f"{name}_sumw")
+                row["Sum of squared weights"] = getattr(flow_summary, f"{name}_sumw2")
+            rows.append(row)
+        render_dataframe(pd.DataFrame(rows))
 
     threshold_result = result.get("threshold_result")
     if isinstance(threshold_result, ThresholdResult):
@@ -94,28 +132,14 @@ def show_cached_plot_result(
         else:
             st.warning(f"Histogram fit: {fit_result.message}")
 
-    for warning in result.get("warnings", []):
-        st.warning(warning)
+    correlation_result = result.get("correlation_result")
+    if isinstance(correlation_result, CorrelationResult):
+        _show_correlation_result(correlation_result)
 
     preview = result.get("preview")
     if preview is not None and len(preview) > 0:
         st.markdown("#### Data preview", anchors=False)
         render_dataframe(preview)
-
-    fig = result["figure"]
-    kind = result["kind"]
-
-    if kind == "plotly":
-        st.plotly_chart(fig, width="stretch")
-    elif kind == "matplotlib":
-        st.pyplot(fig, width="stretch")
-    else:
-        st.error(f"Unknown cached plot kind: {kind}")
-        return
-
-    color_clipping_result = result.get("color_clipping_result")
-    if isinstance(color_clipping_result, ColorClippingResult):
-        _show_color_clipping_result(color_clipping_result)
 
     export = export_controls(export_prefix, kind, default_save_name=result["save_name"])
     outdir = Path(export["save_directory"])
@@ -229,6 +253,7 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         assert result.total_weight is not None
         total_text += f" · Total sum of weights: {result.total_weight:g}"
     st.caption(total_text)
+    st.caption("Fractions use the full selected sample after cuts, including histogram flow.")
     rows: list[dict[str, object]] = [
         {
             "selection": f"x ≤ {result.threshold:g}",
@@ -264,6 +289,7 @@ def _show_quantile_result(result: QuantileResult) -> None:
     """Display one cached quantile calculation."""
 
     st.markdown("#### Quantile calculator", anchors=False)
+    st.caption("Quantiles use the full selected sample after cuts, including histogram flow.")
     value_text = "unavailable" if result.value is None else f"{result.value:g}"
     dataframe = pd.DataFrame([{"percentile (%)": result.percentile, "quantile": value_text}])
     render_dataframe(dataframe)

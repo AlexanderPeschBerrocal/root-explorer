@@ -16,7 +16,14 @@ from ..analysis.arrays import (
     variable_values_for_values,
 )
 from ..analysis.fitting import FitConfig, FitResult
-from ..analysis.histograms import build_histogram_1d, build_histogram_2d
+from ..analysis.histograms import (
+    HistogramFlowSummary,
+    build_histogram_1d,
+    build_histogram_2d,
+    histogram_for_flow_mode,
+    resolve_histogram_range,
+    summarise_histogram_flow,
+)
 from ..analysis.statistics import (
     QuantileResult,
     ThresholdResult,
@@ -80,6 +87,9 @@ class PreparedStaticPlot:
     quantile_result: QuantileResult | None
     color_clipping_result: ColorClippingResult | None
     max_points: int
+    display_histogram_1d: hist.Hist | None = None
+    histogram_flow_summary: HistogramFlowSummary | None = None
+    histogram_flow_mode: str = "ignore"
 
     def render_arrays(
         self, plot_type: str
@@ -219,11 +229,38 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
             x,
             int(spec.style["bins_x"]),
             weights=weights,
+            value_range=resolve_histogram_range(x, int(spec.style["bins_x"]), spec.style),
             label=x_label,
         )
         if spec.plot_type == "1D histogram"
         else None
     )
+
+    histogram_range = (
+        tuple(histogram_1d.axes[0].edges[[0, -1]])
+        if histogram_1d is not None
+        and spec.style.get("manual_histogram_limits", False)
+        and (
+            str(spec.style.get("hist_x_min_text", "")).strip()
+            or str(spec.style.get("hist_x_max_text", "")).strip()
+        )
+        else None
+    )
+    flow_mode = str(spec.style.get("hist_flow_mode", "ignore"))
+    display_histogram_1d = (
+        histogram_for_flow_mode(histogram_1d, flow_mode)
+        if histogram_1d is not None and histogram_range is not None
+        else histogram_1d
+    )
+    flow_summary = (
+        summarise_histogram_flow(histogram_1d, x, weighted=weights is not None)
+        if histogram_1d is not None and histogram_range is not None
+        else None
+    )
+    if histogram_1d is not None and flow_mode not in {"ignore", "fold", "separate"}:
+        raise ValueError(f"Unsupported histogram flow mode: {flow_mode}")
+    if histogram_range is None:
+        flow_mode = "ignore"
 
     histogram_2d = (
         build_histogram_2d(
@@ -256,6 +293,9 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         quantile_result=quantile_result,
         color_clipping_result=color_clipping_result,
         max_points=int(spec.style.get("max_points", 100_000)),
+        display_histogram_1d=display_histogram_1d,
+        histogram_flow_summary=flow_summary,
+        histogram_flow_mode=flow_mode,
     )
 
 
@@ -279,7 +319,9 @@ def render_prepared_static_plot(
         prepared.y_label,
         spec.style,
         title=prepared.title,
-        histogram_1d=prepared.histogram_1d,
+        histogram_1d=prepared.display_histogram_1d,
+        histogram_flow_summary=prepared.histogram_flow_summary,
+        histogram_flow_mode=prepared.histogram_flow_mode,
         histogram_2d=prepared.histogram_2d,
         weights=prepared.weights,
         weight_branch=spec.weight_branch,

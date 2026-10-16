@@ -151,3 +151,85 @@ def test_2d_histogram_rejects_invalid_bins(bins_x, bins_y) -> None:
 def test_2d_histogram_rejects_invalid_ranges(x_range, y_range) -> None:
     with pytest.raises(ValueError, match="range bounds"):
         build_histogram_2d(np.array([0.5]), np.array([0.5]), 2, 2, x_range=x_range, y_range=y_range)
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        ("ignore", [1.0, 7.0]),
+        ("fold", [3.0, 12.0]),
+        ("separate", [1.0, 7.0]),
+    ],
+)
+def test_weighted_flow_modes_preserve_original_and_expected_variances(mode, expected):
+    from root_explorer.analysis.histograms import (
+        histogram_for_flow_mode,
+        summarise_histogram_flow,
+    )
+
+    values = np.array([-1.0, 0.0, 0.5, 1.0, 2.0])
+    weights = np.array([2.0, 1.0, 3.0, 4.0, 5.0])
+    original = build_histogram_1d(values, 2, weights=weights, value_range=(0.0, 1.0))
+    display = histogram_for_flow_mode(original, mode)
+    np.testing.assert_allclose(display.values(), expected)
+    np.testing.assert_allclose(original.values(flow=True), [2.0, 1.0, 7.0, 5.0])
+    if mode == "fold":
+        np.testing.assert_allclose(display.variances(), [5.0, 50.0])
+        assert display.values().sum() == pytest.approx(weights.sum())
+        assert display.variances().sum() == pytest.approx(np.square(weights).sum())
+    summary = summarise_histogram_flow(original, values, weighted=True)
+    assert (summary.underflow_entries, summary.in_range_entries, summary.overflow_entries) == (
+        1,
+        3,
+        1,
+    )
+    assert (summary.underflow_sumw, summary.overflow_sumw) == pytest.approx((2.0, 5.0))
+    assert (summary.underflow_sumw2, summary.overflow_sumw2) == pytest.approx((4.0, 25.0))
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+def test_unweighted_flow_modes_keep_entry_counts(mode):
+    from root_explorer.analysis.histograms import histogram_for_flow_mode
+
+    values = np.array([-1.0, 0.1, 0.8, 2.0])
+    original = build_histogram_1d(values, 2, value_range=(0.0, 1.0))
+    display = histogram_for_flow_mode(original, mode)
+    assert original.values(flow=True).sum() == 4
+    assert display.values().sum() == (4 if mode == "fold" else 2)
+
+
+@pytest.mark.parametrize(
+    "bounds",
+    [
+        {"hist_x_min_text": "nan", "hist_x_max_text": "2"},
+        {"hist_x_min_text": "2", "hist_x_max_text": "1"},
+        {"hist_x_min_text": "oops", "hist_x_max_text": "2"},
+    ],
+)
+def test_invalid_manual_histogram_ranges_are_reported(bounds):
+    from root_explorer.analysis.histograms import (
+        InvalidHistogramRangeError,
+        resolve_histogram_range,
+    )
+
+    with pytest.raises(InvalidHistogramRangeError, match="Histogram"):
+        resolve_histogram_range(
+            np.array([0.0, 1.0]), 10, {"manual_histogram_limits": True, **bounds}
+        )
+
+
+def test_histogram_limits_are_independent_of_plot_limits():
+    from root_explorer.analysis.histograms import resolve_histogram_range
+
+    values = np.array([0.0, 1.0, 5.0])
+    style = {
+        "manual_histogram_limits": True,
+        "hist_x_min_text": "1",
+        "hist_x_max_text": "4",
+        "x_min_text": "-100",
+        "x_max_text": "100",
+    }
+    assert resolve_histogram_range(values, 4, style) == (1.0, 4.0)
+    style["x_min_text"] = "2"
+    style["x_max_text"] = "3"
+    assert resolve_histogram_range(values, 4, style) == (1.0, 4.0)

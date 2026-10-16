@@ -377,7 +377,6 @@ def histogram_weight_selector(
 ) -> str | None:
     if not supports_histogram_weights(plot_type):
         return None
-    st.markdown("### Histogram weights", anchors=False)
     use_weights = st.checkbox("Use weights", value=False, key=f"{prefix}_use_weights")
     if not use_weights:
         return None
@@ -398,7 +397,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
     from ..analysis.fit_expressions import discover_fit_parameters
     from ..analysis.fitting import FIT_MODELS, FitConfig
 
-    st.markdown("### Histogram fit", anchors=False)
+    st.markdown("**Histogram fit**")
     if not st.checkbox("Enable fit", value=False, key=f"{prefix}_fit_enabled"):
         return None
     model = st.selectbox("Fit model", [*FIT_MODELS, "Custom expression"], key=f"{prefix}_fit_model")
@@ -492,12 +491,19 @@ def distribution_calculator_controls(
 
     if plot_type != "1D histogram":
         return None, None
-    st.markdown("### Distribution calculator", anchors=False)
+    st.markdown("**Distribution calculator**")
     enabled = st.checkbox(
-        "Calculate threshold / quantile", value=False, key=f"{prefix}_distribution_enabled"
+        "Calculate threshold / quantile",
+        value=False,
+        key=f"{prefix}_distribution_enabled",
+        help="Uses every selected observation after cuts, including histogram underflow and overflow.",
     )
     if not enabled:
         return None, None
+    st.caption(
+        "Uses the full selected sample after cuts, including values outside the histogram "
+        "range. Histogram flow settings do not change these calculations."
+    )
     mode = st.selectbox(
         "calculator mode",
         ["Threshold fractions", "Quantile"],
@@ -560,6 +566,102 @@ def range_cut_controls(
     return cut_specs, cut_bounds
 
 
+def histogram_analysis_controls(
+    prefix: str,
+    plot_type: str,
+    *,
+    default_bins: int = 100,
+) -> dict[str, Any]:
+    """Configure the calculation of 1D and 2D histograms, not their presentation."""
+
+    if not supports_histogram_weights(plot_type):
+        return {}
+
+    style: dict[str, Any] = {}
+    if plot_type == "1D histogram":
+        style["manual_histogram_limits"] = st.checkbox(
+            "Custom histogram range and flow handling",
+            value=False,
+            key=f"{prefix}_manual_histogram_limits",
+        )
+        style["hist_x_min_text"] = ""
+        style["hist_x_max_text"] = ""
+        style["hist_flow_mode"] = "ignore"
+        if style["manual_histogram_limits"]:
+            st.caption(
+                "Set histogram bin edges and choose how observations outside them are handled. "
+                "Leave either bound blank for its automatic value; both blank retains "
+                "automatic binning. Statistical calculators still use the full selected sample."
+            )
+            hmin_col, hmax_col = st.columns(2)
+            with hmin_col:
+                style["hist_x_min_text"] = st.text_input(
+                    "Histogram minimum", key=f"{prefix}_hist_x_min"
+                )
+            with hmax_col:
+                style["hist_x_max_text"] = st.text_input(
+                    "Histogram maximum", key=f"{prefix}_hist_x_max"
+                )
+            style["hist_flow_mode"] = st.selectbox(
+                "Underflow / overflow",
+                ["ignore", "fold", "separate"],
+                format_func=lambda value: {
+                    "ignore": "Ignore (report separately)",
+                    "fold": "Fold into edge bins",
+                    "separate": "Show separate bins",
+                }[value],
+                key=f"{prefix}_hist_flow_mode",
+            )
+        style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
+    else:
+        style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
+        style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
+
+    style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
+    style["kde_bandwidth"] = "scott"
+    style["kde_custom_factor"] = 1.0
+    if style["show_kde"]:
+        bandwidth_label = st.selectbox(
+            "KDE bandwidth",
+            ["Scott", "Silverman", "Custom factor"],
+            key=f"{prefix}_kde_bandwidth",
+            help=(
+                "KDE construction uses at most 5,000 deterministically selected points "
+                "to keep large plots responsive."
+            ),
+        )
+        style["kde_bandwidth"] = bandwidth_label.casefold().split()[0]
+        if style["kde_bandwidth"] == "custom":
+            style["kde_custom_factor"] = st.number_input(
+                "KDE bandwidth factor",
+                min_value=0.001,
+                value=1.0,
+                step=0.1,
+                format="%.3f",
+                key=f"{prefix}_kde_custom_factor",
+            )
+
+    if plot_type == "2D histogram":
+        style["show_contours"] = st.checkbox(
+            "show contours", value=False, key=f"{prefix}_show_contours"
+        )
+        style["contour_levels"] = []
+        if style["show_contours"]:
+            contour_text = st.text_input(
+                "contour levels (%)",
+                value="68, 95, 99",
+                key=f"{prefix}_contour_levels",
+                help="Highest-density regions enclosing these percentages of the histogram content.",
+            )
+            try:
+                style["contour_levels"] = parse_contour_levels(contour_text)
+            except ContourConfigurationError as exc:
+                style["show_contours"] = False
+                st.warning(str(exc))
+
+    return style
+
+
 def plot_style_controls(
     prefix: str,
     plot_type: str,
@@ -591,7 +693,7 @@ def plot_style_controls(
         style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
         style["manual_axis_limits"] = st.checkbox(
-            "Apply manual axis limits", value=False, key=f"{prefix}_manual_axis_limits"
+            "Manual plot limits", value=False, key=f"{prefix}_manual_axis_limits"
         )
         style["x_min_text"] = ""
         style["x_max_text"] = ""
@@ -610,55 +712,11 @@ def plot_style_controls(
             with y_max_column:
                 style["y_max_text"] = st.text_input("y maximum", value="", key=f"{prefix}_y_max")
 
-    if plot_type in {"1D histogram", "2D histogram"}:
-        style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
-        style["kde_bandwidth"] = "scott"
-        style["kde_custom_factor"] = 1.0
-        if style["show_kde"]:
-            bandwidth_label = st.selectbox(
-                "KDE bandwidth",
-                ["Scott", "Silverman", "Custom factor"],
-                key=f"{prefix}_kde_bandwidth",
-                help=(
-                    "KDE construction uses at most 5,000 deterministically selected points "
-                    "to keep large plots responsive."
-                ),
-            )
-            style["kde_bandwidth"] = bandwidth_label.casefold().split()[0]
-            if style["kde_bandwidth"] == "custom":
-                style["kde_custom_factor"] = st.number_input(
-                    "KDE bandwidth factor",
-                    min_value=0.001,
-                    value=1.0,
-                    step=0.1,
-                    format="%.3f",
-                    key=f"{prefix}_kde_custom_factor",
-                )
-
     if plot_type == "1D histogram":
-        style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":
-        style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
-        style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
         style["log_z"] = st.checkbox("log color scale", value=True, key=f"{prefix}_log_z")
-        style["show_contours"] = st.checkbox(
-            "show contours", value=False, key=f"{prefix}_show_contours"
-        )
-        style["contour_levels"] = []
-        if style["show_contours"]:
-            contour_text = st.text_input(
-                "contour levels (%)",
-                value="68, 95, 99",
-                key=f"{prefix}_contour_levels",
-                help="Highest-density regions enclosing these percentages of the histogram content.",
-            )
-            try:
-                style["contour_levels"] = parse_contour_levels(contour_text)
-            except ContourConfigurationError as exc:
-                style["show_contours"] = False
-                st.warning(str(exc))
         style["equal_aspect"] = st.checkbox(
             "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )

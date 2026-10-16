@@ -13,7 +13,13 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
-from ..analysis.histograms import build_histogram_1d, build_histogram_2d
+from ..analysis.histograms import (
+    build_histogram_1d,
+    build_histogram_2d,
+    histogram_for_flow_mode,
+    resolve_histogram_range,
+    summarise_histogram_flow,
+)
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import VariableEvaluator, variable_evaluator
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
@@ -118,7 +124,15 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     if has_quantile:
         roots.append(calculate_quantile_result)
     if spec.plot_type == "1D histogram":
-        roots.extend([build_histogram_1d, draw_histogram_1d])
+        roots.extend(
+            [
+                build_histogram_1d,
+                draw_histogram_1d,
+                resolve_histogram_range,
+                histogram_for_flow_mode,
+                summarise_histogram_flow,
+            ]
+        )
         if has_fit:
             from .plots import draw_fit_overlay
 
@@ -440,15 +454,22 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "histogram_1d = build_histogram_1d(",
-                "    x, int(PLOT.style['bins_x']), weights=weights, label=x_label,",
+                "    x, int(PLOT.style['bins_x']), weights=weights,",
+                "    value_range=resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style),",
+                "    label=x_label,",
                 ")",
+                "flow_range = resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style)",
+                "flow_mode = PLOT.style.get('hist_flow_mode', 'ignore') if flow_range is not None else 'ignore'",
+                "flow_summary = (summarise_histogram_flow(histogram_1d, x, weighted=weights is not None)",
+                "                if flow_range is not None else None)",
+                "display_histogram = histogram_for_flow_mode(histogram_1d, flow_mode)",
             ]
         )
 
     if plan.has_fit:
         lines.extend(
             [
-                "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
+                "fit_result = fit_histogram_1d(display_histogram, PLOT.fit_config)",
                 "if not fit_result.success:",
                 "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
             ]
@@ -469,25 +490,30 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "draw_histogram_1d(",
-                "    axes, histogram_1d, y_label, reference_x=reference_x,",
-                "    reference_label=reference_label,",
+                "    axes, display_histogram, y_label, reference_x=reference_x,",
+                "    reference_label=reference_label, flow_summary=flow_summary, flow_mode=flow_mode,",
+                "    log_x=bool(PLOT.style.get('log_x', False)),",
                 ")",
-                "histogram_counts = histogram_1d.values()",
+                "histogram_counts = display_histogram.values()",
                 "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )
         if plan.has_fit:
-            lines.append("if fit_result.success: draw_fit_overlay(axes, histogram_1d, fit_result)")
+            lines.append(
+                "if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result)"
+            )
         if plan.show_kde:
             lines.extend(
                 [
-                    "warning = draw_kde_1d_overlay(axes, x, histogram_edges, PLOT.style, weights=weights)",
+                    "inside = (x >= histogram_edges[0]) & (x <= histogram_edges[-1]) if flow_range is not None else slice(None)",
+                    "warning = draw_kde_1d_overlay(axes, x[inside], histogram_edges, PLOT.style,",
+                    "                              weights=weights[inside] if weights is not None else None)",
                     "if warning is not None:",
                     "    warnings.append(warning)",
                 ]
             )
         if plan.log_x:
-            lines.append("apply_log_x_axis(axes, x)")
+            lines.append("apply_log_x_axis(axes, histogram_edges)")
         if plan.log_y:
             lines.append("apply_log_histogram_y_axis(axes, histogram_counts)")
     elif spec.plot_type == "2D histogram":

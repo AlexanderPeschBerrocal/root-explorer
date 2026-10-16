@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 import hist
 import numpy as np
 
@@ -142,3 +145,115 @@ def build_histogram_2d(
     else:
         histogram.fill(x=fill_x, y=fill_y, weight=selected_weights)
     return histogram
+
+
+class InvalidHistogramRangeError(ValueError):
+    """An explicit histogram range cannot be resolved."""
+
+
+@dataclass(frozen=True)
+class HistogramFlowSummary:
+    """Entries and weighted moments in and outside the nominal histogram range."""
+
+    lower: float
+    upper: float
+    underflow_entries: int
+    in_range_entries: int
+    overflow_entries: int
+    underflow_sumw: float
+    in_range_sumw: float
+    overflow_sumw: float
+    underflow_sumw2: float
+    in_range_sumw2: float
+    overflow_sumw2: float
+    weighted: bool
+
+
+def resolve_histogram_range(
+    values: np.ndarray, bins: int, style: dict[str, Any]
+) -> tuple[float, float] | None:
+    """Resolve independent histogram bounds; missing endpoints are automatic.
+
+    Axis *display* limits have no effect on the returned range.
+    """
+    if not style.get("manual_histogram_limits", False):
+        return None
+
+    def bound(key: str) -> float | None:
+        raw = style.get(key, "")
+        if raw is None or not str(raw).strip():
+            return None
+        try:
+            result = float(raw)
+        except (ValueError, TypeError) as exc:
+            raise InvalidHistogramRangeError(
+                "Histogram minimum and maximum must be finite numbers."
+            ) from exc
+        if not np.isfinite(result):
+            raise InvalidHistogramRangeError(
+                "Histogram minimum and maximum must be finite numbers."
+            )
+        return result
+
+    lower = bound("hist_x_min_text")
+    upper = bound("hist_x_max_text")
+    if lower is None and upper is None:
+        return None
+    automatic_edges = np.histogram_bin_edges(values, bins=int(bins))
+    if lower is None:
+        lower = float(automatic_edges[0])
+    if upper is None:
+        upper = float(automatic_edges[-1])
+    if lower >= upper:
+        raise InvalidHistogramRangeError(
+            "Histogram minimum must be smaller than histogram maximum."
+        )
+    return lower, upper
+
+
+def summarise_histogram_flow(
+    histogram: hist.Hist, values: np.ndarray, *, weighted: bool
+) -> HistogramFlowSummary:
+    """Extract original flow yields and count entries without re-histogramming."""
+    edges = np.asarray(histogram.axes[0].edges, dtype=float)
+    raw = np.asarray(histogram.values(flow=True), dtype=float)
+    variances = histogram.variances(flow=True)
+    variance = np.asarray(variances, dtype=float) if variances is not None else raw
+    x = np.asarray(values, dtype=float)
+    n_under = int(np.count_nonzero(x < edges[0]))
+    n_over = int(np.count_nonzero(x > edges[-1]))
+    return HistogramFlowSummary(
+        lower=float(edges[0]),
+        upper=float(edges[-1]),
+        underflow_entries=n_under,
+        in_range_entries=int(len(x) - n_under - n_over),
+        overflow_entries=n_over,
+        underflow_sumw=float(raw[0]),
+        in_range_sumw=float(raw[1:-1].sum()),
+        overflow_sumw=float(raw[-1]),
+        underflow_sumw2=float(variance[0]),
+        in_range_sumw2=float(variance[1:-1].sum()),
+        overflow_sumw2=float(variance[-1]),
+        weighted=weighted,
+    )
+
+
+def histogram_for_flow_mode(histogram: hist.Hist, mode: str) -> hist.Hist:
+    """Make a folded histogram without changing the canonical original."""
+    if mode not in {"ignore", "fold", "separate"}:
+        raise ValueError(f"Unsupported histogram flow mode: {mode}")
+    if mode != "fold":
+        return histogram
+    result = histogram.copy()
+    view = result.view(flow=True)
+    if histogram.storage_type is hist.storage.Weight:
+        for source, target in ((0, 1), (-1, -2)):
+            view.value[target] += view.value[source]
+            view.variance[target] += view.variance[source]
+            view.value[source] = 0.0
+            view.variance[source] = 0.0
+    else:
+        for source, target in ((0, 1), (-1, -2)):
+            view[target] += view[source]
+            view[source] = 0.0
+    return result
