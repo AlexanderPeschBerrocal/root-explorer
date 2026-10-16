@@ -17,6 +17,7 @@ from ..analysis.histograms import (
     build_histogram_1d,
     build_histogram_2d,
     histogram_for_flow_mode,
+    normalise_histogram_1d,
     resolve_histogram_range,
     summarise_histogram_flow,
 )
@@ -64,6 +65,7 @@ class StaticPlotExportPlan:
     has_threshold: bool
     has_quantile: bool
     has_fit: bool
+    normalise_unit_area: bool
     log_x: bool
     log_y: bool
     log_z: bool
@@ -89,6 +91,9 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     has_threshold = spec.plot_type == "1D histogram" and spec.threshold is not None
     has_quantile = spec.plot_type == "1D histogram" and spec.quantile_percentile is not None
     has_fit = spec.plot_type == "1D histogram" and spec.fit_config is not None
+    normalise_unit_area = spec.plot_type == "1D histogram" and bool(
+        spec.style.get("normalise_unit_area", False)
+    )
     log_x = bool(spec.style.get("log_x", False))
     log_y = bool(spec.style.get("log_y", False))
     log_z = spec.plot_type == "2D histogram" and bool(spec.style.get("log_z", False))
@@ -133,6 +138,8 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
                 summarise_histogram_flow,
             ]
         )
+        if normalise_unit_area:
+            roots.append(normalise_histogram_1d)
         if has_fit:
             from .plots import draw_fit_overlay
 
@@ -181,6 +188,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         has_threshold=has_threshold,
         has_quantile=has_quantile,
         has_fit=has_fit,
+        normalise_unit_area=normalise_unit_area,
         log_x=log_x,
         log_y=log_y,
         log_z=log_z,
@@ -256,6 +264,8 @@ def _compatibility_lines(plan: StaticPlotExportPlan) -> list[str]:
             f"!= {plan.has_quantile!r}:"
         ),
         "    raise ValueError('This export is specialised to different statistics; regenerate it.')",
+        f"if bool(PLOT.style.get('normalise_unit_area', False)) != {plan.normalise_unit_area!r}:",
+        "    raise ValueError('This export is specialised to a different normalisation mode; regenerate it.')",
         f"if bool(PLOT.style.get('log_x', False)) != {plan.log_x!r}:",
         "    raise ValueError('This export is specialised to different log scales; regenerate it.')",
         f"if bool(PLOT.style.get('log_y', False)) != {plan.log_y!r}:",
@@ -466,6 +476,33 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
 
+    if plan.normalise_unit_area:
+        lines.extend(
+            [
+                "normalisation = None",
+                "if flow_mode == 'separate':",
+                "    print('Normalisation warning: separate flow categories cannot have a density.')",
+                "else:",
+                "    within = ((x >= flow_range[0]) & (x <= flow_range[1])) if flow_range is not None and flow_mode == 'ignore' else np.ones(len(x), dtype=bool)",
+                "    relevant_weights = weights[within] if weights is not None else None",
+                "    absolute_total = float(np.sum(np.abs(relevant_weights))) if relevant_weights is not None else float(np.count_nonzero(within))",
+                "    normalisation = normalise_histogram_1d(display_histogram, absolute_weight_sum=absolute_total, has_negative_weights=bool(relevant_weights is not None and np.any(relevant_weights < 0)))",
+                "    if normalisation.error: print('Normalisation warning:', normalisation.error)",
+                "    if normalisation.warning: print('Normalisation note:', normalisation.warning)",
+                "density_enabled = normalisation is not None and normalisation.valid",
+                "plot_histogram = normalisation.histogram if density_enabled else display_histogram",
+                "if density_enabled and not PLOT.labels.get('custom_y'): y_label = 'Normalised density'",
+            ]
+        )
+    elif spec.plot_type == "1D histogram":
+        lines.extend(
+            [
+                "normalisation = None",
+                "density_enabled = False",
+                "plot_histogram = display_histogram",
+            ]
+        )
+
     if plan.has_fit:
         lines.extend(
             [
@@ -490,24 +527,27 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "draw_histogram_1d(",
-                "    axes, display_histogram, y_label, reference_x=reference_x,",
+                "    axes, plot_histogram, y_label, reference_x=reference_x,",
                 "    reference_label=reference_label, flow_summary=flow_summary, flow_mode=flow_mode,",
                 "    log_x=bool(PLOT.style.get('log_x', False)),",
                 ")",
-                "histogram_counts = display_histogram.values()",
+                "histogram_counts = plot_histogram.values()",
                 "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )
         if plan.has_fit:
             lines.append(
-                "if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result)"
+                "if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result, density_denominator=normalisation.denominator if density_enabled else None)"
             )
         if plan.show_kde:
             lines.extend(
                 [
                     "inside = (x >= histogram_edges[0]) & (x <= histogram_edges[-1]) if flow_range is not None else slice(None)",
-                    "warning = draw_kde_1d_overlay(axes, x[inside], histogram_edges, PLOT.style,",
-                    "                              weights=weights[inside] if weights is not None else None)",
+                    "if density_enabled and flow_mode == 'fold':",
+                    "    warning = 'KDE unavailable for normalised flow-folded histograms.'",
+                    "else:",
+                    "    warning = draw_kde_1d_overlay(axes, x[inside], histogram_edges, PLOT.style,",
+                    "                                  weights=weights[inside] if weights is not None else None, density=density_enabled)",
                     "if warning is not None:",
                     "    warnings.append(warning)",
                 ]

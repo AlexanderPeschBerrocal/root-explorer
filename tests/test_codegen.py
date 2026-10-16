@@ -115,7 +115,10 @@ def _execute_export(request: PlotRequest):
 
 
 def _histogram_heights(figure) -> np.ndarray:
-    return np.asarray([patch.get_height() for patch in figure.axes[0].patches], dtype=float)
+    return np.asarray(
+        [patch.get_height() for patch in figure.axes[0].patches if hasattr(patch, "get_height")],
+        dtype=float,
+    )
 
 
 def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
@@ -791,3 +794,87 @@ def test_exported_positive_log_x_range_ignores_nonpositive_flow_values(root_path
     finally:
         plt.close(canonical)
         plt.close(exported)
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold"])
+def test_exported_unit_area_density_matches_application(root_path, mode: str) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "show_kde": False,
+            "log_x": False,
+            "log_y": False,
+            "grid": True,
+            "manual_histogram_limits": True,
+            "hist_x_min_text": "10",
+            "hist_x_max_text": "80",
+            "hist_flow_mode": mode,
+            "normalise_unit_area": True,
+        },
+    )
+    prepared, original_figure, exported_figure = _execute_export(request)
+    try:
+        assert prepared.normalisation_result is not None
+        assert prepared.normalisation_result.valid
+        np.testing.assert_allclose(
+            _histogram_heights(exported_figure),
+            _histogram_heights(original_figure),
+        )
+        assert exported_figure.axes[0].get_ylabel() == "Normalised density"
+        widths = np.diff(prepared.histogram_1d.axes[0].edges)
+        assert np.dot(_histogram_heights(exported_figure), widths) == pytest.approx(1.0)
+    finally:
+        plt.close(original_figure)
+        plt.close(exported_figure)
+
+
+def test_exported_density_fit_predictions_match_application(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "show_kde": False,
+            "log_x": False,
+            "log_y": False,
+            "grid": False,
+            "normalise_unit_area": True,
+        },
+        fit_config=FitConfig(model="Exponential"),
+    )
+    prepared, original_figure, exported_figure = _execute_export(request)
+    # _execute_export renders its reference without a fit by default.
+    # Re-render it with the same fit the standalone script computes.
+    plt.close(original_figure)
+    fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
+    assert fit_result.success
+    original_figure, _ = render_prepared_static_plot(
+        request.to_static_spec(), prepared, fit_result=fit_result
+    )
+    try:
+        assert prepared.normalisation_result is not None
+        np.testing.assert_allclose(
+            _histogram_heights(exported_figure), _histogram_heights(original_figure)
+        )
+        original_fit = [
+            p for p in original_figure.axes[0].patches if p.get_label() == "Exponential fit"
+        ]
+        exported_fit = [
+            p for p in exported_figure.axes[0].patches if p.get_label() == "Exponential fit"
+        ]
+        assert len(original_fit) == len(exported_fit) == 1
+        np.testing.assert_allclose(
+            original_fit[0].get_data().values,
+            exported_fit[0].get_data().values,
+        )
+    finally:
+        plt.close(original_figure)
+        plt.close(exported_figure)

@@ -257,3 +257,108 @@ def histogram_for_flow_mode(histogram: hist.Hist, mode: str) -> hist.Hist:
             view[target] += view[source]
             view[source] = 0.0
     return result
+
+
+class InvalidHistogramNormalisationError(ValueError):
+    """The supplied 1D histogram cannot be normalised to unit area."""
+
+
+@dataclass(frozen=True)
+class HistogramNormalisationResult:
+    """A density histogram and its denominator, or an explicit failure.
+
+    Stored variances are rescaled for a *fixed* denominator. They do not
+    represent the full covariance of a self-normalised random histogram.
+    """
+
+    histogram: hist.Hist | None
+    denominator: float
+    signed_weights: bool
+    warning: str | None = None
+    error: str | None = None
+
+    @property
+    def valid(self) -> bool:
+        return self.histogram is not None
+
+
+def normalise_histogram_1d(
+    histogram: hist.Hist,
+    *,
+    absolute_weight_sum: float | None = None,
+    has_negative_weights: bool = False,
+) -> HistogramNormalisationResult:
+    """Convert nominal bin yields to a unit-area *density*, without mutation.
+
+    For each regular bin, rho_i = sumw_i / (sum_j sumw_j * bin_width_i).
+    Flow bins have no finite widths and are not represented in the resulting
+    density. The caller must apply its flow policy (ignore/fold) first, and
+    must reject separate categorical flow bins before requesting a density.
+
+    Signed yields can have a unit *signed* integral, but are not necessarily
+    probability densities. The caller can supply the sum of absolute event
+    weights to detect cancellations hidden inside individual histogram bins.
+    """
+    if histogram.ndim != 1:
+        raise ValueError("Unit-area normalisation requires a 1D histogram.")
+
+    values = np.asarray(histogram.values(), dtype=float)
+    edges = np.asarray(histogram.axes[0].edges, dtype=float)
+    widths = np.diff(edges)
+    denominator = float(np.sum(values))
+    signed = bool(has_negative_weights or np.any(values < 0))
+
+    def invalid(reason: str) -> HistogramNormalisationResult:
+        return HistogramNormalisationResult(None, denominator, signed, error=reason)
+
+    if (
+        not np.all(np.isfinite(values))
+        or not np.all(np.isfinite(edges))
+        or not np.all(np.isfinite(widths))
+        or np.any(widths <= 0)
+    ):
+        return invalid("Unit-area normalisation requires finite bin contents and positive widths.")
+    if values.size == 0 or not np.isfinite(denominator) or denominator <= 0:
+        return invalid("Unit-area normalisation requires a finite, positive in-range yield.")
+
+    abs_sum = (
+        float(np.sum(np.abs(values))) if absolute_weight_sum is None else float(absolute_weight_sum)
+    )
+    if not np.isfinite(abs_sum) or abs_sum < 0:
+        return invalid("Unit-area normalisation has invalid absolute-weight bookkeeping.")
+    # Histograms and per-event weights are accumulated in different orders.
+    # Permit rounding-level discrepancies, but still reject inconsistent totals.
+    tolerance = 64 * np.finfo(float).eps * max(abs_sum, abs(denominator))
+    if abs_sum + tolerance < abs(denominator):
+        return invalid("Unit-area normalisation has invalid absolute-weight bookkeeping.")
+    ratio = min(1.0, denominator / abs_sum) if abs_sum else 0.0
+    if ratio <= 64 * np.finfo(float).eps:
+        return invalid(
+            "Unit-area normalisation is numerically unstable due to weight cancellation."
+        )
+
+    variances = histogram.variances()
+    if variances is None:
+        return invalid("Unit-area normalisation requires histogram bin variances.")
+    variance = np.asarray(variances, dtype=float)
+    if not np.all(np.isfinite(variance)) or np.any(variance < 0):
+        return invalid("Unit-area normalisation requires finite, non-negative bin variances.")
+
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        scale = denominator * widths
+        density = values / scale
+        density_variance = variance / np.square(scale)
+    if not np.all(np.isfinite(density)) or not np.all(np.isfinite(density_variance)):
+        return invalid("Unit-area normalisation produced non-finite densities or variances.")
+
+    result = hist.Hist(*histogram.axes, storage=hist.storage.Weight())
+    result_view = result.view()
+    result_view.value[:] = density
+    result_view.variance[:] = density_variance
+    # No arbitrary widths can be assigned to underflow/overflow categories.
+    warning = None
+    if ratio < 1e-6:
+        warning = "Strong cancellation of signed weights makes this normalisation sensitive."
+    elif signed:
+        warning = "Signed-weight unit integral is not necessarily a probability density."
+    return HistogramNormalisationResult(result, denominator, signed, warning=warning)

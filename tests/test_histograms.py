@@ -233,3 +233,105 @@ def test_histogram_limits_are_independent_of_plot_limits():
     style["x_min_text"] = "2"
     style["x_max_text"] = "3"
     assert resolve_histogram_range(values, 4, style) == (1.0, 4.0)
+
+
+def test_unit_area_density_respects_variable_bin_widths() -> None:
+    import hist
+
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = hist.Hist(hist.axis.Variable([0.0, 1.0, 3.0]), storage=hist.storage.Weight())
+    source.fill([0.5, 2.0], weight=[2.0, 2.0])
+    normalised = normalise_histogram_1d(source)
+    assert normalised.valid
+    np.testing.assert_allclose(normalised.histogram.values(), [0.5, 0.25])
+    assert np.dot(normalised.histogram.values(), [1.0, 2.0]) == pytest.approx(1.0)
+    np.testing.assert_allclose(normalised.histogram.variances(), [0.25, 0.0625])
+    np.testing.assert_allclose(source.values(), [2.0, 2.0])
+
+
+def test_unit_area_density_preserves_weighted_variance_scale_and_flow() -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = build_histogram_1d(
+        [-1.0, 0.2, 0.7, 2.0],
+        2,
+        weights=np.array([4.0, 2.0, 3.0, 8.0]),
+        value_range=(0.0, 1.0),
+    )
+    normalised = normalise_histogram_1d(source)
+    assert normalised.valid
+    assert normalised.denominator == pytest.approx(5.0)
+    np.testing.assert_allclose(normalised.histogram.values(), [0.8, 1.2])
+    np.testing.assert_allclose(normalised.histogram.variances(), [0.64, 1.44])
+    np.testing.assert_allclose(normalised.histogram.values(flow=True)[[0, -1]], [0, 0])
+    np.testing.assert_allclose(source.values(flow=True), [4, 2, 3, 8])
+
+
+def test_unit_area_signed_weights_are_not_called_probabilities() -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = build_histogram_1d(
+        [0.1, 0.8],
+        2,
+        weights=np.array([-1.0, 3.0]),
+        value_range=(0.0, 1.0),
+    )
+    result = normalise_histogram_1d(
+        source,
+        absolute_weight_sum=4.0,
+        has_negative_weights=True,
+    )
+    assert result.valid and result.signed_weights
+    assert result.warning is not None
+    np.testing.assert_allclose(result.histogram.values(), [-1.0, 3.0])
+    assert np.dot(result.histogram.values(), [0.5, 0.5]) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("weights", [[], [1.0, -1.0], [-1.0, -2.0]])
+def test_invalid_unit_area_returns_diagnostic_without_nan(weights) -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    values = np.arange(len(weights), dtype=float) + 0.5
+    source = build_histogram_1d(
+        values,
+        2,
+        weights=np.asarray(weights),
+        value_range=(0.0, 3.0),
+    )
+    result = normalise_histogram_1d(source)
+    assert not result.valid
+    assert result.histogram is None
+    assert result.error
+
+
+def test_unit_area_rejects_nearly_cancelled_weights_but_not_small_positive_yields() -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = build_histogram_1d(
+        [0.1],
+        2,
+        weights=np.array([1e-20]),
+        value_range=(0.0, 1.0),
+    )
+    assert normalise_histogram_1d(source).valid
+    assert not normalise_histogram_1d(
+        source,
+        absolute_weight_sum=1.0,
+        has_negative_weights=True,
+    ).valid
+
+
+def test_unit_area_tolerates_roundoff_in_absolute_event_weight_sum() -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = build_histogram_1d([0.25], 2, weights=np.array([1.0]), value_range=(0.0, 1.0))
+    # Event-wise and histogram-wise summation can differ by one ULP.
+    rounded_event_sum = np.nextafter(1.0, 0.0)
+    result = normalise_histogram_1d(source, absolute_weight_sum=rounded_event_sum)
+    assert result.valid
+    np.testing.assert_allclose(
+        np.sum(result.histogram.values() * np.diff(result.histogram.axes[0].edges)),
+        1.0,
+    )
+    assert not normalise_histogram_1d(source, absolute_weight_sum=0.9).valid

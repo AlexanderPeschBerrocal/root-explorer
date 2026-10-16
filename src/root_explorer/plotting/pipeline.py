@@ -18,9 +18,11 @@ from ..analysis.arrays import (
 from ..analysis.fitting import FitConfig, FitResult
 from ..analysis.histograms import (
     HistogramFlowSummary,
+    HistogramNormalisationResult,
     build_histogram_1d,
     build_histogram_2d,
     histogram_for_flow_mode,
+    normalise_histogram_1d,
     resolve_histogram_range,
     summarise_histogram_flow,
 )
@@ -90,6 +92,7 @@ class PreparedStaticPlot:
     display_histogram_1d: hist.Hist | None = None
     histogram_flow_summary: HistogramFlowSummary | None = None
     histogram_flow_mode: str = "ignore"
+    normalisation_result: HistogramNormalisationResult | None = None
 
     def render_arrays(
         self, plot_type: str
@@ -262,6 +265,44 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
     if histogram_range is None:
         flow_mode = "ignore"
 
+    normalisation_result = None
+    if histogram_1d is not None and spec.style.get("normalise_unit_area", False):
+        if flow_mode == "separate" and histogram_range is not None:
+            normalisation_result = HistogramNormalisationResult(
+                None,
+                float(np.sum(display_histogram_1d.values())),
+                bool(weights is not None and np.any(weights < 0)),
+                error=(
+                    "Unit-area density is incompatible with separate categorical flow bins. "
+                    "Choose Ignore or Fold instead."
+                ),
+            )
+        else:
+            within = (
+                (x >= histogram_range[0]) & (x <= histogram_range[1])
+                if histogram_range is not None and flow_mode == "ignore"
+                else np.ones(len(x), dtype=bool)
+            )
+            relevant_weights = weights[within] if weights is not None else None
+            absolute_total = (
+                float(np.sum(np.abs(relevant_weights)))
+                if relevant_weights is not None
+                else float(np.count_nonzero(within))
+            )
+            negative = bool(relevant_weights is not None and np.any(relevant_weights < 0))
+            normalisation_result = normalise_histogram_1d(
+                display_histogram_1d,
+                absolute_weight_sum=absolute_total,
+                has_negative_weights=negative,
+            )
+
+    if (
+        normalisation_result is not None
+        and normalisation_result.valid
+        and not spec.labels.get("custom_y")
+    ):
+        y_label = "Normalised density"
+
     histogram_2d = (
         build_histogram_2d(
             x,
@@ -296,6 +337,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         display_histogram_1d=display_histogram_1d,
         histogram_flow_summary=flow_summary,
         histogram_flow_mode=flow_mode,
+        normalisation_result=normalisation_result,
     )
 
 
@@ -319,7 +361,13 @@ def render_prepared_static_plot(
         prepared.y_label,
         spec.style,
         title=prepared.title,
-        histogram_1d=prepared.display_histogram_1d,
+        histogram_1d=(
+            prepared.normalisation_result.histogram
+            if prepared.normalisation_result is not None and prepared.normalisation_result.valid
+            else prepared.display_histogram_1d
+        ),
+        fit_histogram_1d=prepared.display_histogram_1d,
+        normalisation_result=prepared.normalisation_result,
         histogram_flow_summary=prepared.histogram_flow_summary,
         histogram_flow_mode=prepared.histogram_flow_mode,
         histogram_2d=prepared.histogram_2d,
