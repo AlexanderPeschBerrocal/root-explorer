@@ -42,7 +42,7 @@ def _check_expression_node(node: ast.AST, parameters: list[str], depth: int = 0)
         value = node.value
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError("Only finite numeric literals are allowed.")
-        if not np.isfinite(value) or abs(value) > 1e100:
+        if abs(value) > 1e100 or not np.isfinite(float(value)):
             raise ValueError("Numeric literal is too large or non-finite.")
     elif isinstance(node, ast.Name):
         if node.id.startswith("_"):

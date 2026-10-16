@@ -49,6 +49,7 @@ def test_parameter_discovery(expression, names):
         "exp(x, a)",
         "exp(x=x) + a",
         "a ** 100000",
+        "a + 9999999999999999999999999999999999999999999999999999999999999999",
         "a + True",
         "x + pi",
         "a + " + "x*" * 300 + "x",
