@@ -875,11 +875,21 @@ def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
     if not len(indices):
         return
     x0 = result.reference_x if result.reference_x is not None else (lower + upper) / 2
-    prediction = model_bin_integrals(result.model, edges, result.parameters, x0=x0)
+    selected_edges = edges[indices[0] : indices[-1] + 2]
+    try:
+        prediction = model_bin_integrals(
+            result.model,
+            selected_edges,
+            result.parameters,
+            x0=x0,
+            expression=result.expression,
+        )
+    except (ValueError, FloatingPointError, OverflowError):
+        return
     # A step representation remains valid for non-uniform bin widths.
     ax.stairs(
-        prediction[indices],
-        edges[indices[0] : indices[-1] + 2],
+        prediction,
+        selected_edges,
         color="tab:red",
         linewidth=2,
         label=f"{result.model} fit",

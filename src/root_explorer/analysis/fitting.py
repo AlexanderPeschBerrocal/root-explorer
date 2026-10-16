@@ -14,6 +14,8 @@ import numpy as np
 from scipy.optimize import least_squares
 from scipy.special import erf
 
+from .fit_expressions import discover_fit_parameters, evaluate_fit_expression
+
 FIT_MODELS: dict[str, tuple[str, ...]] = {
     "Gaussian": ("A", "mu", "sigma"),
     "Exponential": ("A", "k"),
@@ -35,6 +37,7 @@ class FitConfig:
     initial_values: dict[str, float] | None = None
     bounds: dict[str, tuple[float | None, float | None]] | None = None
     use_variances: bool = False
+    expression: str | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,7 @@ class FitResult:
     fit_range: tuple[float, float] | None
     message: str
     reference_x: float | None = None
+    expression: str | None = None
 
 
 def _core_integral(left: np.ndarray, right: np.ndarray) -> np.ndarray:
@@ -107,10 +111,19 @@ def _crystal_ball_integral(
 
 
 def model_density(
-    model: str, x: np.ndarray, parameters: dict[str, float], *, x0: float
+    model: str,
+    x: np.ndarray,
+    parameters: dict[str, float],
+    *,
+    x0: float,
+    expression: str | None = None,
 ) -> np.ndarray:
     """Evaluate an unnormalised density for display at arbitrary coordinates."""
     x = np.asarray(x, dtype=float)
+    if model == "Custom expression":
+        if expression is None:
+            raise ValueError("Missing custom fit expression.")
+        return evaluate_fit_expression(expression, x, parameters)
     amplitude = parameters["A"]
     if model == "Exponential":
         return amplitude * np.exp(parameters["k"] * (x - x0))
@@ -140,9 +153,20 @@ def model_bin_integrals(
     parameters: dict[str, float],
     *,
     x0: float,
+    expression: str | None = None,
 ) -> np.ndarray:
-    """Predict exact bin contents for the four supported built-in models."""
+    """Predict bin contents analytically or by quadrature for custom expressions."""
     edges = np.asarray(edges, dtype=float)
+    if model == "Custom expression":
+        if expression is None:
+            raise ValueError("Missing custom fit expression.")
+        # Integrate each original bin independently, including selections with gaps.
+        nodes, weights = np.polynomial.legendre.leggauss(32)
+        mid = (edges[:-1] + edges[1:]) / 2
+        half = (edges[1:] - edges[:-1]) / 2
+        coords = mid[:, None] + half[:, None] * nodes[None, :]
+        values = evaluate_fit_expression(expression, coords, parameters)
+        return half * np.sum(values * weights[None, :], axis=1)
     if model not in FIT_MODELS:
         raise ValueError(f"Unsupported fit model: {model}")
     left, right = edges[:-1], edges[1:]
@@ -249,7 +273,17 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
             message,
         )
 
-    if config.model not in FIT_MODELS:
+    expression = config.expression if config.model == "Custom expression" else None
+    if config.model == "Custom expression":
+        try:
+            names = discover_fit_parameters(expression or "")
+        except ValueError as exc:
+            return failed(f"Invalid custom fit expression: {exc}")
+    elif config.model in FIT_MODELS:
+        if config.expression is not None:
+            return failed("Custom expression is only supported for the Custom expression model.")
+        names = FIT_MODELS[config.model]
+    else:
         return failed(f"Unknown fit model: {config.model}")
     if histogram.ndim != 1:
         return failed("Fitting is supported for 1D histograms only.")
@@ -278,7 +312,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         selected &= usable
 
     indices = np.flatnonzero(selected)
-    nparams = len(FIT_MODELS[config.model])
+    nparams = len(names)
     if len(indices) <= nparams:
         return failed(
             f"Insufficient usable bins: {len(indices)} for {nparams} free parameters. "
@@ -294,8 +328,12 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     # keeping the original boundaries avoids rebinning gaps.
     fit_edges = np.column_stack((fit_left, fit_right))
     x0 = float((lower + upper) / 2)
-    guesses = _initial_guess(config.model, fit_edges, selected_values, x0=x0)
-    allowed = set(FIT_MODELS[config.model])
+    guesses = (
+        dict.fromkeys(names, 1.0)
+        if expression is not None
+        else _initial_guess(config.model, fit_edges, selected_values, x0=x0)
+    )
+    allowed = set(names)
     if config.initial_values and not set(config.initial_values).issubset(allowed):
         return failed(
             "Unknown initial-value parameter.", bins_used=len(indices), bins_excluded=excluded
@@ -306,8 +344,8 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     guess_values: list[float] = []
     lower_bounds: list[float] = []
     upper_bounds: list[float] = []
-    for name in FIT_MODELS[config.model]:
-        low, high = _default_bounds(name, edges)
+    for name in names:
+        low, high = (-np.inf, np.inf) if expression is not None else _default_bounds(name, edges)
         if config.bounds and name in config.bounds:
             override_low, override_high = config.bounds[name]
             low = -np.inf if override_low is None else float(override_low)
@@ -348,7 +386,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     )
 
     def residual(params: np.ndarray) -> np.ndarray:
-        params_dict = dict(zip(FIT_MODELS[config.model], params, strict=True))
+        params_dict = dict(zip(names, params, strict=True))
         # Evaluate all selected original bins in one vectorised call; this also
         # works when zero-variance bins create gaps in the selection.
         left = fit_edges[:, 0]
@@ -364,12 +402,18 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
             # Two-endpoint arrays are integrated independently, without
             # interpreting the gaps between selected bins as additional bins.
             integral_left = model_bin_integrals(
-                config.model, np.concatenate((left, [right[-1]])), params_dict, x0=x0
+                config.model,
+                np.concatenate((left, [right[-1]])),
+                params_dict,
+                x0=x0,
+                expression=expression,
             )
             if np.any(right[:-1] != left[1:]):
                 integral_left = np.array(
                     [
-                        model_bin_integrals(config.model, pair, params_dict, x0=x0)[0]
+                        model_bin_integrals(
+                            config.model, pair, params_dict, x0=x0, expression=expression
+                        )[0]
                         for pair in fit_edges
                     ]
                 )
@@ -381,7 +425,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         solution = least_squares(
             residual, guess_values, bounds=(lower_bounds, upper_bounds), max_nfev=3000
         )
-    except (ValueError, RuntimeError, FloatingPointError, OverflowError) as exc:
+    except (ValueError, RuntimeError, FloatingPointError, OverflowError, TypeError) as exc:
         return failed(f"Fit failed: {exc}", bins_used=len(indices), bins_excluded=excluded)
 
     if not solution.success or not np.all(np.isfinite(solution.x)):
@@ -391,8 +435,14 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
             bins_excluded=excluded,
         )
 
-    parameters = dict(zip(FIT_MODELS[config.model], (float(x) for x in solution.x), strict=True))
+    parameters = dict(zip(names, (float(x) for x in solution.x), strict=True))
     statistic = float(np.sum(solution.fun**2))
+    if not np.isfinite(statistic) or statistic > 1e150:
+        return failed(
+            "Model is undefined or numerically unstable over the selected bins.",
+            bins_used=len(indices),
+            bins_excluded=excluded,
+        )
     ndof = len(indices) - nparams
     uncertainties: dict[str, float | None] = dict.fromkeys(parameters)
     notes = []
@@ -428,4 +478,5 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         (float(fit_left[0]), float(fit_right[-1])),
         "Fit converged. " + " ".join(notes),
         reference_x=x0,
+        expression=expression,
     )

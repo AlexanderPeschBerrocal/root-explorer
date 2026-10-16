@@ -395,12 +395,28 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
     """Configure a binned least-squares fit for a 1D histogram."""
     if plot_type != "1D histogram":
         return None
+    from ..analysis.fit_expressions import discover_fit_parameters
     from ..analysis.fitting import FIT_MODELS, FitConfig
 
     st.markdown("### Histogram fit", anchors=False)
     if not st.checkbox("Enable fit", value=False, key=f"{prefix}_fit_enabled"):
         return None
-    model = st.selectbox("Fit model", list(FIT_MODELS), key=f"{prefix}_fit_model")
+    model = st.selectbox("Fit model", [*FIT_MODELS, "Custom expression"], key=f"{prefix}_fit_model")
+    expression = None
+    names = FIT_MODELS.get(model, ())
+    if model == "Custom expression":
+        expression = st.text_input(
+            "Mathematical expression",
+            value="A * exp(-0.5 * ((x - mu) / sigma)**2) + c",
+            key=f"{prefix}_fit_expression",
+            help="Use x, numeric constants, arithmetic, and whitelisted mathematical functions.",
+        )
+        try:
+            names = discover_fit_parameters(expression)
+            st.caption("Discovered parameters: " + ", ".join(names))
+        except ValueError as exc:
+            st.warning(f"Invalid custom fit expression: {exc}")
+            names = ()
     use_variances = st.checkbox(
         "Use stored bin variances (weighted least squares)",
         value=default_use_variances,
@@ -428,9 +444,11 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
 
     initial = {}
     bounds = {}
-    if st.checkbox("Override initial parameters and bounds", key=f"{prefix}_fit_override"):
-        st.caption("Leave fields blank for automatic estimates and default bounds.")
-        for name in FIT_MODELS[model]:
+    if model == "Custom expression" or st.checkbox(
+        "Override initial parameters and bounds", key=f"{prefix}_fit_override"
+    ):
+        st.caption("Leave fields blank for generic initial values and default bounds.")
+        for name in names:
             cols = st.columns(4)
             cols[0].markdown(f"**{name}**")
             fields = []
@@ -463,6 +481,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
         initial_values=initial,
         bounds=bounds,
         use_variances=use_variances,
+        expression=expression,
     )
 
 

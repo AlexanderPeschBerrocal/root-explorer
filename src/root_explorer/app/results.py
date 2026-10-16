@@ -73,6 +73,8 @@ def show_cached_plot_result(
     if isinstance(fit_result, FitResult):
         st.markdown("#### Histogram fit", anchors=False)
         st.caption(fit_result.objective)
+        if fit_result.expression is not None:
+            st.code(fit_result.expression, language="text")
         if fit_result.success:
             rows = [
                 {"Parameter": key, "Value": value, "Uncertainty": fit_result.uncertainties.get(key)}

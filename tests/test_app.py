@@ -593,6 +593,7 @@ def test_fit_controls_run_end_to_end_and_preserve_histogram(root_path) -> None:
         "Exponential",
         "Crystal Ball",
         "Double-sided Crystal Ball",
+        "Custom expression",
     ]
     assert at.checkbox(key="plot_fit_variances").value is False
     at.selectbox(key="x_branch").select("Muon_pt").run()
@@ -643,3 +644,58 @@ def test_persisted_th1_fit_controls_use_same_backend(object_only_root_path) -> N
     assert result["fit_result"] is not None
     assert result["fit_result"].objective == "Ordinary least squares"
     assert "def fit_histogram_1d(" in result["code"]
+
+
+def test_custom_fit_controls_and_invalid_expression_keep_histogram(root_path):
+    at = _load_root_file(make_app_test(), root_path)
+    at.checkbox(key="plot_fit_enabled").check().run()
+    at.selectbox(key="plot_fit_model").select("Custom expression").run()
+    assert at.text_input(key="plot_fit_expression")
+    at.text_input(key="plot_fit_expression").input("a*x + b").run()
+    assert at.text_input(key="plot_fit_Custom expression_a_initial")
+    assert at.text_input(key="plot_fit_Custom expression_b_lower")
+    assert not [x for x in at.text_input if x.key == "plot_fit_Custom expression_A_initial"]
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.text_input(key="plot_fit_Custom expression_a_initial").input("1").run()
+    at.text_input(key="plot_fit_Custom expression_b_initial").input("1").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert at.session_state["plot_result"]["figure"].axes
+    at.text_input(key="plot_fit_expression").input("np.exp(x)").run()
+    assert at.warning
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert not result["fit_result"].success
+    assert result["figure"].axes[0].patches
+
+
+def test_persisted_histogram_custom_fit_controls(object_only_root_path):
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    at.session_state["root_inspector_open"] = (
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
+    )
+    at.run()
+    toggle = next(
+        widget
+        for widget in at.checkbox
+        if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_enabled")
+    )
+    toggle.check().run()
+    model = next(
+        widget
+        for widget in at.selectbox
+        if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_model")
+    )
+    model.select("Custom expression").run()
+    expression = next(
+        widget
+        for widget in at.text_input
+        if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_expression")
+    )
+    assert expression.value
+    at.button(key="hist_make_plot").click().run()
+    assert not at.exception
+    assert at.session_state["root_histogram_result"]["fit_result"] is not None
