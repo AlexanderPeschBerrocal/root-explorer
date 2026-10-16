@@ -21,6 +21,53 @@ From a checkout, users can launch the app directly:
 streamlit run streamlit_app.py
 ```
 
+### Unit-area density normalisation
+
+For event-derived **1D histograms**, enable **Normalise to unit area** under
+Histogram analysis. The displayed histogram is a bin-width-corrected density:
+
+```text
+density[i] = sum_weights[i] / (normalisation_sum * bin_width[i])
+sum_i density[i] * bin_width[i] = 1
+```
+
+The operation is performed after variable evaluation, selections, non-finite
+filtering and optional event weights. **Ignore** normalises using only nominal
+in-range bins, producing a conditional in-range density. **Fold** first moves
+underflow and overflow yields into the corresponding edge bins and then includes
+them in normalisation; the edge-bin density is therefore a visualisation of
+folded yields, not a local density estimate of the original out-of-range data.
+**Show separate bins** cannot be combined with density mode because flow
+categories do not have finite widths. Axis zoom does not affect the
+normalisation domain.
+
+Unweighted and weighted histograms use their visible bin sums as denominators.
+For signed weights, a positive net integral produces a *signed unit-integral
+density*, which need not be non-negative or interpretable as a probability
+distribution. Empty, non-positive or numerically unstable denominators leave
+the original yields visible with a warning. Original sample statistics and
+flow tables are unchanged. The y-axis defaults to **Normalised density**;
+for an observable measured in GeV, the physical density unit is GeV⁻¹.
+
+For a fixed denominator `S`, stored variances are rescaled by
+`1 / (S * bin_width[i])**2`. Since the denominator is estimated from the
+same data, these diagonal variances do not capture the full covariance of a
+self-normalised distribution. They must not be treated as independent
+statistical uncertainties in shape-only fits or tests.
+
+Histogram fits continue to operate on the original flow-adjusted bin yields;
+their displayed predictions are divided by `S * bin_width[i]` in density mode.
+Fit parameters and goodness-of-fit statistics therefore do not change when
+the density display is toggled. KDE overlays use density units when enabled;
+the smooth KDE may have tails outside the histogram range. KDE is unavailable
+for normalised flow-folded histograms.
+
+**Download plot code** reproduces the chosen density, flow, fit and KDE
+semantics. Currently, the control applies to event-derived 1D histograms.
+Persisted ROOT `TH1*` objects can contain counts, densities or other
+quantities without reliable semantic metadata, and are not normalised
+automatically. `TProfile*` bin means must not be treated as yields.
+
 ### Built-in histogram fitting
 
 For a 1D histogram, enable **Histogram fit** and choose Gaussian,
