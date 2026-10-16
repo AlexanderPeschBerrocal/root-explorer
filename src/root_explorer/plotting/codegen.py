@@ -484,7 +484,7 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     if spec.plot_type == "1D histogram":
         lines.extend(
             [
-                "draw_histogram_1d("
+                "draw_histogram_1d(",
                 "    axes, display_histogram, y_label, reference_x=reference_x,",
                 "    reference_label=reference_label, flow_summary=flow_summary, flow_mode=flow_mode,",
                 "    log_x=bool(PLOT.style.get('log_x', False)),",
@@ -494,7 +494,7 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
         if plan.has_fit:
-            lines.append("if fit_result.success: draw_fit_overlay(axes, histogram_1d, fit_result)")
+            lines.append("if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result)")
         if plan.show_kde:
             lines.extend(
                 [

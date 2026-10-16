@@ -138,9 +138,8 @@ def test_static_pipeline_prepares_2d_histogram_for_render(root_path, monkeypatch
     plt.close(figure)
 
 
-@pytest.mark.parametrize("mode, total", [("ignore", 0), ("fold", 0), ("separate", 0)])
-def test_pipeline_manual_histogram_bounds_and_flow(root_path, mode, total):
-    from root_explorer.analysis.histograms import histogram_for_flow_mode
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+def test_pipeline_manual_histogram_bounds_and_flow(root_path, mode):
     spec = StaticPlotSpec(
         root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
         plot_type="1D histogram",
