@@ -613,6 +613,27 @@ def histogram_analysis_controls(
                 key=f"{prefix}_hist_flow_mode",
             )
         style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
+        separate_flow = (
+            style["manual_histogram_limits"]
+            and style["hist_flow_mode"] == "separate"
+            and bool(style["hist_x_min_text"].strip() or style["hist_x_max_text"].strip())
+        )
+        normalise_requested = st.checkbox(
+            "Normalise to unit area",
+            value=False,
+            key=f"{prefix}_normalise_unit_area",
+            disabled=separate_flow,
+            help=(
+                "Display a density: the sum of (bin height × bin width) is one. "
+                "Only nominal bins contribute in Ignore mode; folded flow is included in Fold mode."
+            ),
+        )
+        style["normalise_unit_area"] = bool(normalise_requested and not separate_flow)
+        if separate_flow:
+            st.caption(
+                "Unit-area density cannot include separate underflow/overflow categories "
+                "because they have no finite bin widths. Choose Ignore or Fold."
+            )
     else:
         style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
         style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")

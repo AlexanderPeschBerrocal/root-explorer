@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from ..analysis.fitting import FitResult
+from ..analysis.histograms import HistogramNormalisationResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
@@ -71,6 +72,30 @@ def show_cached_plot_result(
     else:
         st.error(f"Unknown cached plot kind: {kind}")
         return
+
+    normalisation = result.get("normalisation_result")
+    if isinstance(normalisation, HistogramNormalisationResult):
+        bounds = result.get("normalisation_range")
+        if normalisation.valid:
+            interval = (
+                f"[{bounds[0]:g}, {bounds[1]:g}]"
+                if bounds is not None
+                else "the nominal histogram range"
+            )
+            mode = result.get("histogram_flow_mode", "ignore")
+            domain = (
+                "including folded underflow/overflow"
+                if mode == "fold"
+                else "excluding underflow/overflow"
+            )
+            kind = "Signed unit-integral density" if normalisation.signed_weights else "Unit-area density"
+            st.caption(
+                f"{kind} over {interval} ({domain}); "
+                f"normalisation sum of weights: {normalisation.denominator:.6g}. "
+                "Original yields and sample statistics are unchanged."
+            )
+        else:
+            st.caption("Unit-area normalisation unavailable; showing unnormalised bin yields.")
 
     for warning in result.get("warnings", []):
         st.warning(warning)

@@ -404,6 +404,11 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         "histogram_flow_summary": prepared.histogram_flow_summary,
         "histogram_flow_mode": prepared.histogram_flow_mode,
         "normalisation_result": prepared.normalisation_result,
+        "normalisation_range": (
+            tuple(float(edge) for edge in prepared.histogram_1d.axes[0].edges[[0, -1]])
+            if prepared.histogram_1d is not None and prepared.normalisation_result is not None
+            else None
+        ),
         "correlation_result": correlation_result,
         "color_clipping_result": prepared.color_clipping_result,
         "warnings": plot_warnings,
