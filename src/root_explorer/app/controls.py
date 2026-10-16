@@ -618,6 +618,10 @@ def histogram_analysis_controls(
             and style["hist_flow_mode"] == "separate"
             and bool(style["hist_x_min_text"].strip() or style["hist_x_max_text"].strip())
         )
+        # Clear the widget value before creating it; disabled Streamlit checkboxes
+        # otherwise retain a stale, visually checked session-state value.
+        if separate_flow:
+            st.session_state[f"{prefix}_normalise_unit_area"] = False
         normalise_requested = st.checkbox(
             "Normalise to unit area",
             value=False,

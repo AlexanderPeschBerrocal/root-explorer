@@ -770,15 +770,28 @@ def test_normalisation_control_and_output_in_streamlit(root_path) -> None:
     assert "normalise_histogram_1d" in result["code"]
 
 
-def test_separate_flow_disables_density_checkbox(root_path) -> None:
+def test_separate_flow_disables_and_clears_density_checkbox(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
+    at.checkbox(key="plot_normalise_unit_area").check().run()
+    assert at.checkbox(key="plot_normalise_unit_area").value
+
     at.checkbox(key="plot_manual_histogram_limits").check().run()
     at.text_input(key="plot_hist_x_min").input("15").run()
     at.text_input(key="plot_hist_x_max").input("30").run()
     at.selectbox(key="plot_hist_flow_mode").select("separate").run()
-    assert at.checkbox(key="plot_normalise_unit_area").disabled
+
+    checkbox = at.checkbox(key="plot_normalise_unit_area")
+    assert checkbox.disabled
+    assert not checkbox.value
+    assert not at.session_state["plot_normalise_unit_area"]
+
     at.button(key="plot_make").click().run()
     assert at.session_state["plot_result"]["normalisation_result"] is None
+
+    at.selectbox(key="plot_hist_flow_mode").select("ignore").run()
+    checkbox = at.checkbox(key="plot_normalise_unit_area")
+    assert not checkbox.disabled
+    assert not checkbox.value
 
 
 def test_unit_area_control_is_1d_only(root_path) -> None:
