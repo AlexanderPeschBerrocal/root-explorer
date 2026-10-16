@@ -10,6 +10,7 @@ import streamlit as st
 from ..analysis.fitting import fit_histogram_1d
 from ..io.histograms import UnsupportedHistogramError, read_histogram
 from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
+from ..plotting.plots import draw_fit_overlay
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError
 from .controls import fit_controls
 from .results import show_cached_plot_result
@@ -95,7 +96,10 @@ def render_histogram_controls(
         try:
             spec = HistogramPlotSpec(root_path, object_path, style, labels, fit_config=fit_config)
             fit_result = fit_histogram_1d(h, fit_config) if fit_config is not None else None
-            figure = render_histogram_data(data, spec.style, spec.labels, fit_result=fit_result)
+            figure = render_histogram_data(data, spec.style, spec.labels)
+            if fit_result is not None and fit_result.success:
+                draw_fit_overlay(figure.axes[0], h, fit_result)
+                figure.tight_layout()
             from ..plotting.histogram_codegen import generate_histogram_plot_code
 
             st.session_state["root_histogram_result"] = {

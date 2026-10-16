@@ -168,12 +168,13 @@ def model_bin_integrals(
 
 
 def _initial_guess(
-    model: str, edges: np.ndarray, values: np.ndarray
+    model: str, bin_edges: np.ndarray, values: np.ndarray, *, x0: float
 ) -> dict[str, float]:
-    centers = 0.5 * (edges[1:] + edges[:-1])
-    widths = np.diff(edges)
+    """Estimate parameters from the *selected* bins, never excluded outliers."""
+    centers = 0.5 * (bin_edges[:, 0] + bin_edges[:, 1])
+    widths = bin_edges[:, 1] - bin_edges[:, 0]
     positive = np.maximum(values, 0)
-    scale = max(float(np.ptp(edges)), float(np.min(widths)))
+    scale = max(float(bin_edges[:, 1].max() - bin_edges[:, 0].min()), float(np.min(widths)))
     if positive.sum() > 0:
         mu = float(np.average(centers, weights=positive))
         sigma = float(np.sqrt(np.average((centers - mu) ** 2, weights=positive)))
@@ -192,8 +193,9 @@ def _initial_guess(
             except (ValueError, np.linalg.LinAlgError):
                 pass
         k = float(np.clip(k, -20 / scale, 20 / scale))
-        x0 = float(np.mean(edges[[0, -1]]))
-        return {"A": max(amplitude * np.exp(k * (x0 - mu)), 1e-6), "k": k}
+        intercepts = np.log(density[positive_bins]) - k * (centers[positive_bins] - x0)
+        exponential_amplitude = float(np.exp(np.median(intercepts))) if intercepts.size else amplitude
+        return {"A": max(exponential_amplitude, 1e-6), "k": k}
 
     guessed = {"A": amplitude, "mu": mu, "sigma": sigma}
     if model == "Crystal Ball":
@@ -272,7 +274,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     # keeping the original boundaries avoids rebinning gaps.
     fit_edges = np.column_stack((fit_left, fit_right))
     x0 = float((lower + upper) / 2)
-    guesses = _initial_guess(config.model, edges, values)
+    guesses = _initial_guess(config.model, fit_edges, selected_values, x0=x0)
     allowed = set(FIT_MODELS[config.model])
     if config.initial_values and not set(config.initial_values).issubset(allowed):
         return failed("Unknown initial-value parameter.", bins_used=len(indices), bins_excluded=excluded)

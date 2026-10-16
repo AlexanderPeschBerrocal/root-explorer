@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib import colormaps
 from matplotlib.colors import LogNorm
 
-from ..analysis.fitting import FitConfig, FitResult
+from ..analysis.fitting import FitConfig
 from ..io.histograms import PersistedHistogram, read_histogram
 from .plots import (
     InvalidAxisScaleError,
@@ -56,8 +56,7 @@ def visible_profile_occupancy(data: PersistedHistogram) -> np.ndarray:
 
 
 def render_histogram_data(
-    data: PersistedHistogram, style: dict[str, Any], labels: dict[str, str], *,
-    fit_result: FitResult | None = None
+    data: PersistedHistogram, style: dict[str, Any], labels: dict[str, str]
 ) -> Any:
     """Draw prepared histogram bins directly; never reconstruct pseudo-events."""
     h = data.histogram
@@ -87,9 +86,6 @@ def render_histogram_data(
                     capsize=2,
                     linestyle="none",
                 )
-            if fit_result is not None and fit_result.success:
-                from .plots import draw_fit_overlay
-                draw_fit_overlay(ax, h, fit_result)
             if style.get("log_x", False):
                 if not np.all(np.isfinite(edges)) or np.any(edges <= 0):
                     raise InvalidAxisScaleError("Log x-axis requires positive histogram edges.")
@@ -159,5 +155,12 @@ def render_histogram_data(
 def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
     data = read_histogram(spec.root_path, spec.object_path)
     from ..analysis.fitting import fit_histogram_1d
-    result = fit_histogram_1d(data.histogram, spec.fit_config) if spec.fit_config is not None else None
-    return render_histogram_data(data, spec.style, spec.labels, fit_result=result)
+    figure = render_histogram_data(data, spec.style, spec.labels)
+    if spec.fit_config is not None:
+        from .plots import draw_fit_overlay
+
+        result = fit_histogram_1d(data.histogram, spec.fit_config)
+        if result.success:
+            draw_fit_overlay(figure.axes[0], data.histogram, result)
+            figure.tight_layout()
+    return figure

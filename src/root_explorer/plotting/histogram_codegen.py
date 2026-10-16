@@ -24,7 +24,8 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
         + (
             "    result = fit_histogram_1d(data.histogram, PLOT.fit_config)\n"
             "    if not result.success: print(f'Fit warning: {result.message}')\n"
-            "    render_histogram_data(data, PLOT.style, PLOT.labels, fit_result=result)\n"
+            "    figure = render_histogram_data(data, PLOT.style, PLOT.labels)\n"
+            "    if result.success: draw_fit_overlay(figure.axes[0], data.histogram, result)\n"
             if spec.fit_config is not None else
             "    render_histogram_data(data, PLOT.style, PLOT.labels)\n"
         )
