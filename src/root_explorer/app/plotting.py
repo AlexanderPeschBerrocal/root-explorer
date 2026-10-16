@@ -360,7 +360,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         else None
     )
     fit_result = (
-        fit_histogram_1d(prepared.histogram_1d, request.fit_config)
+        fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
         if request.fit_config is not None and prepared.histogram_1d is not None
         else None
     )

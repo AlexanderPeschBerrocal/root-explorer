@@ -237,8 +237,12 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
     )
 
     histogram_range = (
-        resolve_histogram_range(x, int(spec.style["bins_x"]), spec.style)
-        if histogram_1d is not None
+        tuple(histogram_1d.axes[0].edges[[0, -1]])
+        if histogram_1d is not None and spec.style.get("manual_histogram_limits", False)
+        and (
+            str(spec.style.get("hist_x_min_text", "")).strip()
+            or str(spec.style.get("hist_x_max_text", "")).strip()
+        )
         else None
     )
     flow_mode = str(spec.style.get("hist_flow_mode", "ignore"))

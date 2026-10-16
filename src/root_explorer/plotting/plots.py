@@ -841,6 +841,7 @@ def draw_histogram_1d(
     reference_label: str | None,
     flow_summary: Any | None = None,
     flow_mode: str = "ignore",
+    log_x: bool = False,
 ) -> None:
     """Draw a prepared 1D histogram without recomputing its binning semantics."""
 
@@ -858,7 +859,7 @@ def draw_histogram_1d(
         # Detached categorical bars: their horizontal positions have no physics meaning.
         width = float(histogram_edges[-1] - histogram_edges[0]) / len(histogram_counts)
         left, right = float(histogram_edges[0]), float(histogram_edges[-1])
-        if ax.get_xscale() == "log":
+        if log_x:
             if left <= 0:
                 raise InvalidAxisScaleError("Log x-axis requires positive histogram edges.")
             ratio = (right / left) ** (1 / len(histogram_counts))
@@ -1125,6 +1126,7 @@ def render_static_plot(
             reference_label=reference_label,
             flow_summary=histogram_flow_summary,
             flow_mode=histogram_flow_mode,
+            log_x=bool(style.get("log_x", False)),
         )
         if fit_result is not None and fit_result.success:
             draw_fit_overlay(ax, histogram_1d, fit_result)

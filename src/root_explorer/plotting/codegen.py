@@ -453,13 +453,18 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 "    value_range=resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style),",
                 "    label=x_label,",
                 ")",
+                "flow_range = resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style)",
+                "flow_mode = PLOT.style.get('hist_flow_mode', 'ignore') if flow_range is not None else 'ignore'",
+                "flow_summary = (summarise_histogram_flow(histogram_1d, x, weighted=weights is not None)",
+                "                if flow_range is not None else None)",
+                "display_histogram = histogram_for_flow_mode(histogram_1d, flow_mode)",
             ]
         )
 
     if plan.has_fit:
         lines.extend(
             [
-                "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
+                "fit_result = fit_histogram_1d(display_histogram, PLOT.fit_config)",
                 "if not fit_result.success:",
                 "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
             ]
@@ -479,16 +484,12 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     if spec.plot_type == "1D histogram":
         lines.extend(
             [
-                "flow_range = resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style)",
-                "flow_mode = PLOT.style.get('hist_flow_mode', 'ignore') if flow_range is not None else 'ignore'",
-                "flow_summary = (summarise_histogram_flow(histogram_1d, x, weighted=weights is not None)",
-                "                if flow_range is not None else None)",
-                "display_histogram = histogram_for_flow_mode(histogram_1d, flow_mode)",
-                "draw_histogram_1d(",
+                "draw_histogram_1d("
                 "    axes, display_histogram, y_label, reference_x=reference_x,",
                 "    reference_label=reference_label, flow_summary=flow_summary, flow_mode=flow_mode,",
+                "    log_x=bool(PLOT.style.get('log_x', False)),",
                 ")",
-                "histogram_counts = histogram_1d.values()",
+                "histogram_counts = display_histogram.values()",
                 "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )
@@ -497,7 +498,9 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         if plan.show_kde:
             lines.extend(
                 [
-                    "warning = draw_kde_1d_overlay(axes, x, histogram_edges, PLOT.style, weights=weights)",
+                    "inside = (x >= histogram_edges[0]) & (x <= histogram_edges[-1]) if flow_range is not None else slice(None)",
+                    "warning = draw_kde_1d_overlay(axes, x[inside], histogram_edges, PLOT.style,",
+                    "                              weights=weights[inside] if weights is not None else None)",
                     "if warning is not None:",
                     "    warnings.append(warning)",
                 ]
