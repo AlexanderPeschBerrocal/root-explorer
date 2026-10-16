@@ -437,6 +437,12 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
 
     parameters = dict(zip(names, (float(x) for x in solution.x), strict=True))
     statistic = float(np.sum(solution.fun**2))
+    if not np.isfinite(statistic) or statistic > 1e150:
+        return failed(
+            "Model is undefined or numerically unstable over the selected bins.",
+            bins_used=len(indices),
+            bins_excluded=excluded,
+        )
     ndof = len(indices) - nparams
     uncertainties: dict[str, float | None] = dict.fromkeys(parameters)
     notes = []
