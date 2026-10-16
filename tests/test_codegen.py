@@ -747,3 +747,49 @@ def test_exported_manual_range_flow_matches_canonical(root_path, mode):
     finally:
         plt.close(canonical)
         plt.close(generated)
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+@pytest.mark.parametrize("log_y", [False, True])
+def test_exported_positive_log_x_range_ignores_nonpositive_flow_values(
+    root_path, mode, log_y
+):
+    """Standalone exports and the app accept the same log-x flow configurations."""
+
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 8,
+            "log_x": True,
+            "log_y": log_y,
+            "grid": False,
+            "manual_histogram_limits": True,
+            "hist_x_min_text": "0.05",
+            "hist_x_max_text": "2.5",
+            "hist_flow_mode": mode,
+        },
+    )
+    prepared, canonical, exported = _execute_export(request)
+    try:
+        assert np.any(prepared.x <= 0)
+        assert prepared.histogram_flow_summary is not None
+        assert prepared.histogram_flow_summary.underflow_entries > 0
+        assert canonical.axes[0].get_xscale() == exported.axes[0].get_xscale() == "log"
+        expected_yscale = "log" if log_y else "linear"
+        assert canonical.axes[0].get_yscale() == exported.axes[0].get_yscale() == expected_yscale
+        np.testing.assert_allclose(_histogram_heights(canonical), _histogram_heights(exported))
+        if mode == "separate":
+            for figure in (canonical, exported):
+                figure.canvas.draw()
+                ax = figure.axes[0]
+                assert [label.get_text() for label in ax.texts] == ["UF", "OF"]
+                for label in ax.texts:
+                    bbox = label.get_window_extent(figure.canvas.get_renderer())
+                    assert ax.bbox.y0 < bbox.y0 < bbox.y1 < ax.bbox.y1
+    finally:
+        plt.close(canonical)
+        plt.close(exported)

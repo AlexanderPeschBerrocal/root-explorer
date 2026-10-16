@@ -839,3 +839,81 @@ def test_2d_renderer_requires_prepared_histogram() -> None:
             )
     finally:
         plt.close(figure)
+
+
+@pytest.mark.parametrize("log_x", [False, True])
+@pytest.mark.parametrize("log_y", [False, True])
+def test_separate_flow_labels_remain_visible_on_log_axes(log_x, log_y) -> None:
+    """UF/OF are categorical labels, so their y positions must not be data-space zero."""
+
+    from root_explorer.analysis.histograms import summarise_histogram_flow
+
+    values = np.array([-2.0, 0.0, 1.5, 2.0, 4.0, 8.0, 12.0])
+    histogram = build_histogram_1d(values, 4, value_range=(1.0, 10.0))
+    summary = summarise_histogram_flow(histogram, values, weighted=False)
+    fig, ax = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            fig,
+            ax,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {"log_x": log_x, "log_y": log_y, "grid": False},
+            title="flow labels",
+            histogram_1d=histogram,
+            histogram_flow_summary=summary,
+            histogram_flow_mode="separate",
+        )
+        assert not warnings
+        assert ax.get_xscale() == ("log" if log_x else "linear")
+        assert ax.get_yscale() == ("log" if log_y else "linear")
+        assert [label.get_text() for label in ax.texts] == ["UF", "OF"]
+        fig.canvas.draw()
+        for label in ax.texts:
+            assert label.get_position()[1] == pytest.approx(0.02)
+            # The y coordinate is in axes coordinates, independent of the data scale.
+            bounds = label.get_window_extent(fig.canvas.get_renderer())
+            assert ax.bbox.y0 < bounds.y0 < bounds.y1 < ax.bbox.y1
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+def test_histogram_log_x_accepts_nonpositive_flow_values(mode) -> None:
+    """Selected underflow data cannot invalidate the positive nominal x range."""
+
+    from root_explorer.analysis.histograms import (
+        histogram_for_flow_mode,
+        summarise_histogram_flow,
+    )
+
+    values = np.array([-5.0, 0.0, 2.0, 3.0, 7.0, 11.0])
+    raw = build_histogram_1d(values, 4, value_range=(1.0, 10.0))
+    shown = histogram_for_flow_mode(raw, mode)
+    summary = summarise_histogram_flow(raw, values, weighted=False)
+    fig, ax = plt.subplots()
+    try:
+        render_static_plot(
+            fig,
+            ax,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {"log_x": True, "log_y": False, "grid": False},
+            title="positive nominal range",
+            histogram_1d=shown,
+            histogram_flow_summary=summary,
+            histogram_flow_mode=mode,
+        )
+        assert ax.get_xscale() == "log"
+        assert summary.underflow_entries == 2
+        assert summary.overflow_entries == 1
+        assert raw.values().sum() == 3
+        assert shown.values().sum() == (len(values) if mode == "fold" else 3)
+    finally:
+        plt.close(fig)

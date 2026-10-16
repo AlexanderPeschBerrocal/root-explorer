@@ -513,7 +513,7 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 ]
             )
         if plan.log_x:
-            lines.append("apply_log_x_axis(axes, x)")
+            lines.append("apply_log_x_axis(axes, histogram_edges)")
         if plan.log_y:
             lines.append("apply_log_histogram_y_axis(axes, histogram_counts)")
     elif spec.plot_type == "2D histogram":

@@ -882,7 +882,16 @@ def draw_histogram_1d(
                 edgecolor="black",
                 linewidth=1,
             )
-            ax.text(position + bar_width / 2, 0, label, ha="center", va="top")
+            # Keep the categorical UF/OF labels at a fixed fraction of the axes height.
+            # A data-space y=0 is not visible on a logarithmic y-axis.
+            ax.text(
+                position + bar_width / 2,
+                0.02,
+                label,
+                ha="center",
+                va="bottom",
+                transform=ax.get_xaxis_transform(),
+            )
     if reference_x is not None:
         ax.axvline(
             reference_x,
@@ -1148,7 +1157,11 @@ def render_static_plot(
             warning = draw_kde_1d_overlay(ax, kde_x, histogram_edges, style, weights=kde_weights)
             if warning is not None:
                 warnings.append(warning)
-        apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
+        # Histogram limits define the visible x-domain. Values assigned to flow
+        # bins must not invalidate an otherwise positive log-x histogram range.
+        apply_log_axis_scales(
+            ax, style, x=histogram_edges, histogram_counts=histogram_counts
+        )
 
     elif plot_type == "2D histogram":
         if histogram_2d is None:
