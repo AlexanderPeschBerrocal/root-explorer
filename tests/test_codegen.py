@@ -851,6 +851,14 @@ def test_exported_density_fit_predictions_match_application(root_path) -> None:
         fit_config=FitConfig(model="Exponential"),
     )
     prepared, original_figure, exported_figure = _execute_export(request)
+    # _execute_export renders its reference without a fit by default.
+    # Re-render it with the same fit the standalone script computes.
+    plt.close(original_figure)
+    fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
+    assert fit_result.success
+    original_figure, _ = render_prepared_static_plot(
+        request.to_static_spec(), prepared, fit_result=fit_result
+    )
     try:
         assert prepared.normalisation_result is not None
         np.testing.assert_allclose(

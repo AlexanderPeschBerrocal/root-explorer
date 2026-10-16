@@ -324,9 +324,14 @@ def normalise_histogram_1d(
     abs_sum = (
         float(np.sum(np.abs(values))) if absolute_weight_sum is None else float(absolute_weight_sum)
     )
-    if not np.isfinite(abs_sum) or abs_sum < 0 or abs_sum < abs(denominator):
+    if not np.isfinite(abs_sum) or abs_sum < 0:
         return invalid("Unit-area normalisation has invalid absolute-weight bookkeeping.")
-    ratio = denominator / abs_sum if abs_sum else 0.0
+    # Histograms and per-event weights are accumulated in different orders.
+    # Permit rounding-level discrepancies, but still reject inconsistent totals.
+    tolerance = 64 * np.finfo(float).eps * max(abs_sum, abs(denominator))
+    if abs_sum + tolerance < abs(denominator):
+        return invalid("Unit-area normalisation has invalid absolute-weight bookkeeping.")
+    ratio = min(1.0, denominator / abs_sum) if abs_sum else 0.0
     if ratio <= 64 * np.finfo(float).eps:
         return invalid(
             "Unit-area normalisation is numerically unstable due to weight cancellation."

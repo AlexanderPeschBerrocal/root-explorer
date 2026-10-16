@@ -320,3 +320,24 @@ def test_unit_area_rejects_nearly_cancelled_weights_but_not_small_positive_yield
         absolute_weight_sum=1.0,
         has_negative_weights=True,
     ).valid
+
+
+def test_unit_area_tolerates_roundoff_in_absolute_event_weight_sum() -> None:
+    from root_explorer.analysis.histograms import normalise_histogram_1d
+
+    source = build_histogram_1d(
+        [0.25], 2, weights=np.array([1.0]), value_range=(0.0, 1.0)
+    )
+    # Event-wise and histogram-wise summation can differ by one ULP.
+    rounded_event_sum = np.nextafter(1.0, 0.0)
+    result = normalise_histogram_1d(
+        source, absolute_weight_sum=rounded_event_sum
+    )
+    assert result.valid
+    np.testing.assert_allclose(
+        np.sum(result.histogram.values() * np.diff(result.histogram.axes[0].edges)),
+        1.0,
+    )
+    assert not normalise_histogram_1d(
+        source, absolute_weight_sum=0.9
+    ).valid
