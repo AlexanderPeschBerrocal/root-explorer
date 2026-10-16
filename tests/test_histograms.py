@@ -272,10 +272,15 @@ def test_unit_area_signed_weights_are_not_called_probabilities() -> None:
     from root_explorer.analysis.histograms import normalise_histogram_1d
 
     source = build_histogram_1d(
-        [0.1, 0.8], 2, weights=np.array([-1.0, 3.0]), value_range=(0.0, 1.0),
+        [0.1, 0.8],
+        2,
+        weights=np.array([-1.0, 3.0]),
+        value_range=(0.0, 1.0),
     )
     result = normalise_histogram_1d(
-        source, absolute_weight_sum=4.0, has_negative_weights=True,
+        source,
+        absolute_weight_sum=4.0,
+        has_negative_weights=True,
     )
     assert result.valid and result.signed_weights
     assert result.warning is not None
@@ -304,9 +309,14 @@ def test_unit_area_rejects_nearly_cancelled_weights_but_not_small_positive_yield
     from root_explorer.analysis.histograms import normalise_histogram_1d
 
     source = build_histogram_1d(
-        [0.1], 2, weights=np.array([1e-20]), value_range=(0.0, 1.0),
+        [0.1],
+        2,
+        weights=np.array([1e-20]),
+        value_range=(0.0, 1.0),
     )
     assert normalise_histogram_1d(source).valid
     assert not normalise_histogram_1d(
-        source, absolute_weight_sum=1.0, has_negative_weights=True,
+        source,
+        absolute_weight_sum=1.0,
+        has_negative_weights=True,
     ).valid

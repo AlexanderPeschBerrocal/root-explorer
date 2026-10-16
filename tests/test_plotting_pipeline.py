@@ -194,17 +194,32 @@ def test_density_pipeline_flow_and_fit_invariance(root_path, mode):
     from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
 
     style = {
-        "fig_width": 8.0, "fig_height": 6.0, "bins_x": 10,
-        "log_x": False, "log_y": False, "grid": False,
-        "manual_histogram_limits": True, "hist_x_min_text": "15",
-        "hist_x_max_text": "30", "hist_flow_mode": mode,
+        "fig_width": 8.0,
+        "fig_height": 6.0,
+        "bins_x": 10,
+        "log_x": False,
+        "log_y": False,
+        "grid": False,
+        "manual_histogram_limits": True,
+        "hist_x_min_text": "15",
+        "hist_x_max_text": "30",
+        "hist_flow_mode": mode,
         "normalise_unit_area": True,
     }
     spec = StaticPlotSpec(
-        root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
-        plot_type="1D histogram", x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        y_spec=None, color_spec=None, weight_branch=None, cut_specs=(), cut_bounds=(),
-        style=style, labels={},
+        root_path=str(root_path),
+        tree_name="Events",
+        entry_start=0,
+        entry_stop=12,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=(),
+        cut_bounds=(),
+        style=style,
+        labels={},
     )
     prepared = prepare_static_plot(spec)
     original = prepare_static_plot(replace(spec, style={**style, "normalise_unit_area": False}))
@@ -235,15 +250,32 @@ def test_normalised_histogram_is_unaffected_by_viewport_limits(root_path):
     import numpy as np
 
     base = StaticPlotSpec(
-        root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
-        plot_type="1D histogram", x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        y_spec=None, color_spec=None, weight_branch=None, cut_specs=(), cut_bounds=(),
-        style={"bins_x": 10, "normalise_unit_area": True}, labels={},
+        root_path=str(root_path),
+        tree_name="Events",
+        entry_start=0,
+        entry_stop=12,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=(),
+        cut_bounds=(),
+        style={"bins_x": 10, "normalise_unit_area": True},
+        labels={},
     )
     original = prepare_static_plot(base)
-    viewport = prepare_static_plot(replace(
-        base, style={**base.style, "manual_axis_limits": True, "x_min_text": "20", "x_max_text": "40"}
-    ))
+    viewport = prepare_static_plot(
+        replace(
+            base,
+            style={
+                **base.style,
+                "manual_axis_limits": True,
+                "x_min_text": "20",
+                "x_max_text": "40",
+            },
+        )
+    )
     assert original.normalisation_result.valid
     np.testing.assert_allclose(
         original.normalisation_result.histogram.values(),
