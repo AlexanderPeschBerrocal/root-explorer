@@ -7,9 +7,16 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 
+from ..analysis.fitting import fit_histogram_1d
 from ..io.histograms import UnsupportedHistogramError, read_histogram
 from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
-from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError
+from ..plotting.plots import (
+    InvalidAxisLimitError,
+    InvalidAxisScaleError,
+    InvalidColorScaleError,
+    draw_fit_overlay,
+)
+from .controls import fit_controls
 from .results import show_cached_plot_result
 
 
@@ -82,6 +89,11 @@ def render_histogram_controls(
         labels["custom_z"] = st.text_input(
             "Colour-bar label", value=data.colorbar_label, key=f"hist_z_{identity}"
         )
+    fit_config = (
+        fit_controls(f"persisted_{identity}", "1D histogram")
+        if h.ndim == 1 and not data.is_profile
+        else None
+    )
     make_plot = st.button(
         "Make plot",
         key="hist_make_plot",
@@ -90,8 +102,12 @@ def render_histogram_controls(
     )
     if "root_histogram_result" not in st.session_state or make_plot:
         try:
-            spec = HistogramPlotSpec(root_path, object_path, style, labels)
+            spec = HistogramPlotSpec(root_path, object_path, style, labels, fit_config=fit_config)
+            fit_result = fit_histogram_1d(h, fit_config) if fit_config is not None else None
             figure = render_histogram_data(data, spec.style, spec.labels)
+            if fit_result is not None and fit_result.success:
+                draw_fit_overlay(figure.axes[0], h, fit_result)
+                figure.tight_layout()
             from ..plotting.histogram_codegen import generate_histogram_plot_code
 
             st.session_state["root_histogram_result"] = {
@@ -100,6 +116,7 @@ def render_histogram_controls(
                 "code": generate_histogram_plot_code(spec),
                 "save_name": "root_histogram",
                 "warnings": [],
+                "fit_result": fit_result,
             }
         except (
             InvalidAxisLimitError,

@@ -391,6 +391,81 @@ def histogram_weight_selector(
     )
 
 
+def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = False):
+    """Configure a binned least-squares fit for a 1D histogram."""
+    if plot_type != "1D histogram":
+        return None
+    from ..analysis.fitting import FIT_MODELS, FitConfig
+
+    st.markdown("### Histogram fit", anchors=False)
+    if not st.checkbox("Enable fit", value=False, key=f"{prefix}_fit_enabled"):
+        return None
+    model = st.selectbox("Fit model", list(FIT_MODELS), key=f"{prefix}_fit_model")
+    use_variances = st.checkbox(
+        "Use stored bin variances (weighted least squares)",
+        value=default_use_variances,
+        key=f"{prefix}_fit_variances",
+        help="When disabled, all selected bins receive equal weight. No Poisson model is assumed.",
+    )
+    range_enabled = st.checkbox("Custom fit range", key=f"{prefix}_fit_range_enabled")
+    fit_range = (None, None)
+    if range_enabled:
+        left, right = st.columns(2)
+        with left:
+            minimum = st.text_input("Fit minimum", key=f"{prefix}_fit_min")
+        with right:
+            maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max")
+
+        def parse(value: str) -> float | None:
+            if not value.strip():
+                return None
+            try:
+                return float(value)
+            except ValueError:
+                return float("nan")
+
+        fit_range = (parse(minimum), parse(maximum))
+
+    initial = {}
+    bounds = {}
+    if st.checkbox("Override initial parameters and bounds", key=f"{prefix}_fit_override"):
+        st.caption("Leave fields blank for automatic estimates and default bounds.")
+        for name in FIT_MODELS[model]:
+            cols = st.columns(4)
+            cols[0].markdown(f"**{name}**")
+            fields = []
+            for col, suffix in zip(cols[1:], ("initial", "lower", "upper"), strict=True):
+                with col:
+                    value = st.text_input(
+                        suffix,
+                        key=f"{prefix}_fit_{model}_{name}_{suffix}",
+                        label_visibility="collapsed",
+                        placeholder=suffix,
+                    )
+                fields.append(value)
+
+            def parse_parameter(value: str) -> float | None:
+                if not value.strip():
+                    return None
+                try:
+                    return float(value)
+                except ValueError:
+                    return float("nan")
+
+            values = [parse_parameter(value) for value in fields]
+            if values[0] is not None:
+                initial[name] = values[0]
+            if values[1] is not None or values[2] is not None:
+                bounds[name] = (values[1], values[2])
+    return FitConfig(
+        model,
+        fit_range=fit_range,
+        initial_values=initial,
+        bounds=bounds,
+        use_variances=use_variances,
+    )
+
+
 def distribution_calculator_controls(
     prefix: str, plot_type: str
 ) -> tuple[float | None, float | None]:

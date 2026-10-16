@@ -15,6 +15,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
+from ..analysis.fitting import FitConfig, FitResult
 from ..analysis.histograms import build_histogram_1d, build_histogram_2d
 from ..analysis.statistics import (
     QuantileResult,
@@ -56,6 +57,7 @@ class StaticPlotSpec:
     event_index: int | None = None
     threshold: float | None = None
     quantile_percentile: float | None = None
+    fit_config: FitConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -260,6 +262,8 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
 def render_prepared_static_plot(
     spec: StaticPlotSpec,
     prepared: PreparedStaticPlot,
+    *,
+    fit_result: FitResult | None = None,
 ):
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
@@ -283,6 +287,7 @@ def render_prepared_static_plot(
         color_label=prepared.color_label,
         reference_x=prepared.reference_x,
         reference_label=prepared.reference_label,
+        fit_result=fit_result,
         colorbar_extend=(
             prepared.color_clipping_result.extend
             if prepared.color_clipping_result is not None

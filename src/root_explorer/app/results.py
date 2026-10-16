@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from ..analysis.fitting import FitResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..models import FieldInfo
 from ..plotting.plots import (
@@ -67,6 +68,29 @@ def show_cached_plot_result(
     quantile_result = result.get("quantile_result")
     if isinstance(quantile_result, QuantileResult):
         _show_quantile_result(quantile_result)
+
+    fit_result = result.get("fit_result")
+    if isinstance(fit_result, FitResult):
+        st.markdown("#### Histogram fit", anchors=False)
+        st.caption(fit_result.objective)
+        if fit_result.success:
+            rows = [
+                {"Parameter": key, "Value": value, "Uncertainty": fit_result.uncertainties.get(key)}
+                for key, value in fit_result.parameters.items()
+            ]
+            render_dataframe(pd.DataFrame(rows))
+            label = (
+                "Chi-squared"
+                if fit_result.objective.startswith("Variance")
+                else "Sum of squared residuals"
+            )
+            st.caption(
+                f"{label}: {fit_result.statistic:.6g} · ndof: {fit_result.ndof} · fitted bins: {fit_result.bins_used}"
+            )
+            if fit_result.bins_excluded or fit_result.message != "Fit converged. ":
+                st.caption(fit_result.message)
+        else:
+            st.warning(f"Histogram fit: {fit_result.message}")
 
     for warning in result.get("warnings", []):
         st.warning(warning)

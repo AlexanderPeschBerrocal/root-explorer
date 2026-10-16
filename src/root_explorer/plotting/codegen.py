@@ -12,6 +12,7 @@ from ..analysis.arrays import (
     histogram_weights_for_values,
     validate_variable_event_shapes,
 )
+from ..analysis.fitting import FitConfig, fit_histogram_1d
 from ..analysis.histograms import build_histogram_1d, build_histogram_2d
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import VariableEvaluator, variable_evaluator
@@ -56,6 +57,7 @@ class StaticPlotExportPlan:
     show_contours: bool
     has_threshold: bool
     has_quantile: bool
+    has_fit: bool
     log_x: bool
     log_y: bool
     log_z: bool
@@ -80,6 +82,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     )
     has_threshold = spec.plot_type == "1D histogram" and spec.threshold is not None
     has_quantile = spec.plot_type == "1D histogram" and spec.quantile_percentile is not None
+    has_fit = spec.plot_type == "1D histogram" and spec.fit_config is not None
     log_x = bool(spec.style.get("log_x", False))
     log_y = bool(spec.style.get("log_y", False))
     log_z = spec.plot_type == "2D histogram" and bool(spec.style.get("log_z", False))
@@ -116,6 +119,10 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         roots.append(calculate_quantile_result)
     if spec.plot_type == "1D histogram":
         roots.extend([build_histogram_1d, draw_histogram_1d])
+        if has_fit:
+            from .plots import draw_fit_overlay
+
+            roots.extend([FitConfig, fit_histogram_1d, draw_fit_overlay])
         if show_kde:
             roots.append(draw_kde_1d_overlay)
         if log_x:
@@ -159,6 +166,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         show_contours=show_contours,
         has_threshold=has_threshold,
         has_quantile=has_quantile,
+        has_fit=has_fit,
         log_x=log_x,
         log_y=log_y,
         log_z=log_z,
@@ -249,6 +257,12 @@ def _compatibility_lines(plan: StaticPlotExportPlan) -> list[str]:
         ),
         "    raise ValueError('This export is specialised to different log scales; regenerate it.')",
     ]
+    lines.extend(
+        [
+            "if (PLOT.fit_config is not None) != " + repr(plan.has_fit) + ":",
+            "    raise ValueError('This export is specialised to different fitting features; regenerate it.')",
+        ]
+    )
     if spec.y_spec is not None:
         lines.extend(
             [
@@ -431,6 +445,15 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
 
+    if plan.has_fit:
+        lines.extend(
+            [
+                "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
+                "if not fit_result.success:",
+                "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
+            ]
+        )
+
     if spec.plot_type == "2D histogram":
         lines.extend(
             [
@@ -453,6 +476,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )
+        if plan.has_fit:
+            lines.append("if fit_result.success: draw_fit_overlay(axes, histogram_1d, fit_result)")
         if plan.show_kde:
             lines.extend(
                 [

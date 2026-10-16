@@ -582,3 +582,64 @@ def test_profile_open_action_from_browser(target, classname, dimension) -> None:
     else:
         assert at.selectbox(key="hist_cmap").value == "viridis"
         assert len(result["figure"].axes) == 2  # Main plot and colour bar.
+
+
+def test_fit_controls_run_end_to_end_and_preserve_histogram(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    assert at.checkbox(key="plot_fit_enabled").label == "Enable fit"
+    at.checkbox(key="plot_fit_enabled").check().run()
+    assert at.selectbox(key="plot_fit_model").options == [
+        "Gaussian",
+        "Exponential",
+        "Crystal Ball",
+        "Double-sided Crystal Ball",
+    ]
+    assert at.checkbox(key="plot_fit_variances").value is False
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert result["fit_result"].objective == "Ordinary least squares"
+    assert result["fit_result"].success
+    assert any(patch.get_label() == "Gaussian fit" for patch in result["figure"].axes[0].patches)
+    assert any("Histogram fit" in x.value for x in at.markdown)
+    assert "def fit_histogram_1d(" in result["code"]
+
+    at.checkbox(key="plot_fit_range_enabled").check().run()
+    at.text_input(key="plot_fit_min").input("10000").run()
+    at.text_input(key="plot_fit_max").input("10001").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    failed = at.session_state["plot_result"]
+    assert not failed["fit_result"].success
+    assert failed["figure"].axes[0].patches
+    assert at.warning
+
+
+def test_fit_controls_only_for_1d_histograms(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    assert at.checkbox(key="plot_fit_enabled")
+    at.selectbox(key="plot_type").select("2D histogram").run()
+    assert not [widget for widget in at.checkbox if widget.key == "plot_fit_enabled"]
+
+
+def test_persisted_th1_fit_controls_use_same_backend(object_only_root_path) -> None:
+    at = _load_root_file(make_app_test(), object_only_root_path)
+    at.session_state["root_inspector_open"] = (
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
+    )
+    at.run()
+    toggle = next(
+        item
+        for item in at.checkbox
+        if str(item.key).endswith("_fit_enabled") and str(item.key).startswith("persisted_")
+    )
+    toggle.check().run()
+    at.button(key="hist_make_plot").click().run()
+    assert not at.exception
+    result = at.session_state["root_histogram_result"]
+    assert result["fit_result"] is not None
+    assert result["fit_result"].objective == "Ordinary least squares"
+    assert "def fit_histogram_1d(" in result["code"]

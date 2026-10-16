@@ -19,6 +19,7 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
     variable_values_for_values,
 )
+from ..analysis.fitting import FitConfig, fit_histogram_1d
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
@@ -46,6 +47,7 @@ from ..plotting.plots import (
 from .controls import (
     PLOT_TYPES,
     distribution_calculator_controls,
+    fit_controls,
     histogram_weight_selector,
     label_controls,
     needs_y_variable,
@@ -80,6 +82,7 @@ class PlotRequest:
     save_name: str
     threshold: float | None = None
     quantile_percentile: float | None = None
+    fit_config: FitConfig | None = None
 
     def to_static_spec(self) -> StaticPlotSpec:
         """Return the shared Streamlit-independent configuration for static plots."""
@@ -101,6 +104,7 @@ class PlotRequest:
             event_index=self.event_index,
             threshold=self.threshold,
             quantile_percentile=self.quantile_percentile,
+            fit_config=self.fit_config,
         )
 
 
@@ -258,6 +262,7 @@ def _render_plot_controls(
         default_opacity_3d=default_opacity_3d,
         default_equal_aspect=False,
     )
+    fit_config = fit_controls(prefix, plot_type, default_use_variances=weight_branch is not None)
     labels = label_controls(prefix, plot_type)
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
@@ -284,6 +289,7 @@ def _render_plot_controls(
             save_name=save_name,
             threshold=threshold,
             quantile_percentile=quantile_percentile,
+            fit_config=fit_config,
         ),
         make_plot,
     )
@@ -343,7 +349,12 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         if request.preview
         else None
     )
-    figure, plot_warnings = render_prepared_static_plot(spec, prepared)
+    fit_result = (
+        fit_histogram_1d(prepared.histogram_1d, request.fit_config)
+        if request.fit_config is not None and prepared.histogram_1d is not None
+        else None
+    )
+    figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
     save_name = (
         f"{request.save_name}_{request.event_index}"
         if request.event_index is not None
@@ -357,6 +368,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         "preview": preview,
         "threshold_result": prepared.threshold_result,
         "quantile_result": prepared.quantile_result,
+        "fit_result": fit_result,
         "correlation_result": correlation_result,
         "color_clipping_result": prepared.color_clipping_result,
         "warnings": plot_warnings,

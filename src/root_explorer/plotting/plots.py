@@ -18,6 +18,7 @@ from matplotlib.colors import LogNorm, to_hex
 from scipy.stats import gaussian_kde
 
 from ..analysis.arrays import align_arrays
+from ..analysis.fitting import FitResult, model_bin_integrals
 
 
 class InvalidAxisScaleError(ValueError):
@@ -862,6 +863,30 @@ def draw_histogram_1d(
         ax.legend()
 
 
+def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
+    """Display fitted bin predictions on the original histogram bin edges."""
+    if not result.success or result.fit_range is None:
+        return
+    edges = np.asarray(histogram.axes[0].edges, dtype=float)
+    centers = (edges[:-1] + edges[1:]) / 2
+    lower, upper = result.fit_range
+    selected = (centers >= lower) & (centers <= upper)
+    indices = np.flatnonzero(selected)
+    if not len(indices):
+        return
+    x0 = result.reference_x if result.reference_x is not None else (lower + upper) / 2
+    prediction = model_bin_integrals(result.model, edges, result.parameters, x0=x0)
+    # A step representation remains valid for non-uniform bin widths.
+    ax.stairs(
+        prediction[indices],
+        edges[indices[0] : indices[-1] + 2],
+        color="tab:red",
+        linewidth=2,
+        label=f"{result.model} fit",
+    )
+    ax.legend()
+
+
 def draw_histogram_2d(
     fig: Any,
     ax: Any,
@@ -1050,6 +1075,7 @@ def render_static_plot(
     reference_x: float | None = None,
     reference_label: str | None = None,
     colorbar_extend: str = "neither",
+    fit_result: FitResult | None = None,
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
@@ -1062,6 +1088,8 @@ def render_static_plot(
             reference_x=reference_x,
             reference_label=reference_label,
         )
+        if fit_result is not None and fit_result.success:
+            draw_fit_overlay(ax, histogram_1d, fit_result)
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
         histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
         if style.get("show_kde", False):

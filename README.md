@@ -21,6 +21,36 @@ From a checkout, users can launch the app directly:
 streamlit run streamlit_app.py
 ```
 
+### Built-in histogram fitting
+
+For a 1D histogram, enable **Histogram fit** and choose Gaussian,
+Exponential, single-sided Crystal Ball, or double-sided Crystal Ball.
+This is available for histograms built from TTree/RNTuple branches and
+persisted `TH1*` ROOT objects. Fitting of `TProfile` bin means is
+not yet supported.
+
+ROOT Explorer uses **binned least squares**, not a Poisson likelihood.
+Ordinary least squares assigns equal importance to every selected bin.
+You may explicitly enable **Use stored bin variances** to minimise the
+sum of squared residuals divided by each bin's variance (`sum(w²)`).
+Bins with missing, non-finite, or non-positive variances are excluded and
+reported; they do not affect starting parameter estimates. No Poisson
+uncertainties are inferred from unweighted counts.
+
+Predictions are **integrals of the fit model over the original bins**
+rather than evaluations at bin centres. The custom fit interval selects
+whole bins whose centres fall inside it. Underflow and overflow do not
+contribute. Parameter guesses and physically meaningful default bounds
+are provided automatically; both can be overridden. Fit failures display
+a warning without removing the histogram.
+
+The output table reports parameters and approximate local covariance-based
+uncertainties where identifiable. Ordinary least squares reports the
+sum of squared residuals, not a chi-squared p-value. Variance-weighted
+least squares reports a chi-squared statistic whose interpretation depends
+on the validity of the supplied variances. Fits are also reproduced by
+**Download plot code** when enabled.
+
 ### Standalone plot code
 
 The **Download plot code** action creates a standalone, editable Python script

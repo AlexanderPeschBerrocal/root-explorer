@@ -10,6 +10,7 @@ import numpy as np
 from matplotlib import colormaps
 from matplotlib.colors import LogNorm
 
+from ..analysis.fitting import FitConfig
 from ..io.histograms import PersistedHistogram, read_histogram
 from .plots import (
     InvalidAxisScaleError,
@@ -27,6 +28,7 @@ class HistogramPlotSpec:
     object_path: str
     style: dict[str, Any]
     labels: dict[str, str]
+    fit_config: FitConfig | None = None
 
 
 def histogram_errors(data: PersistedHistogram) -> np.ndarray | None:
@@ -151,6 +153,15 @@ def render_histogram_data(
 
 
 def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
-    return render_histogram_data(
-        read_histogram(spec.root_path, spec.object_path), spec.style, spec.labels
-    )
+    data = read_histogram(spec.root_path, spec.object_path)
+    from ..analysis.fitting import fit_histogram_1d
+
+    figure = render_histogram_data(data, spec.style, spec.labels)
+    if spec.fit_config is not None:
+        from .plots import draw_fit_overlay
+
+        result = fit_histogram_1d(data.histogram, spec.fit_config)
+        if result.success:
+            draw_fit_overlay(figure.axes[0], data.histogram, result)
+            figure.tight_layout()
+    return figure

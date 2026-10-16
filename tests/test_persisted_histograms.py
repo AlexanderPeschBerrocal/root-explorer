@@ -138,3 +138,39 @@ def test_log_scale_fails_without_positive_bins(tmp_path):
     with pytest.raises(ValueError, match="positive"):
         render_histogram_data(data, _style(log_y=True), {})
     assert set(plt.get_fignums()) == initial_figures
+
+
+def test_persisted_root_histogram_fit_export_executes():
+    import sys
+    from types import ModuleType
+
+    from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
+
+    spec = HistogramPlotSpec(
+        str(FIXTURE),
+        "histogram_1d;1",
+        _style(),
+        {},
+        fit_config=FitConfig("Exponential"),
+    )
+    source = generate_histogram_plot_code(spec)
+    assert "import root_explorer" not in source
+    assert "import streamlit" not in source
+    assert "def fit_histogram_1d(" in source
+    module = ModuleType("persisted_histogram_standalone")
+    sys.modules[module.__name__] = module
+    try:
+        exec(compile(source, "persisted_plot.py", "exec"), module.__dict__)
+        module.plt.show = lambda: None
+        module.main()
+        figure = module.plt.gcf()
+        data = read_histogram(str(FIXTURE), "histogram_1d;1")
+        result = fit_histogram_1d(data.histogram, spec.fit_config)
+        assert (
+            result.success
+            == module.fit_histogram_1d(data.histogram, module.PLOT.fit_config).success
+        )
+        assert figure.axes[0].get_title()
+        plt.close(figure)
+    finally:
+        sys.modules.pop(module.__name__, None)

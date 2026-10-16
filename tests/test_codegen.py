@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
 from root_explorer.app.plotting import PlotRequest
 from root_explorer.app.state import DataContext, GeometryState
 from root_explorer.models import VariableSpec
@@ -32,6 +33,7 @@ def _request(
     labels: dict[str, Any] | None = None,
     threshold: float | None = None,
     quantile_percentile: float | None = None,
+    fit_config: FitConfig | None = None,
 ) -> PlotRequest:
     return PlotRequest(
         context=DataContext(str(root_path), "Events", 12, 0, 12, [], []),
@@ -57,6 +59,7 @@ def _request(
         save_name="plot",
         threshold=threshold,
         quantile_percentile=quantile_percentile,
+        fit_config=fit_config,
     )
 
 
@@ -581,3 +584,94 @@ def test_exported_weighted_log_2d_histogram_matches_pipeline(root_path) -> None:
     finally:
         plt.close(canonical)
         plt.close(generated)
+
+
+@pytest.mark.parametrize(
+    "model", ["Gaussian", "Exponential", "Crystal Ball", "Double-sided Crystal Ball"]
+)
+def test_fit_enabled_export_executes_and_overlays(root_path, model) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 25,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "grid": False,
+        },
+        fit_config=FitConfig(model),
+    )
+    source = generate_static_plot_code(request)
+    assert "def fit_histogram_1d(" in source
+    assert "def draw_fit_overlay(" in source
+    assert "import streamlit" not in source
+    with _executed_generated_module(source) as module:
+        module.plt.show = lambda: None
+        module.main()
+        generated = module.plt.gcf()
+        canonical = prepare_static_plot(request.to_static_spec())
+        expected = fit_histogram_1d(canonical.histogram_1d, request.fit_config)
+        try:
+            assert expected.success, expected.message
+            generated_lines = [
+                artist
+                for artist in generated.axes[0].patches
+                if artist.get_label() == f"{model} fit"
+            ]
+            # Matplotlib stairs are rendered as a StepPatch, not ordinary Line2D.
+            assert generated_lines
+            exported = module.fit_histogram_1d(canonical.histogram_1d, module.PLOT.fit_config)
+            assert exported.success, exported.message
+            for name in expected.parameters:
+                assert exported.parameters[name] == pytest.approx(expected.parameters[name])
+        finally:
+            plt.close(generated)
+
+
+def test_fit_disabled_export_remains_lightweight() -> None:
+    request = _request(
+        "events.root",
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 20},
+    )
+    source = generate_static_plot_code(request)
+    assert "def fit_histogram_1d(" not in source
+    assert "def draw_fit_overlay(" not in source
+    compile(source, "<plot-export>", "exec")
+
+
+def test_weighted_fit_export_uses_requested_stored_variances(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        weight_branch="genWeight",
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "grid": False,
+        },
+        fit_config=FitConfig("Gaussian", use_variances=True),
+    )
+    source = generate_static_plot_code(request)
+    with _executed_generated_module(source) as module:
+        module.plt.show = lambda: None
+        module.main()
+        try:
+            prepared = prepare_static_plot(request.to_static_spec())
+            canonical = fit_histogram_1d(prepared.histogram_1d, request.fit_config)
+            exported = module.fit_histogram_1d(prepared.histogram_1d, module.PLOT.fit_config)
+            assert exported.objective == canonical.objective == "Variance-weighted least squares"
+            assert exported.bins_excluded == canonical.bins_excluded
+            assert exported.success == canonical.success
+        finally:
+            plt.close(module.plt.gcf())
