@@ -189,8 +189,10 @@ def test_pipeline_manual_histogram_bounds_and_flow(root_path, mode):
 
 @pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
 def test_density_pipeline_flow_and_fit_invariance(root_path, mode):
-    import numpy as np
     from dataclasses import replace
+
+    import numpy as np
+
     from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
 
     style = {
@@ -247,6 +249,7 @@ def test_density_pipeline_flow_and_fit_invariance(root_path, mode):
 
 def test_normalised_histogram_is_unaffected_by_viewport_limits(root_path):
     from dataclasses import replace
+
     import numpy as np
 
     base = StaticPlotSpec(

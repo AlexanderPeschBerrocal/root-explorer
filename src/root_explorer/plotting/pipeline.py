@@ -19,10 +19,10 @@ from ..analysis.fitting import FitConfig, FitResult
 from ..analysis.histograms import (
     HistogramFlowSummary,
     HistogramNormalisationResult,
-    normalise_histogram_1d,
     build_histogram_1d,
     build_histogram_2d,
     histogram_for_flow_mode,
+    normalise_histogram_1d,
     resolve_histogram_range,
     summarise_histogram_flow,
 )

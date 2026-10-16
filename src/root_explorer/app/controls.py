@@ -624,7 +624,7 @@ def histogram_analysis_controls(
             key=f"{prefix}_normalise_unit_area",
             disabled=separate_flow,
             help=(
-                "Display a density: the sum of (bin height × bin width) is one. "
+                "Display a density: the sum of (bin height times bin width) is one. "
                 "Only nominal bins contribute in Ignore mode; folded flow is included in Fold mode."
             ),
         )
