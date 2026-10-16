@@ -185,3 +185,65 @@ def test_pipeline_manual_histogram_bounds_and_flow(root_path, mode):
     else:
         assert len(figure.axes[0].patches) == 10
     plt.close(figure)
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+def test_density_pipeline_flow_and_fit_invariance(root_path, mode):
+    import numpy as np
+    from dataclasses import replace
+    from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
+
+    style = {
+        "fig_width": 8.0, "fig_height": 6.0, "bins_x": 10,
+        "log_x": False, "log_y": False, "grid": False,
+        "manual_histogram_limits": True, "hist_x_min_text": "15",
+        "hist_x_max_text": "30", "hist_flow_mode": mode,
+        "normalise_unit_area": True,
+    }
+    spec = StaticPlotSpec(
+        root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
+        plot_type="1D histogram", x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None, color_spec=None, weight_branch=None, cut_specs=(), cut_bounds=(),
+        style=style, labels={},
+    )
+    prepared = prepare_static_plot(spec)
+    original = prepare_static_plot(replace(spec, style={**style, "normalise_unit_area": False}))
+    assert prepared.normalisation_result is not None
+    if mode == "separate":
+        assert not prepared.normalisation_result.valid
+        assert "separate categorical" in prepared.normalisation_result.error
+    else:
+        assert prepared.normalisation_result.valid
+        density = prepared.normalisation_result.histogram
+        widths = np.diff(density.axes[0].edges)
+        assert float(np.dot(density.values(), widths)) == pytest.approx(1.0)
+        assert prepared.y_label == "Normalised density"
+        assert np.allclose(prepared.histogram_1d.values(flow=True), original.histogram_1d.values(flow=True))
+    config = FitConfig(model="Exponential")
+    raw_fit = fit_histogram_1d(original.display_histogram_1d, config)
+    density_fit = fit_histogram_1d(prepared.display_histogram_1d, config)
+    assert raw_fit.success == density_fit.success
+    if raw_fit.success:
+        assert raw_fit.parameters == pytest.approx(density_fit.parameters)
+        assert raw_fit.statistic == pytest.approx(density_fit.statistic)
+
+
+def test_normalised_histogram_is_unaffected_by_viewport_limits(root_path):
+    from dataclasses import replace
+    import numpy as np
+
+    base = StaticPlotSpec(
+        root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
+        plot_type="1D histogram", x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None, color_spec=None, weight_branch=None, cut_specs=(), cut_bounds=(),
+        style={"bins_x": 10, "normalise_unit_area": True}, labels={},
+    )
+    original = prepare_static_plot(base)
+    viewport = prepare_static_plot(replace(
+        base, style={**base.style, "manual_axis_limits": True, "x_min_text": "20", "x_max_text": "40"}
+    ))
+    assert original.normalisation_result.valid
+    np.testing.assert_allclose(
+        original.normalisation_result.histogram.values(),
+        viewport.normalisation_result.histogram.values(),
+    )

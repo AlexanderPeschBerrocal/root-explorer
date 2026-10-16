@@ -853,6 +853,13 @@ def test_exported_density_fit_predictions_match_application(root_path) -> None:
         np.testing.assert_allclose(
             _histogram_heights(exported_figure), _histogram_heights(original_figure)
         )
+        original_fit = [p for p in original_figure.axes[0].patches if p.get_label() == "Exponential fit"]
+        exported_fit = [p for p in exported_figure.axes[0].patches if p.get_label() == "Exponential fit"]
+        assert len(original_fit) == len(exported_fit) == 1
+        np.testing.assert_allclose(
+            original_fit[0].get_data().values,
+            exported_fit[0].get_data().values,
+        )
     finally:
         plt.close(original_figure)
         plt.close(exported_figure)

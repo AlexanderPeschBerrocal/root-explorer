@@ -492,8 +492,10 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 "if density_enabled and not PLOT.labels.get('custom_y'): y_label = 'Normalised density'",
             ]
         )
-    else:
-        lines.extend(['normalisation = None', 'density_enabled = False', 'plot_histogram = display_histogram'])
+    elif spec.plot_type == "1D histogram":
+        lines.extend(
+            ["normalisation = None", "density_enabled = False", "plot_histogram = display_histogram"]
+        )
 
     if plan.has_fit:
         lines.extend(

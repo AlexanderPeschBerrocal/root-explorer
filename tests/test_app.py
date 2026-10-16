@@ -755,3 +755,34 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     at.selectbox(key="plot_type").select("2D scatter").run()
     assert not any("### Histogram analysis" in widget.value for widget in at.tabs[0].markdown)
     assert any("### Style" in widget.value for widget in at.tabs[0].markdown)
+
+
+def test_normalisation_control_and_output_in_streamlit(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    assert not at.checkbox(key="plot_normalise_unit_area").value
+    at.checkbox(key="plot_normalise_unit_area").check().run()
+    at.button(key="plot_make").click().run()
+    result = at.session_state["plot_result"]
+    assert result["normalisation_result"].valid
+    assert result["figure"].axes[0].get_ylabel() == "Normalised density"
+    assert any("Unit-area density" in item.value for item in at.caption)
+    assert result["code"] is not None
+    assert "normalise_histogram_1d" in result["code"]
+
+
+def test_separate_flow_disables_density_checkbox(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.checkbox(key="plot_manual_histogram_limits").check().run()
+    at.text_input(key="plot_hist_x_min").input("15").run()
+    at.text_input(key="plot_hist_x_max").input("30").run()
+    at.selectbox(key="plot_hist_flow_mode").select("separate").run()
+    assert at.checkbox(key="plot_normalise_unit_area").disabled
+    at.button(key="plot_make").click().run()
+    assert at.session_state["plot_result"]["normalisation_result"] is None
+
+
+def test_unit_area_control_is_1d_only(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    assert at.checkbox(key="plot_normalise_unit_area")
+    at.selectbox(key="plot_type").select("2D histogram").run()
+    assert not any(widget.key == "plot_normalise_unit_area" for widget in at.checkbox)
