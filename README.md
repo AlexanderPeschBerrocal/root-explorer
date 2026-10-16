@@ -51,6 +51,33 @@ least squares reports a chi-squared statistic whose interpretation depends
 on the validity of the supplied variances. Fits are also reproduced by
 **Download plot code** when enabled.
 
+### Custom mathematical histogram fits
+
+Choose **Custom expression** in the histogram fit model selector to enter a
+restricted mathematical expression such as:
+
+```text
+A * exp(-0.5 * ((x - mu) / sigma)**2) + c
+```
+
+`x` is the independent variable. Other identifiers become fit parameters,
+except for the constants `pi` and `e` and the functions `exp`, `log`,
+`sqrt`, `abs`, `sin`, `cos`, `tan`, `sinh`, `cosh`, and `tanh`.
+Arithmetic with `+`, `-`, `*`, `/`, and `**` is supported. The interface
+discovers parameters in their first-appearance order and provides controls for
+initial values and lower/upper bounds. By default, a custom parameter starts
+at 1 and is unbounded; supply appropriate initial values and bounds for
+non-linear or ill-conditioned fits.
+
+Expressions are validated against a restricted syntax tree before evaluation.
+Python statements, imports, attribute access, indexing, and arbitrary function
+calls are forbidden. Custom models are integrated over the original bins using
+fixed-order numerical quadrature, whereas built-in models retain their analytic
+bin integrals. Extremely narrow peaks or rapidly oscillating expressions within
+one bin can exceed the numerical accuracy of the quadrature. Fit failures leave
+the underlying histogram visible. Exported standalone plot code includes the
+same expression, parameter settings, and restricted expression evaluator.
+
 ### Standalone plot code
 
 The **Download plot code** action creates a standalone, editable Python script
