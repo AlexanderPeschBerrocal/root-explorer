@@ -699,3 +699,25 @@ def test_persisted_histogram_custom_fit_controls(object_only_root_path):
     at.button(key="hist_make_plot").click().run()
     assert not at.exception
     assert at.session_state["root_histogram_result"]["fit_result"] is not None
+
+
+def test_manual_histogram_flow_controls_work_in_streamlit(root_path):
+    at = _load_root_file(make_app_test(), root_path)
+    assert not any(widget.key == "plot_hist_x_min" for widget in at.text_input)
+    at.checkbox(key="plot_manual_histogram_limits").check().run()
+    at.text_input(key="plot_hist_x_min").input("15").run()
+    at.text_input(key="plot_hist_x_max").input("35").run()
+    at.selectbox(key="plot_hist_flow_mode").select("fold").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert result["histogram_flow_mode"] == "fold"
+    assert result["histogram_flow_summary"] is not None
+    assert result["histogram_flow_summary"].lower == pytest.approx(15.)
+    assert result["histogram_flow_summary"].upper == pytest.approx(35.)
+    at.text_input(key="plot_hist_x_min").input("100").run()
+    at.text_input(key="plot_hist_x_max").input("10").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert "plot_result" not in at.session_state
+    assert any("Histogram minimum" in warning.value for warning in at.warning)

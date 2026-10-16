@@ -136,3 +136,38 @@ def test_static_pipeline_prepares_2d_histogram_for_render(root_path, monkeypatch
         figure.axes[0].collections[0].get_array().reshape(-1), values.T.ravel()
     )
     plt.close(figure)
+
+
+@pytest.mark.parametrize("mode, total", [("ignore", 0), ("fold", 0), ("separate", 0)])
+def test_pipeline_manual_histogram_bounds_and_flow(root_path, mode, total):
+    from root_explorer.analysis.histograms import histogram_for_flow_mode
+    spec = StaticPlotSpec(
+        root_path=str(root_path), tree_name="Events", entry_start=0, entry_stop=12,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None, color_spec=None, weight_branch="genWeight",
+        cut_specs=(), cut_bounds=(),
+        style={
+            "fig_width": 8.0, "fig_height": 6.0, "bins_x": 10,
+            "log_x": False, "log_y": False, "grid": False,
+            "manual_histogram_limits": True, "hist_x_min_text": "15",
+            "hist_x_max_text": "30", "hist_flow_mode": mode,
+        }, labels={},
+    )
+    prepared = prepare_static_plot(spec)
+    assert prepared.histogram_1d is not None
+    assert prepared.display_histogram_1d is not None
+    assert prepared.histogram_flow_summary is not None
+    assert prepared.histogram_flow_mode == mode
+    assert prepared.histogram_1d.axes[0].edges[[0, -1]].tolist() == pytest.approx([15., 30.])
+    summary = prepared.histogram_flow_summary
+    assert summary.underflow_entries + summary.in_range_entries + summary.overflow_entries == len(prepared.x)
+    if mode == "fold":
+        assert prepared.display_histogram_1d.values().sum() == pytest.approx(prepared.weights.sum())
+    figure, warnings = render_prepared_static_plot(spec, prepared)
+    assert not warnings
+    if mode == "separate":
+        assert len(figure.axes[0].patches) == 12
+    else:
+        assert len(figure.axes[0].patches) == 10
+    plt.close(figure)

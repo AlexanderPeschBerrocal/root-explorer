@@ -717,3 +717,27 @@ def test_custom_fit_export_matches_canonical_backend(root_path):
             assert any(p.get_label() == "Custom expression fit" for p in figure.axes[0].patches)
         finally:
             plt.close(figure)
+
+
+@pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
+def test_exported_manual_range_flow_matches_canonical(root_path, mode):
+    request = _request(
+        root_path, plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        weight_branch="genWeight",
+        style={
+            "fig_width": 8.0, "fig_height": 6.0, "bins_x": 12,
+            "log_x": False, "log_y": False, "grid": False,
+            "manual_histogram_limits": True,
+            "hist_x_min_text": "15", "hist_x_max_text": "35",
+            "hist_flow_mode": mode,
+        },
+    )
+    prepared, canonical, generated = _execute_export(request)
+    try:
+        np.testing.assert_allclose(_histogram_heights(canonical), _histogram_heights(generated))
+        assert prepared.histogram_flow_mode == mode
+        assert len(canonical.axes[0].patches) == len(generated.axes[0].patches)
+    finally:
+        plt.close(canonical)
+        plt.close(generated)
