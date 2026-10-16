@@ -726,7 +726,7 @@ def test_manual_histogram_flow_controls_work_in_streamlit(root_path):
 def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     at = _load_root_file(make_app_test(), root_path)
     assert not at.exception
-    headings = [widget.value for widget in at.markdown]
+    headings = [widget.value for widget in at.tabs[0].markdown]
     cuts = next(i for i, text in enumerate(headings) if "### Cuts" in text)
     analysis = next(i for i, text in enumerate(headings) if "### Histogram analysis" in text)
     style = next(i for i, text in enumerate(headings) if "### Style" in text)
@@ -745,7 +745,7 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     assert at.text_input(key="plot_hist_x_max")
 
     at.selectbox(key="plot_type").select("2D histogram").run()
-    assert any("### Histogram analysis" in widget.value for widget in at.markdown)
+    assert any("### Histogram analysis" in widget.value for widget in at.tabs[0].markdown)
     assert at.slider(key="plot_bins_x")
     assert at.slider(key="plot_bins_y")
     assert at.checkbox(key="plot_show_contours")
@@ -753,5 +753,5 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     assert not any(widget.key == "plot_manual_histogram_limits" for widget in at.checkbox)
 
     at.selectbox(key="plot_type").select("2D scatter").run()
-    assert not any("### Histogram analysis" in widget.value for widget in at.markdown)
-    assert any("### Style" in widget.value for widget in at.markdown)
+    assert not any("### Histogram analysis" in widget.value for widget in at.tabs[0].markdown)
+    assert any("### Style" in widget.value for widget in at.tabs[0].markdown)

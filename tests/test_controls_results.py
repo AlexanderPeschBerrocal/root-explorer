@@ -5,8 +5,12 @@ from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
-from root_explorer.app import tables
+from root_explorer.app import results, tables
+from root_explorer.analysis.fitting import FitResult
+from root_explorer.analysis.histograms import HistogramFlowSummary
+from root_explorer.analysis.statistics import QuantileResult, ThresholdResult
 from root_explorer.app.controls import (
     COLOR_SCALES,
     field_option_labels,
@@ -162,3 +166,105 @@ def test_render_dataframe_centres_cells_and_uses_shared_defaults(monkeypatch) ->
 
     tables.render_dataframe(dataframe, height=220)
     assert captured["height"] == 220
+
+
+def test_cached_plot_renders_primary_figure_before_secondary_analysis(monkeypatch) -> None:
+    """The summary is followed by the figure, not lengthy secondary tables."""
+
+    class StopBeforeExport(Exception):
+        pass
+
+    calls: list[str] = []
+    plot_result = {
+        "kind": "matplotlib",
+        "plot_type": "1D histogram",
+        "figure": object(),
+        "summary": pd.DataFrame({"variable": ["x"], "n": [3]}),
+        "warnings": ["KDE was unavailable."],
+        "histogram_flow_mode": "fold",
+        "histogram_flow_summary": HistogramFlowSummary(
+            lower=0.0,
+            upper=1.0,
+            underflow_entries=1,
+            in_range_entries=1,
+            overflow_entries=1,
+            underflow_sumw=1.0,
+            in_range_sumw=1.0,
+            overflow_sumw=1.0,
+            underflow_sumw2=1.0,
+            in_range_sumw2=1.0,
+            overflow_sumw2=1.0,
+            weighted=False,
+        ),
+        "threshold_result": ThresholdResult(
+            threshold=0.5,
+            total_count=3,
+            below_count=2,
+            above_count=1,
+            below_fraction=2 / 3,
+            above_fraction=1 / 3,
+            weighted=False,
+        ),
+        "quantile_result": QuantileResult(50.0, 0.5, 3, False),
+        "fit_result": FitResult(
+            model="Gaussian",
+            success=True,
+            parameters={"mean": 0.5},
+            uncertainties={"mean": 0.1},
+            statistic=1.0,
+            ndof=3,
+            bins_used=5,
+            bins_excluded=0,
+            objective="Ordinary least squares",
+            fit_range=None,
+            message="Fit converged.",
+        ),
+        "preview": pd.DataFrame({"x": [0.5]}),
+        "save_name": "example",
+    }
+
+    def show_table(dataframe, **kwargs) -> None:
+        if "variable" in dataframe.columns:
+            calls.append("summary")
+        elif "Region" in dataframe.columns:
+            calls.append("flow")
+        elif "selection" in dataframe.columns:
+            calls.append("threshold")
+        elif "percentile (%)" in dataframe.columns:
+            calls.append("quantile")
+        elif "Parameter" in dataframe.columns:
+            calls.append("fit")
+        elif "x" in dataframe.columns:
+            calls.append("preview")
+
+    def stop_export(*args, **kwargs):
+        calls.append("export")
+        raise StopBeforeExport
+
+    monkeypatch.setattr(results.st, "session_state", {"test_plot_result": plot_result})
+    monkeypatch.setattr(results, "render_dataframe", show_table)
+    monkeypatch.setattr(results.st, "caption", lambda message: calls.append("caption:" + message))
+    monkeypatch.setattr(results.st, "markdown", lambda message, **kwargs: calls.append(message))
+    monkeypatch.setattr(results.st, "warning", lambda message: calls.append("warning:" + message))
+    monkeypatch.setattr(results.st, "pyplot", lambda *args, **kwargs: calls.append("figure"))
+    monkeypatch.setattr(results, "export_controls", stop_export)
+
+    with pytest.raises(StopBeforeExport):
+        results.show_cached_plot_result(
+            "test_plot_result",
+            export_prefix="plot",
+            save_button_key="plot_save",
+            make_plot_label="Make plot",
+            make_plot_shortcut="P",
+            empty_message="No plot",
+        )
+
+    assert calls.index("summary") < next(
+        i for i, call in enumerate(calls) if call.startswith("caption:Summary statistics")
+    ) < calls.index("figure")
+    assert calls.index("figure") < calls.index("warning:KDE was unavailable.")
+    assert calls.index("figure") < calls.index("flow")
+    assert calls.index("flow") < calls.index("threshold") < calls.index("quantile")
+    assert calls.index("quantile") < calls.index("fit") < calls.index("preview")
+    assert calls.index("preview") < calls.index("export")
+    assert not any("statistics above" in call for call in calls)

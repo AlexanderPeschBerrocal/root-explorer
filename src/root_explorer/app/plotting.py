@@ -391,6 +391,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     )
     return {
         "kind": "matplotlib",
+        "plot_type": request.plot_type,
         "figure": figure,
         "code": _safe_generate_plot_code(request, plot_warnings),
         "summary": summary,
@@ -560,6 +561,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         )
         return {
             "kind": "plotly",
+            "plot_type": request.plot_type,
             "figure": overlay_geometry_on_plotly(
                 figure, request.geometry.scene, request.geometry.options
             ),
