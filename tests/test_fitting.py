@@ -1,5 +1,7 @@
 """Regression tests for built-in binned histogram fits."""
 
+from itertools import pairwise
+
 import hist
 import numpy as np
 import pytest
@@ -66,7 +68,7 @@ def test_nonuniform_edges_integrate_gaussian_density():
     actual = model_bin_integrals("Gaussian", edges, params, x0=1)
     expected = [
         quad(lambda x: model_density("Gaussian", np.array(x), params, x0=1), left, right)[0]
-        for left, right in zip(edges[:-1], edges[1:], strict=True)
+        for left, right in pairwise(edges)
     ]
     np.testing.assert_allclose(actual, expected, rtol=1e-12)
 
@@ -84,7 +86,7 @@ def test_crystal_ball_integrals_match_quadrature(model):
     actual = model_bin_integrals(model, edges, params, x0=0)
     expected = [
         quad(lambda x: model_density(model, np.array(x), params, x0=0), a, b)[0]
-        for a, b in zip(edges[:-1], edges[1:], strict=True)
+        for a, b in pairwise(edges)
     ]
     np.testing.assert_allclose(actual, expected, rtol=2e-7)
 

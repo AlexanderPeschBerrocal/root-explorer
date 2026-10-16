@@ -6,6 +6,7 @@ ordinary least squares or the variances retained by hist.Hist.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 
 import hist
@@ -193,10 +194,8 @@ def _initial_guess(
         positive_bins = density > 0
         k = 0.0
         if np.count_nonzero(positive_bins) >= 2:
-            try:
+            with suppress(ValueError, np.linalg.LinAlgError):
                 k = float(np.polyfit(centers[positive_bins], np.log(density[positive_bins]), 1)[0])
-            except (ValueError, np.linalg.LinAlgError):
-                pass
         k = float(np.clip(k, -20 / scale, 20 / scale))
         intercepts = np.log(density[positive_bins]) - k * (centers[positive_bins] - x0)
         exponential_amplitude = (
