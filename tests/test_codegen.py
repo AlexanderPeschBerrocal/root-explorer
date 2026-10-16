@@ -115,7 +115,10 @@ def _execute_export(request: PlotRequest):
 
 
 def _histogram_heights(figure) -> np.ndarray:
-    return np.asarray([patch.get_height() for patch in figure.axes[0].patches], dtype=float)
+    return np.asarray(
+        [patch.get_height() for patch in figure.axes[0].patches if hasattr(patch, "get_height")],
+        dtype=float,
+    )
 
 
 def test_exported_basic_histogram_matches_canonical_pipeline(root_path) -> None:
