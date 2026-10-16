@@ -675,3 +675,37 @@ def test_weighted_fit_export_uses_requested_stored_variances(root_path) -> None:
             assert exported.success == canonical.success
         finally:
             plt.close(module.plt.gcf())
+
+
+def test_custom_fit_export_matches_canonical_backend(root_path):
+    config = FitConfig(
+        "Custom expression", expression="a*x + b",
+        initial_values={"a": 1.0, "b": 2.0},
+    )
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 24,
+               "log_x": False, "log_y": False, "grid": False, "show_kde": False},
+        fit_config=config,
+    )
+    source = generate_static_plot_code(request)
+    assert "import root_explorer" not in source
+    assert "import streamlit" not in source
+    assert "def discover_fit_parameters(" in source
+    with _executed_generated_module(source) as module:
+        module.plt.show = lambda: None
+        module.main()
+        figure = module.plt.gcf()
+        try:
+            prepared = prepare_static_plot(request.to_static_spec())
+            canonical = fit_histogram_1d(prepared.histogram_1d, config)
+            exported = module.fit_histogram_1d(prepared.histogram_1d, module.PLOT.fit_config)
+            assert canonical.success, canonical.message
+            assert exported.success, exported.message
+            for name, value in canonical.parameters.items():
+                assert exported.parameters[name] == pytest.approx(value, rel=1e-5)
+            assert any(p.get_label() == "Custom expression fit" for p in figure.axes[0].patches)
+        finally:
+            plt.close(figure)

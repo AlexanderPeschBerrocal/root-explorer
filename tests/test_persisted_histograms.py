@@ -174,3 +174,36 @@ def test_persisted_root_histogram_fit_export_executes():
         plt.close(figure)
     finally:
         sys.modules.pop(module.__name__, None)
+
+
+def test_persisted_custom_fit_export_executes():
+    import sys
+    from types import ModuleType
+
+    from root_explorer.analysis.fitting import FitConfig
+
+    spec = HistogramPlotSpec(
+        str(FIXTURE), "histogram_1d;1", _style(), {},
+        fit_config=FitConfig(
+            "Custom expression", expression="a*x + b",
+            initial_values={"a": 1, "b": 1},
+        ),
+    )
+    source = generate_histogram_plot_code(spec)
+    assert "from root_explorer" not in source
+    assert "import streamlit" not in source
+    module = ModuleType("persisted_custom_fit_standalone")
+    sys.modules[module.__name__] = module
+    try:
+        exec(compile(source, "persisted_custom.py", "exec"), module.__dict__)
+        module.plt.show = lambda: None
+        module.main()
+        result = module.fit_histogram_1d(
+            read_histogram(str(FIXTURE), "histogram_1d;1").histogram,
+            module.PLOT.fit_config,
+        )
+        assert result.model == "Custom expression"
+        assert result.expression == "a*x + b"
+    finally:
+        plt.close("all")
+        sys.modules.pop(module.__name__, None)
