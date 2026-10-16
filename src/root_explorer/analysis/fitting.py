@@ -52,6 +52,7 @@ class FitResult:
     objective: str
     fit_range: tuple[float, float] | None
     message: str
+    reference_x: float | None = None
 
 
 def _core_integral(left: np.ndarray, right: np.ndarray) -> np.ndarray:
@@ -265,6 +266,8 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     # each original pair of bin edges, never inventing contiguous rebinned data.
     fit_left, fit_right = edges[indices], edges[indices + 1]
     selected_values = values[indices]
+    # Vectorised evaluation: each pair is represented by a two-element array;
+    # keeping the original boundaries avoids rebinning gaps.
     fit_edges = np.column_stack((fit_left, fit_right))
     x0 = float((lower + upper) / 2)
     guesses = _initial_guess(config.model, edges, values)
@@ -308,10 +311,26 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
 
     def residual(params: np.ndarray) -> np.ndarray:
         params_dict = dict(zip(FIT_MODELS[config.model], params, strict=True))
-        predictions = np.array([
-            model_bin_integrals(config.model, pair, params_dict, x0=x0)[0]
-            for pair in fit_edges
-        ])
+        # Evaluate all selected original bins in one vectorised call; this also
+        # works when zero-variance bins create gaps in the selection.
+        left = fit_edges[:, 0]
+        right = fit_edges[:, 1]
+        if config.model == "Exponential":
+            k = params_dict["k"]
+            predictions = (params_dict["A"] * (right - left) if abs(k) < 1e-10 else
+                           params_dict["A"] * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k)
+        else:
+            # Two-endpoint arrays are integrated independently, without
+            # interpreting the gaps between selected bins as additional bins.
+            integral_left = model_bin_integrals(
+                config.model, np.concatenate((left, [right[-1]])), params_dict, x0=x0
+            )
+            if np.any(right[:-1] != left[1:]):
+                integral_left = np.array([
+                    model_bin_integrals(config.model, pair, params_dict, x0=x0)[0]
+                    for pair in fit_edges
+                ])
+            predictions = integral_left
         result = (predictions - selected_values) / sigma
         return np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100)
 
@@ -350,4 +369,5 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     return FitResult(
         config.model, True, parameters, uncertainties, statistic, ndof, len(indices), excluded,
         objective, (float(fit_left[0]), float(fit_right[-1])), "Fit converged. " + " ".join(notes),
+        reference_x=x0,
     )

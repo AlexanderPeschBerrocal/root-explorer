@@ -21,9 +21,13 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
         f"PLOT = {python_source_literal(spec)}\n\n\n"
         "def main() -> None:\n"
         "    data = read_histogram(PLOT.root_path, PLOT.object_path)\n"
-        "    result = fit_histogram_1d(data.histogram, PLOT.fit_config) if PLOT.fit_config is not None else None\n"
-        "    if result is not None and not result.success: print(f'Fit warning: {result.message}')\n"
-        "    render_histogram_data(data, PLOT.style, PLOT.labels, fit_result=result)\n"
+        + (
+            "    result = fit_histogram_1d(data.histogram, PLOT.fit_config)\n"
+            "    if not result.success: print(f'Fit warning: {result.message}')\n"
+            "    render_histogram_data(data, PLOT.style, PLOT.labels, fit_result=result)\n"
+            if spec.fit_config is not None else
+            "    render_histogram_data(data, PLOT.style, PLOT.labels)\n"
+        )
         "    plt.show()\n\n\n"
         'if __name__ == "__main__":\n'
         "    main()\n"
