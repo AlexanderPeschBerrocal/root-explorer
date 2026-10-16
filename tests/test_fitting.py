@@ -132,3 +132,20 @@ def test_insufficient_positive_variances_is_nonfatal():
     result = fit_histogram_1d(h, FitConfig("Gaussian", use_variances=True))
     assert not result.success
     assert "Insufficient" in result.message
+
+
+def test_weighted_excluded_bin_does_not_affect_auto_initialisation():
+    edges = np.linspace(-5, 5, 41)
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4}
+    values = model_bin_integrals("Gaussian", edges, params, x0=0)
+    variances = np.maximum(values, 1.0)
+    variances[20] = 0.0
+    good = _histogram(edges, values.copy(), variances=variances)
+    bad_values = values.copy()
+    bad_values[20] = 1e12
+    bad = _histogram(edges, bad_values, variances=variances)
+    a = fit_histogram_1d(good, FitConfig("Gaussian", use_variances=True))
+    b = fit_histogram_1d(bad, FitConfig("Gaussian", use_variances=True))
+    assert a.success and b.success
+    for parameter in params:
+        assert a.parameters[parameter] == pytest.approx(b.parameters[parameter], rel=1e-6)
