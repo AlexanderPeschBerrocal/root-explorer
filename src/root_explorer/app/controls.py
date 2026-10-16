@@ -401,9 +401,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
     st.markdown("### Histogram fit", anchors=False)
     if not st.checkbox("Enable fit", value=False, key=f"{prefix}_fit_enabled"):
         return None
-    model = st.selectbox(
-        "Fit model", [*FIT_MODELS, "Custom expression"], key=f"{prefix}_fit_model"
-    )
+    model = st.selectbox("Fit model", [*FIT_MODELS, "Custom expression"], key=f"{prefix}_fit_model")
     expression = None
     names = FIT_MODELS.get(model, ())
     if model == "Custom expression":

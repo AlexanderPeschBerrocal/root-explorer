@@ -679,15 +679,23 @@ def test_weighted_fit_export_uses_requested_stored_variances(root_path) -> None:
 
 def test_custom_fit_export_matches_canonical_backend(root_path):
     config = FitConfig(
-        "Custom expression", expression="a*x + b",
+        "Custom expression",
+        expression="a*x + b",
         initial_values={"a": 1.0, "b": 2.0},
     )
     request = _request(
         root_path,
         plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 24,
-               "log_x": False, "log_y": False, "grid": False, "show_kde": False},
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 24,
+            "log_x": False,
+            "log_y": False,
+            "grid": False,
+            "show_kde": False,
+        },
         fit_config=config,
     )
     source = generate_static_plot_code(request)

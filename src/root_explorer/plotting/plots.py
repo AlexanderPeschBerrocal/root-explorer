@@ -878,7 +878,10 @@ def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
     selected_edges = edges[indices[0] : indices[-1] + 2]
     try:
         prediction = model_bin_integrals(
-            result.model, selected_edges, result.parameters, x0=x0,
+            result.model,
+            selected_edges,
+            result.parameters,
+            x0=x0,
             expression=result.expression,
         )
     except (ValueError, FloatingPointError, OverflowError):

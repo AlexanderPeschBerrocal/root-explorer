@@ -111,7 +111,11 @@ def _crystal_ball_integral(
 
 
 def model_density(
-    model: str, x: np.ndarray, parameters: dict[str, float], *, x0: float,
+    model: str,
+    x: np.ndarray,
+    parameters: dict[str, float],
+    *,
+    x0: float,
     expression: str | None = None,
 ) -> np.ndarray:
     """Evaluate an unnormalised density for display at arbitrary coordinates."""
@@ -398,8 +402,11 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
             # Two-endpoint arrays are integrated independently, without
             # interpreting the gaps between selected bins as additional bins.
             integral_left = model_bin_integrals(
-                config.model, np.concatenate((left, [right[-1]])), params_dict,
-                x0=x0, expression=expression
+                config.model,
+                np.concatenate((left, [right[-1]])),
+                params_dict,
+                x0=x0,
+                expression=expression,
             )
             if np.any(right[:-1] != left[1:]):
                 integral_left = np.array(

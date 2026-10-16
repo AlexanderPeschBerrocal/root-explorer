@@ -70,9 +70,7 @@ def test_nonuniform_numeric_bin_integration():
     edges = np.array([0.2, 0.8, 1.9, 3.0, 6.0])
     params = {"A": 12.0, "tau": 2.0, "c": 0.4}
     expression = "A * exp(-x / tau) + c"
-    integral = model_bin_integrals(
-        "Custom expression", edges, params, x0=0, expression=expression
-    )
+    integral = model_bin_integrals("Custom expression", edges, params, x0=0, expression=expression)
     expected = [
         quad(lambda x: params["A"] * np.exp(-x / params["tau"]) + params["c"], a, b)[0]
         for a, b in zip(edges[:-1], edges[1:], strict=True)
@@ -89,7 +87,8 @@ def test_custom_fit_recovers_parameters():
     h.view().value = values
     h.view().variance = np.ones_like(values)
     config = FitConfig(
-        "Custom expression", expression=expr,
+        "Custom expression",
+        expression=expr,
         initial_values={"A": 60, "tau": 2.0, "c": 1.0},
         bounds={"tau": (0.01, None)},
         use_variances=True,

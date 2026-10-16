@@ -183,9 +183,13 @@ def test_persisted_custom_fit_export_executes():
     from root_explorer.analysis.fitting import FitConfig
 
     spec = HistogramPlotSpec(
-        str(FIXTURE), "histogram_1d;1", _style(), {},
+        str(FIXTURE),
+        "histogram_1d;1",
+        _style(),
+        {},
         fit_config=FitConfig(
-            "Custom expression", expression="a*x + b",
+            "Custom expression",
+            expression="a*x + b",
             initial_values={"a": 1, "b": 1},
         ),
     )

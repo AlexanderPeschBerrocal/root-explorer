@@ -15,9 +15,7 @@ MAX_EXPRESSION_LENGTH = 512
 MAX_EXPRESSION_NODES = 128
 MAX_EXPRESSION_DEPTH = 24
 MAX_FIT_PARAMETERS = 12
-FIT_FUNCTION_NAMES = (
-    "exp", "log", "sqrt", "abs", "sin", "cos", "tan", "sinh", "cosh", "tanh"
-)
+FIT_FUNCTION_NAMES = ("exp", "log", "sqrt", "abs", "sin", "cos", "tan", "sinh", "cosh", "tanh")
 
 
 def _fit_functions() -> dict[str, object]:
@@ -74,7 +72,9 @@ def _check_expression_node(node: ast.AST, parameters: list[str], depth: int = 0)
             or len(node.args) != 1
             or node.keywords
         ):
-            raise ValueError("Only whitelisted mathematical functions with one argument are allowed.")
+            raise ValueError(
+                "Only whitelisted mathematical functions with one argument are allowed."
+            )
         _check_expression_node(node.args[0], parameters, depth + 1)
     else:
         raise ValueError(f"Unsupported expression syntax: {type(node).__name__}.")

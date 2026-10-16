@@ -672,21 +672,26 @@ def test_custom_fit_controls_and_invalid_expression_keep_histogram(root_path):
 def test_persisted_histogram_custom_fit_controls(object_only_root_path):
     at = _load_root_file(make_app_test(), object_only_root_path)
     at.session_state["root_inspector_open"] = (
-        str(object_only_root_path), "Analysis/h_values;1", "TH1D",
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
     )
     at.run()
     toggle = next(
-        widget for widget in at.checkbox
+        widget
+        for widget in at.checkbox
         if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_enabled")
     )
     toggle.check().run()
     model = next(
-        widget for widget in at.selectbox
+        widget
+        for widget in at.selectbox
         if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_model")
     )
     model.select("Custom expression").run()
     expression = next(
-        widget for widget in at.text_input
+        widget
+        for widget in at.text_input
         if str(widget.key).startswith("persisted_") and str(widget.key).endswith("_fit_expression")
     )
     assert expression.value
