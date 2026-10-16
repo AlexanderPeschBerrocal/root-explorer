@@ -329,7 +329,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     fit_edges = np.column_stack((fit_left, fit_right))
     x0 = float((lower + upper) / 2)
     guesses = (
-        {name: 1.0 for name in names}
+        dict.fromkeys(names, 1.0)
         if expression is not None
         else _initial_guess(config.model, fit_edges, selected_values, x0=x0)
     )

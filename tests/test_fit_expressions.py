@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 import hist
 import numpy as np
 import pytest
@@ -73,7 +75,7 @@ def test_nonuniform_numeric_bin_integration():
     integral = model_bin_integrals("Custom expression", edges, params, x0=0, expression=expression)
     expected = [
         quad(lambda x: params["A"] * np.exp(-x / params["tau"]) + params["c"], a, b)[0]
-        for a, b in zip(edges[:-1], edges[1:], strict=True)
+        for a, b in pairwise(edges)
     ]
     np.testing.assert_allclose(integral, expected, rtol=1e-12)
 
