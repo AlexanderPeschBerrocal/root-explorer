@@ -751,9 +751,7 @@ def test_exported_manual_range_flow_matches_canonical(root_path, mode):
 
 @pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
 @pytest.mark.parametrize("log_y", [False, True])
-def test_exported_positive_log_x_range_ignores_nonpositive_flow_values(
-    root_path, mode, log_y
-):
+def test_exported_positive_log_x_range_ignores_nonpositive_flow_values(root_path, mode, log_y):
     """Standalone exports and the app accept the same log-x flow configurations."""
 
     request = _request(

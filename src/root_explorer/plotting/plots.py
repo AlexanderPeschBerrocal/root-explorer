@@ -1159,9 +1159,7 @@ def render_static_plot(
                 warnings.append(warning)
         # Histogram limits define the visible x-domain. Values assigned to flow
         # bins must not invalidate an otherwise positive log-x histogram range.
-        apply_log_axis_scales(
-            ax, style, x=histogram_edges, histogram_counts=histogram_counts
-        )
+        apply_log_axis_scales(ax, style, x=histogram_edges, histogram_counts=histogram_counts)
 
     elif plot_type == "2D histogram":
         if histogram_2d is None:
