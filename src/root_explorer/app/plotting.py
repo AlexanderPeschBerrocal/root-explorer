@@ -20,6 +20,7 @@ from ..analysis.arrays import (
     variable_values_for_values,
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
+from ..analysis.histograms import InvalidHistogramRangeError
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
@@ -304,7 +305,7 @@ def _generate_and_show(
         except ArrayShapeMismatchError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
-        except (InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError) as exc:
+        except (InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError, InvalidHistogramRangeError) as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:
@@ -378,6 +379,8 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         "threshold_result": prepared.threshold_result,
         "quantile_result": prepared.quantile_result,
         "fit_result": fit_result,
+        "histogram_flow_summary": prepared.histogram_flow_summary,
+        "histogram_flow_mode": prepared.histogram_flow_mode,
         "correlation_result": correlation_result,
         "color_clipping_result": prepared.color_clipping_result,
         "warnings": plot_warnings,

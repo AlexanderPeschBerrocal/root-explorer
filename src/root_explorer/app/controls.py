@@ -591,7 +591,7 @@ def plot_style_controls(
         style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
         style["manual_axis_limits"] = st.checkbox(
-            "Apply manual axis limits", value=False, key=f"{prefix}_manual_axis_limits"
+            "Manual plot limits", value=False, key=f"{prefix}_manual_axis_limits"
         )
         style["x_min_text"] = ""
         style["x_max_text"] = ""
@@ -637,6 +637,34 @@ def plot_style_controls(
 
     if plot_type == "1D histogram":
         style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
+        style["manual_histogram_limits"] = st.checkbox(
+            "Manual histogram limits", value=False, key=f"{prefix}_manual_histogram_limits"
+        )
+        style["hist_x_min_text"] = ""
+        style["hist_x_max_text"] = ""
+        style["hist_flow_mode"] = "ignore"
+        if style["manual_histogram_limits"]:
+            st.caption("Define histogram bin edges independently of the plot viewport. "
+                       "Leave either bound blank to use the automatic data endpoint.")
+            hmin_col, hmax_col = st.columns(2)
+            with hmin_col:
+                style["hist_x_min_text"] = st.text_input(
+                    "Histogram minimum", key=f"{prefix}_hist_x_min"
+                )
+            with hmax_col:
+                style["hist_x_max_text"] = st.text_input(
+                    "Histogram maximum", key=f"{prefix}_hist_x_max"
+                )
+            style["hist_flow_mode"] = st.selectbox(
+                "Underflow / overflow",
+                ["ignore", "fold", "separate"],
+                format_func=lambda value: {
+                    "ignore": "Ignore (report separately)",
+                    "fold": "Fold into edge bins",
+                    "separate": "Show separate bins",
+                }[value],
+                key=f"{prefix}_hist_flow_mode",
+            )
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":

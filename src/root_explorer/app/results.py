@@ -69,6 +69,21 @@ def show_cached_plot_result(
     if isinstance(quantile_result, QuantileResult):
         _show_quantile_result(quantile_result)
 
+    flow_summary = result.get("histogram_flow_summary")
+    if flow_summary is not None:
+        st.markdown("#### Histogram flow", anchors=False)
+        st.caption(f"Nominal range: [{flow_summary.lower:g}, {flow_summary.upper:g}] · "
+                   f"mode: {result.get('histogram_flow_mode', 'ignore')}. "
+                   "Sample statistics above refer to all selected observations.")
+        rows = []
+        for title, name in (("Underflow", "underflow"), ("In range", "in_range"), ("Overflow", "overflow")):
+            row = {"Region": title, "Entries": getattr(flow_summary, f"{name}_entries")}
+            if flow_summary.weighted:
+                row["Sum of weights"] = getattr(flow_summary, f"{name}_sumw")
+                row["Sum of squared weights"] = getattr(flow_summary, f"{name}_sumw2")
+            rows.append(row)
+        render_dataframe(pd.DataFrame(rows))
+
     fit_result = result.get("fit_result")
     if isinstance(fit_result, FitResult):
         st.markdown("#### Histogram fit", anchors=False)

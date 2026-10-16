@@ -13,7 +13,13 @@ from ..analysis.arrays import (
     validate_variable_event_shapes,
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
-from ..analysis.histograms import build_histogram_1d, build_histogram_2d
+from ..analysis.histograms import (
+    build_histogram_1d,
+    build_histogram_2d,
+    histogram_for_flow_mode,
+    resolve_histogram_range,
+    summarise_histogram_flow,
+)
 from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
 from ..analysis.variables import VariableEvaluator, variable_evaluator
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
@@ -118,7 +124,10 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     if has_quantile:
         roots.append(calculate_quantile_result)
     if spec.plot_type == "1D histogram":
-        roots.extend([build_histogram_1d, draw_histogram_1d])
+        roots.extend([
+            build_histogram_1d, draw_histogram_1d,
+            resolve_histogram_range, histogram_for_flow_mode, summarise_histogram_flow,
+        ])
         if has_fit:
             from .plots import draw_fit_overlay
 
@@ -440,7 +449,9 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "histogram_1d = build_histogram_1d(",
-                "    x, int(PLOT.style['bins_x']), weights=weights, label=x_label,",
+                "    x, int(PLOT.style['bins_x']), weights=weights,",
+                "    value_range=resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style),",
+                "    label=x_label,",
                 ")",
             ]
         )
@@ -468,9 +479,14 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     if spec.plot_type == "1D histogram":
         lines.extend(
             [
+                "flow_range = resolve_histogram_range(x, int(PLOT.style['bins_x']), PLOT.style)",
+                "flow_mode = PLOT.style.get('hist_flow_mode', 'ignore') if flow_range is not None else 'ignore'",
+                "flow_summary = (summarise_histogram_flow(histogram_1d, x, weighted=weights is not None)",
+                "                if flow_range is not None else None)",
+                "display_histogram = histogram_for_flow_mode(histogram_1d, flow_mode)",
                 "draw_histogram_1d(",
-                "    axes, histogram_1d, y_label, reference_x=reference_x,",
-                "    reference_label=reference_label,",
+                "    axes, display_histogram, y_label, reference_x=reference_x,",
+                "    reference_label=reference_label, flow_summary=flow_summary, flow_mode=flow_mode,",
                 ")",
                 "histogram_counts = histogram_1d.values()",
                 "histogram_edges = histogram_1d.axes[0].edges",

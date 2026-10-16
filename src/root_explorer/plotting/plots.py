@@ -839,6 +839,8 @@ def draw_histogram_1d(
     *,
     reference_x: float | None,
     reference_label: str | None,
+    flow_summary: Any | None = None,
+    flow_mode: str = "ignore",
 ) -> None:
     """Draw a prepared 1D histogram without recomputing its binning semantics."""
 
@@ -852,6 +854,28 @@ def draw_histogram_1d(
     )
     ax.set_xlabel(histogram.axes[0].label)
     ax.set_ylabel(y_label)
+    if flow_mode == "separate" and flow_summary is not None:
+        # Detached categorical bars: their horizontal positions have no physics meaning.
+        width = float(histogram_edges[-1] - histogram_edges[0]) / len(histogram_counts)
+        left, right = float(histogram_edges[0]), float(histogram_edges[-1])
+        if ax.get_xscale() == "log":
+            if left <= 0:
+                raise InvalidAxisScaleError("Log x-axis requires positive histogram edges.")
+            ratio = (right / left) ** (1 / len(histogram_counts))
+            positions = (left / ratio**1.8, right * ratio**0.8)
+            widths = (positions[0] * (ratio - 1), positions[1] * (ratio - 1))
+        else:
+            positions = (left - 1.6 * width, right + 0.6 * width)
+            widths = (width, width)
+        heights = (flow_summary.underflow_sumw, flow_summary.overflow_sumw)
+        for position, bar_width, height, label in zip(
+            positions, widths, heights, ("UF", "OF"), strict=True
+        ):
+            ax.bar(
+                position, height, width=bar_width, align="edge",
+                color="tab:orange", hatch="//", edgecolor="black", linewidth=1,
+            )
+            ax.text(position + bar_width / 2, 0, label, ha="center", va="top")
     if reference_x is not None:
         ax.axvline(
             reference_x,
@@ -1086,6 +1110,8 @@ def render_static_plot(
     reference_label: str | None = None,
     colorbar_extend: str = "neither",
     fit_result: FitResult | None = None,
+    histogram_flow_summary: Any | None = None,
+    histogram_flow_mode: str = "ignore",
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
@@ -1097,13 +1123,21 @@ def render_static_plot(
             y_label,
             reference_x=reference_x,
             reference_label=reference_label,
+            flow_summary=histogram_flow_summary,
+            flow_mode=histogram_flow_mode,
         )
         if fit_result is not None and fit_result.success:
             draw_fit_overlay(ax, histogram_1d, fit_result)
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
         histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
         if style.get("show_kde", False):
-            warning = draw_kde_1d_overlay(ax, x, histogram_edges, style, weights=weights)
+            kde_x = x
+            kde_weights = weights
+            if histogram_flow_summary is not None:
+                inside = (x >= histogram_edges[0]) & (x <= histogram_edges[-1])
+                kde_x = x[inside]
+                kde_weights = weights[inside] if weights is not None else None
+            warning = draw_kde_1d_overlay(ax, kde_x, histogram_edges, style, weights=kde_weights)
             if warning is not None:
                 warnings.append(warning)
         apply_log_axis_scales(ax, style, x=x, histogram_counts=histogram_counts)
