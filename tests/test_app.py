@@ -721,3 +721,37 @@ def test_manual_histogram_flow_controls_work_in_streamlit(root_path):
     assert not at.exception
     assert "plot_result" not in at.session_state
     assert any("Histogram minimum" in warning.value for warning in at.warning)
+
+
+def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
+    at = _load_root_file(make_app_test(), root_path)
+    assert not at.exception
+    headings = [widget.value for widget in at.markdown]
+    cuts = next(i for i, text in enumerate(headings) if "### Cuts" in text)
+    analysis = next(i for i, text in enumerate(headings) if "### Histogram analysis" in text)
+    style = next(i for i, text in enumerate(headings) if "### Style" in text)
+    assert cuts < analysis < style
+    assert at.checkbox(key="plot_manual_histogram_limits").label == (
+        "Custom histogram range and flow handling"
+    )
+    assert at.slider(key="plot_bins")
+    assert at.checkbox(key="plot_show_kde")
+    assert at.checkbox(key="plot_fit_enabled")
+    assert at.checkbox(key="plot_manual_axis_limits")
+    assert not any(widget.key == "plot_hist_flow_mode" for widget in at.selectbox)
+    at.checkbox(key="plot_manual_histogram_limits").check().run()
+    assert at.selectbox(key="plot_hist_flow_mode")
+    assert at.text_input(key="plot_hist_x_min")
+    assert at.text_input(key="plot_hist_x_max")
+
+    at.selectbox(key="plot_type").select("2D histogram").run()
+    assert any("### Histogram analysis" in widget.value for widget in at.markdown)
+    assert at.slider(key="plot_bins_x")
+    assert at.slider(key="plot_bins_y")
+    assert at.checkbox(key="plot_show_contours")
+    assert not any(widget.key == "plot_fit_enabled" for widget in at.checkbox)
+    assert not any(widget.key == "plot_manual_histogram_limits" for widget in at.checkbox)
+
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    assert not any("### Histogram analysis" in widget.value for widget in at.markdown)
+    assert any("### Style" in widget.value for widget in at.markdown)
