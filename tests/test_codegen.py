@@ -722,14 +722,20 @@ def test_custom_fit_export_matches_canonical_backend(root_path):
 @pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
 def test_exported_manual_range_flow_matches_canonical(root_path, mode):
     request = _request(
-        root_path, plot_type="1D histogram",
+        root_path,
+        plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
         weight_branch="genWeight",
         style={
-            "fig_width": 8.0, "fig_height": 6.0, "bins_x": 12,
-            "log_x": False, "log_y": False, "grid": False,
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 12,
+            "log_x": False,
+            "log_y": False,
+            "grid": False,
             "manual_histogram_limits": True,
-            "hist_x_min_text": "15", "hist_x_max_text": "35",
+            "hist_x_min_text": "15",
+            "hist_x_max_text": "35",
             "hist_flow_mode": mode,
         },
     )

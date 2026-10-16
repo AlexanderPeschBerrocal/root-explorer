@@ -873,8 +873,14 @@ def draw_histogram_1d(
             positions, widths, heights, ("UF", "OF"), strict=True
         ):
             ax.bar(
-                position, height, width=bar_width, align="edge",
-                color="tab:orange", hatch="//", edgecolor="black", linewidth=1,
+                position,
+                height,
+                width=bar_width,
+                align="edge",
+                color="tab:orange",
+                hatch="//",
+                edgecolor="black",
+                linewidth=1,
             )
             ax.text(position + bar_width / 2, 0, label, ha="center", va="top")
     if reference_x is not None:

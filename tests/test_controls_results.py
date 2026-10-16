@@ -7,10 +7,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from root_explorer.app import results, tables
 from root_explorer.analysis.fitting import FitResult
 from root_explorer.analysis.histograms import HistogramFlowSummary
 from root_explorer.analysis.statistics import QuantileResult, ThresholdResult
+from root_explorer.app import results, tables
 from root_explorer.app.controls import (
     COLOR_SCALES,
     field_option_labels,
@@ -259,9 +259,11 @@ def test_cached_plot_renders_primary_figure_before_secondary_analysis(monkeypatc
             empty_message="No plot",
         )
 
-    assert calls.index("summary") < next(
-        i for i, call in enumerate(calls) if call.startswith("caption:Summary statistics")
-    ) < calls.index("figure")
+    assert (
+        calls.index("summary")
+        < next(i for i, call in enumerate(calls) if call.startswith("caption:Summary statistics"))
+        < calls.index("figure")
+    )
     assert calls.index("figure") < calls.index("warning:KDE was unavailable.")
     assert calls.index("figure") < calls.index("flow")
     assert calls.index("flow") < calls.index("threshold") < calls.index("quantile")

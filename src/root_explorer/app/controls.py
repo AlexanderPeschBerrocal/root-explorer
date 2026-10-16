@@ -566,7 +566,6 @@ def range_cut_controls(
     return cut_specs, cut_bounds
 
 
-
 def histogram_analysis_controls(
     prefix: str,
     plot_type: str,

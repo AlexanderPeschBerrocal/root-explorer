@@ -87,7 +87,11 @@ def show_cached_plot_result(
             f"mode: {result.get('histogram_flow_mode', 'ignore')}."
         )
         rows = []
-        for title, name in (("Underflow", "underflow"), ("In range", "in_range"), ("Overflow", "overflow")):
+        for title, name in (
+            ("Underflow", "underflow"),
+            ("In range", "in_range"),
+            ("Overflow", "overflow"),
+        ):
             row = {"Region": title, "Entries": getattr(flow_summary, f"{name}_entries")}
             if flow_summary.weighted:
                 row["Sum of weights"] = getattr(flow_summary, f"{name}_sumw")

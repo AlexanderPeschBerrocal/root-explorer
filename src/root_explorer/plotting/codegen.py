@@ -124,10 +124,15 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     if has_quantile:
         roots.append(calculate_quantile_result)
     if spec.plot_type == "1D histogram":
-        roots.extend([
-            build_histogram_1d, draw_histogram_1d,
-            resolve_histogram_range, histogram_for_flow_mode, summarise_histogram_flow,
-        ])
+        roots.extend(
+            [
+                build_histogram_1d,
+                draw_histogram_1d,
+                resolve_histogram_range,
+                histogram_for_flow_mode,
+                summarise_histogram_flow,
+            ]
+        )
         if has_fit:
             from .plots import draw_fit_overlay
 
@@ -494,7 +499,9 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             ]
         )
         if plan.has_fit:
-            lines.append("if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result)")
+            lines.append(
+                "if fit_result.success: draw_fit_overlay(axes, display_histogram, fit_result)"
+            )
         if plan.show_kde:
             lines.extend(
                 [

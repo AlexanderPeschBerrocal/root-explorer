@@ -258,9 +258,7 @@ def _render_plot_controls(
             field_info=context.field_info,
             show_field_details=show_field_details,
         )
-        analysis_style = histogram_analysis_controls(
-            prefix, plot_type, default_bins=default_bins
-        )
+        analysis_style = histogram_analysis_controls(prefix, plot_type, default_bins=default_bins)
         if plot_type == "1D histogram":
             threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
             fit_config = fit_controls(

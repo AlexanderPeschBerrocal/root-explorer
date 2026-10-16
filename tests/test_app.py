@@ -713,8 +713,8 @@ def test_manual_histogram_flow_controls_work_in_streamlit(root_path):
     result = at.session_state["plot_result"]
     assert result["histogram_flow_mode"] == "fold"
     assert result["histogram_flow_summary"] is not None
-    assert result["histogram_flow_summary"].lower == pytest.approx(15.)
-    assert result["histogram_flow_summary"].upper == pytest.approx(35.)
+    assert result["histogram_flow_summary"].lower == pytest.approx(15.0)
+    assert result["histogram_flow_summary"].upper == pytest.approx(35.0)
     at.text_input(key="plot_hist_x_min").input("100").run()
     at.text_input(key="plot_hist_x_max").input("10").run()
     at.button(key="plot_make").click().run()

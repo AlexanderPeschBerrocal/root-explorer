@@ -218,11 +218,7 @@ def summarise_histogram_flow(
     edges = np.asarray(histogram.axes[0].edges, dtype=float)
     raw = np.asarray(histogram.values(flow=True), dtype=float)
     variances = histogram.variances(flow=True)
-    variance = (
-        np.asarray(variances, dtype=float)
-        if variances is not None
-        else raw
-    )
+    variance = np.asarray(variances, dtype=float) if variances is not None else raw
     x = np.asarray(values, dtype=float)
     n_under = int(np.count_nonzero(x < edges[0]))
     n_over = int(np.count_nonzero(x > edges[-1]))
