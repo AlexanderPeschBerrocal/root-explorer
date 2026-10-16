@@ -28,7 +28,7 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
             if spec.fit_config is not None else
             "    render_histogram_data(data, PLOT.style, PLOT.labels)\n"
         )
-        "    plt.show()\n\n\n"
+        + "    plt.show()\n\n\n"
         'if __name__ == "__main__":\n'
         "    main()\n"
     )
