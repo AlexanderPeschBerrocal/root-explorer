@@ -608,8 +608,8 @@ def test_fit_enabled_export_executes_and_overlays(root_path, model) -> None:
         expected = fit_histogram_1d(canonical.histogram_1d, request.fit_config)
         try:
             assert expected.success, expected.message
-            generated_lines = [artist for artist in generated.axes[0].containers
-                               if getattr(artist, "get_label", lambda: "")() == f"{model} fit"]
+            generated_lines = [artist for artist in generated.axes[0].patches
+                               if artist.get_label() == f"{model} fit"]
             # Matplotlib stairs are rendered as a StepPatch, not ordinary Line2D.
             assert generated_lines
             exported = module.fit_histogram_1d(canonical.histogram_1d, module.PLOT.fit_config)

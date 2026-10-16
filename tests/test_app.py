@@ -598,7 +598,7 @@ def test_fit_controls_run_end_to_end_and_preserve_histogram(root_path) -> None:
     result = at.session_state["plot_result"]
     assert result["fit_result"].objective == "Ordinary least squares"
     assert result["fit_result"].success
-    assert len(result["figure"].axes[0].containers) > 1
+    assert any(patch.get_label() == "Gaussian fit" for patch in result["figure"].axes[0].patches)
     assert any("Histogram fit" in x.value for x in at.markdown)
     assert "def fit_histogram_1d(" in result["code"]
 
