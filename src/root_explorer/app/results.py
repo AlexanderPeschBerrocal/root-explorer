@@ -244,6 +244,7 @@ def _show_threshold_result(result: ThresholdResult) -> None:
         assert result.total_weight is not None
         total_text += f" · Total sum of weights: {result.total_weight:g}"
     st.caption(total_text)
+    st.caption("Fractions use the full selected sample after cuts, including histogram flow.")
     rows: list[dict[str, object]] = [
         {
             "selection": f"x ≤ {result.threshold:g}",
@@ -279,6 +280,7 @@ def _show_quantile_result(result: QuantileResult) -> None:
     """Display one cached quantile calculation."""
 
     st.markdown("#### Quantile calculator", anchors=False)
+    st.caption("Quantiles use the full selected sample after cuts, including histogram flow.")
     value_text = "unavailable" if result.value is None else f"{result.value:g}"
     dataframe = pd.DataFrame([{"percentile (%)": result.percentile, "quantile": value_text}])
     render_dataframe(dataframe)

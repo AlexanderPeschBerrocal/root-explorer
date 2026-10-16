@@ -49,6 +49,7 @@ from .controls import (
     PLOT_TYPES,
     distribution_calculator_controls,
     fit_controls,
+    histogram_analysis_controls,
     histogram_weight_selector,
     label_controls,
     needs_y_variable,
@@ -236,15 +237,6 @@ def _render_plot_controls(
                 allow_event_reductions=False,
             )
 
-    weight_branch = histogram_weight_selector(
-        prefix,
-        plot_type,
-        context.fields,
-        item_name=context.data_item_name,
-        field_info=context.field_info,
-        show_field_details=show_field_details,
-    )
-    threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
     cut_specs, cut_bounds = range_cut_controls(
         prefix,
         context.fields,
@@ -252,18 +244,40 @@ def _render_plot_controls(
         field_info=context.field_info,
         show_field_details=show_field_details,
     )
-    style = plot_style_controls(
+    analysis_style: dict[str, Any] = {}
+    weight_branch = None
+    threshold = quantile_percentile = None
+    fit_config = None
+    if plot_type in {"1D histogram", "2D histogram"}:
+        st.markdown("### Histogram analysis", anchors=False)
+        weight_branch = histogram_weight_selector(
+            prefix,
+            plot_type,
+            context.fields,
+            item_name=context.data_item_name,
+            field_info=context.field_info,
+            show_field_details=show_field_details,
+        )
+        analysis_style = histogram_analysis_controls(
+            prefix, plot_type, default_bins=default_bins
+        )
+        if plot_type == "1D histogram":
+            threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
+            fit_config = fit_controls(
+                prefix, plot_type, default_use_variances=weight_branch is not None
+            )
+
+    presentation_style = plot_style_controls(
         prefix,
         plot_type,
         color_enabled=color_enabled,
-        default_bins=default_bins,
         default_marker_size_2d=default_marker_size_2d,
         default_marker_size_3d=default_marker_size_3d,
         default_opacity_2d=default_opacity_2d,
         default_opacity_3d=default_opacity_3d,
         default_equal_aspect=False,
     )
-    fit_config = fit_controls(prefix, plot_type, default_use_variances=weight_branch is not None)
+    style = {**analysis_style, **presentation_style}
     labels = label_controls(prefix, plot_type)
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
@@ -305,7 +319,12 @@ def _generate_and_show(
         except ArrayShapeMismatchError as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
-        except (InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError, InvalidHistogramRangeError) as exc:
+        except (
+            InvalidAxisLimitError,
+            InvalidAxisScaleError,
+            InvalidColorScaleError,
+            InvalidHistogramRangeError,
+        ) as exc:
             st.session_state.pop(result_key, None)
             st.warning(str(exc))
         except Exception as exc:
