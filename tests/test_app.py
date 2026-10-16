@@ -593,6 +593,7 @@ def test_fit_controls_run_end_to_end_and_preserve_histogram(root_path) -> None:
         "Exponential",
         "Crystal Ball",
         "Double-sided Crystal Ball",
+        "Custom expression",
     ]
     assert at.checkbox(key="plot_fit_variances").value is False
     at.selectbox(key="x_branch").select("Muon_pt").run()

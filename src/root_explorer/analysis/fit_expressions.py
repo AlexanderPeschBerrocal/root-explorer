@@ -7,7 +7,6 @@ User-provided source is never compiled or executed as Python.
 from __future__ import annotations
 
 import ast
-from functools import lru_cache
 
 import numpy as np
 
@@ -80,7 +79,6 @@ def _check_expression_node(node: ast.AST, parameters: list[str], depth: int = 0)
         raise ValueError(f"Unsupported expression syntax: {type(node).__name__}.")
 
 
-@lru_cache(maxsize=128)
 def _parsed_expression(expression: str) -> tuple[ast.Expression, tuple[str, ...]]:
     if not isinstance(expression, str) or not expression.strip():
         raise ValueError("Enter a non-empty mathematical expression.")
