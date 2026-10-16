@@ -91,7 +91,9 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     has_threshold = spec.plot_type == "1D histogram" and spec.threshold is not None
     has_quantile = spec.plot_type == "1D histogram" and spec.quantile_percentile is not None
     has_fit = spec.plot_type == "1D histogram" and spec.fit_config is not None
-    normalise_unit_area = spec.plot_type == "1D histogram" and bool(spec.style.get("normalise_unit_area", False))
+    normalise_unit_area = spec.plot_type == "1D histogram" and bool(
+        spec.style.get("normalise_unit_area", False)
+    )
     log_x = bool(spec.style.get("log_x", False))
     log_y = bool(spec.style.get("log_y", False))
     log_z = spec.plot_type == "2D histogram" and bool(spec.style.get("log_z", False))
@@ -494,7 +496,11 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         )
     elif spec.plot_type == "1D histogram":
         lines.extend(
-            ["normalisation = None", "density_enabled = False", "plot_histogram = display_histogram"]
+            [
+                "normalisation = None",
+                "density_enabled = False",
+                "plot_histogram = display_histogram",
+            ]
         )
 
     if plan.has_fit:

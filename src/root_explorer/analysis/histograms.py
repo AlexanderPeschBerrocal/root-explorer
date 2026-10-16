@@ -321,14 +321,16 @@ def normalise_histogram_1d(
     if values.size == 0 or not np.isfinite(denominator) or denominator <= 0:
         return invalid("Unit-area normalisation requires a finite, positive in-range yield.")
 
-    abs_sum = float(np.sum(np.abs(values))) if absolute_weight_sum is None else float(
-        absolute_weight_sum
+    abs_sum = (
+        float(np.sum(np.abs(values))) if absolute_weight_sum is None else float(absolute_weight_sum)
     )
     if not np.isfinite(abs_sum) or abs_sum < 0 or abs_sum < abs(denominator):
         return invalid("Unit-area normalisation has invalid absolute-weight bookkeeping.")
     ratio = denominator / abs_sum if abs_sum else 0.0
     if ratio <= 64 * np.finfo(float).eps:
-        return invalid("Unit-area normalisation is numerically unstable due to weight cancellation.")
+        return invalid(
+            "Unit-area normalisation is numerically unstable due to weight cancellation."
+        )
 
     variances = histogram.variances()
     if variances is None:

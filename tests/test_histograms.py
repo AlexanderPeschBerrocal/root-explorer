@@ -254,8 +254,10 @@ def test_unit_area_density_preserves_weighted_variance_scale_and_flow() -> None:
     from root_explorer.analysis.histograms import normalise_histogram_1d
 
     source = build_histogram_1d(
-        [-1.0, 0.2, 0.7, 2.0], 2,
-        weights=np.array([4.0, 2.0, 3.0, 8.0]), value_range=(0.0, 1.0),
+        [-1.0, 0.2, 0.7, 2.0],
+        2,
+        weights=np.array([4.0, 2.0, 3.0, 8.0]),
+        value_range=(0.0, 1.0),
     )
     normalised = normalise_histogram_1d(source)
     assert normalised.valid
@@ -287,7 +289,10 @@ def test_invalid_unit_area_returns_diagnostic_without_nan(weights) -> None:
 
     values = np.arange(len(weights), dtype=float) + 0.5
     source = build_histogram_1d(
-        values, 2, weights=np.asarray(weights), value_range=(0.0, 3.0),
+        values,
+        2,
+        weights=np.asarray(weights),
+        value_range=(0.0, 3.0),
     )
     result = normalise_histogram_1d(source)
     assert not result.valid

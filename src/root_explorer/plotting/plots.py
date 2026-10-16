@@ -904,7 +904,9 @@ def draw_histogram_1d(
         ax.legend()
 
 
-def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult, *, density_denominator: float | None = None) -> None:
+def draw_fit_overlay(
+    ax: Any, histogram: hist.Hist, result: FitResult, *, density_denominator: float | None = None
+) -> None:
     """Display fitted bin predictions on the original histogram bin edges."""
     if not result.success or result.fit_range is None:
         return
@@ -1152,7 +1154,9 @@ def render_static_plot(
         density_enabled = normalisation_result is not None and normalisation_result.valid
         if fit_result is not None and fit_result.success:
             draw_fit_overlay(
-                ax, fit_histogram_1d if fit_histogram_1d is not None else histogram_1d, fit_result,
+                ax,
+                fit_histogram_1d if fit_histogram_1d is not None else histogram_1d,
+                fit_result,
                 density_denominator=normalisation_result.denominator if density_enabled else None,
             )
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
@@ -1168,7 +1172,11 @@ def render_static_plot(
                 warning = "KDE unavailable for normalised flow-folded histograms."
             else:
                 warning = draw_kde_1d_overlay(
-                    ax, kde_x, histogram_edges, style, weights=kde_weights,
+                    ax,
+                    kde_x,
+                    histogram_edges,
+                    style,
+                    weights=kde_weights,
                     density=density_enabled,
                 )
             if warning is not None:

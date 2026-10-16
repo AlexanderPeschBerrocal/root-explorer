@@ -218,7 +218,9 @@ def test_density_pipeline_flow_and_fit_invariance(root_path, mode):
         widths = np.diff(density.axes[0].edges)
         assert float(np.dot(density.values(), widths)) == pytest.approx(1.0)
         assert prepared.y_label == "Normalised density"
-        assert np.allclose(prepared.histogram_1d.values(flow=True), original.histogram_1d.values(flow=True))
+        assert np.allclose(
+            prepared.histogram_1d.values(flow=True), original.histogram_1d.values(flow=True)
+        )
     config = FitConfig(model="Exponential")
     raw_fit = fit_histogram_1d(original.display_histogram_1d, config)
     density_fit = fit_histogram_1d(prepared.display_histogram_1d, config)
