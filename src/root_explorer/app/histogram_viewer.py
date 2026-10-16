@@ -110,12 +110,18 @@ def render_histogram_controls(
                 figure.tight_layout()
             from ..plotting.histogram_codegen import generate_histogram_plot_code
 
+            warnings = []
+            try:
+                code = generate_histogram_plot_code(spec)
+            except (ValueError, TypeError, RuntimeError) as exc:
+                code = None
+                warnings.append(f"Plot-code export unavailable: {exc}")
             st.session_state["root_histogram_result"] = {
                 "kind": "matplotlib",
                 "figure": figure,
-                "code": generate_histogram_plot_code(spec),
+                "code": code,
                 "save_name": "root_histogram",
-                "warnings": [],
+                "warnings": warnings,
                 "fit_result": fit_result,
             }
         except (

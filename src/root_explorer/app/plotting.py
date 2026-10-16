@@ -326,6 +326,15 @@ def _generate_and_show(
     )
 
 
+def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str | None:
+    """Keep the histogram available even when its standalone export cannot be built."""
+    try:
+        return generate_static_plot_code(request)
+    except (ValueError, TypeError, RuntimeError) as exc:
+        warnings.append(f"Plot-code export unavailable: {exc}")
+        return None
+
+
 def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     """Create a cached result for a static plot through the shared plotting pipeline."""
 
@@ -363,7 +372,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     return {
         "kind": "matplotlib",
         "figure": figure,
-        "code": generate_static_plot_code(request),
+        "code": _safe_generate_plot_code(request, plot_warnings),
         "summary": summary,
         "preview": preview,
         "threshold_result": prepared.threshold_result,
