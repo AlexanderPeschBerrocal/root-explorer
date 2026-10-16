@@ -245,6 +245,8 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     selected = (centers >= lower) & (centers <= upper)
     excluded = 0
     if config.use_variances:
+        if histogram.storage_type is not hist.storage.Weight:
+            return failed("Explicit stored sum(w²) variances are unavailable for this histogram.")
         variances = histogram.variances()
         if variances is None:
             return failed("This histogram has no stored bin variances.")
