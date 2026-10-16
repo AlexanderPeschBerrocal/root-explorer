@@ -33,7 +33,15 @@ def _histogram(edges, contents, *, variances=None):
         ("Crystal Ball", {"A": 200.0, "mu": 1.1, "sigma": 1.3, "alpha": 1.5, "n": 3.0}),
         (
             "Double-sided Crystal Ball",
-            {"A": 200.0, "mu": 1.1, "sigma": 1.3, "alpha_L": 1.5, "n_L": 3.0, "alpha_R": 1.8, "n_R": 4.0},
+            {
+                "A": 200.0,
+                "mu": 1.1,
+                "sigma": 1.3,
+                "alpha_L": 1.5,
+                "n_L": 3.0,
+                "alpha_R": 1.8,
+                "n_R": 4.0,
+            },
         ),
     ],
 )
@@ -53,11 +61,13 @@ def test_binned_model_parameter_recovery(model, params):
 def test_nonuniform_edges_integrate_gaussian_density():
     from scipy.integrate import quad
 
-    edges = np.array([-4., -1., 0.2, 0.4, 3., 8.])
-    params = {"A": 12., "mu": 0.1, "sigma": 1.2}
+    edges = np.array([-4.0, -1.0, 0.2, 0.4, 3.0, 8.0])
+    params = {"A": 12.0, "mu": 0.1, "sigma": 1.2}
     actual = model_bin_integrals("Gaussian", edges, params, x0=1)
-    expected = [quad(lambda x: model_density("Gaussian", np.array(x), params, x0=1), left, right)[0]
-                for left, right in zip(edges[:-1], edges[1:], strict=True)]
+    expected = [
+        quad(lambda x: model_density("Gaussian", np.array(x), params, x0=1), left, right)[0]
+        for left, right in zip(edges[:-1], edges[1:], strict=True)
+    ]
     np.testing.assert_allclose(actual, expected, rtol=1e-12)
 
 
@@ -65,30 +75,32 @@ def test_nonuniform_edges_integrate_gaussian_density():
 def test_crystal_ball_integrals_match_quadrature(model):
     from scipy.integrate import quad
 
-    params = {"A": 9., "mu": .2, "sigma": 1.4}
+    params = {"A": 9.0, "mu": 0.2, "sigma": 1.4}
     if model == "Crystal Ball":
         params.update(alpha=1.2, n=2.5)
     else:
-        params.update(alpha_L=1.4, n_L=3., alpha_R=2., n_R=5.)
-    edges = np.array([-8., -2.5, -1., 0.5, 2., 4., 8.])
+        params.update(alpha_L=1.4, n_L=3.0, alpha_R=2.0, n_R=5.0)
+    edges = np.array([-8.0, -2.5, -1.0, 0.5, 2.0, 4.0, 8.0])
     actual = model_bin_integrals(model, edges, params, x0=0)
-    expected = [quad(lambda x: model_density(model, np.array(x), params, x0=0), a, b)[0]
-                for a, b in zip(edges[:-1], edges[1:], strict=True)]
+    expected = [
+        quad(lambda x: model_density(model, np.array(x), params, x0=0), a, b)[0]
+        for a, b in zip(edges[:-1], edges[1:], strict=True)
+    ]
     np.testing.assert_allclose(actual, expected, rtol=2e-7)
 
 
 def test_weighted_fit_uses_stored_variances_and_excludes_zero_variance_bins():
     edges = np.linspace(-5, 5, 41)
-    params = {"A": 100., "mu": 0.3, "sigma": 1.4}
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4}
     values = model_bin_integrals("Gaussian", edges, params, x0=0)
     values[20] = 1e4
-    variances = np.maximum(values.copy(), 1.)
-    variances[20] = 0.
+    variances = np.maximum(values.copy(), 1.0)
+    variances[20] = 0.0
     h = _histogram(edges, values, variances=variances)
     result = fit_histogram_1d(h, FitConfig("Gaussian", use_variances=True))
     assert result.success, result.message
     assert result.bins_excluded == 1
-    assert result.parameters["mu"] == pytest.approx(params["mu"], abs=.05)
+    assert result.parameters["mu"] == pytest.approx(params["mu"], abs=0.05)
     assert result.objective == "Variance-weighted least squares"
 
 

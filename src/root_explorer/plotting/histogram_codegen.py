@@ -13,6 +13,7 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
     roots = [HistogramPlotSpec, read_histogram, render_histogram_data]
     if spec.fit_config is not None:
         from .plots import draw_fit_overlay
+
         roots.extend([FitConfig, fit_histogram_1d, draw_fit_overlay])
     helpers = bundle_python_source(*roots).rstrip()
     return (
@@ -26,8 +27,8 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
             "    if not result.success: print(f'Fit warning: {result.message}')\n"
             "    figure = render_histogram_data(data, PLOT.style, PLOT.labels)\n"
             "    if result.success: draw_fit_overlay(figure.axes[0], data.histogram, result)\n"
-            if spec.fit_config is not None else
-            "    render_histogram_data(data, PLOT.style, PLOT.labels)\n"
+            if spec.fit_config is not None
+            else "    render_histogram_data(data, PLOT.style, PLOT.labels)\n"
         )
         + "    plt.show()\n\n\n"
         'if __name__ == "__main__":\n'

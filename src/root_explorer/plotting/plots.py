@@ -17,8 +17,8 @@ from matplotlib import colormaps
 from matplotlib.colors import LogNorm, to_hex
 from scipy.stats import gaussian_kde
 
-from ..analysis.fitting import FitResult, model_bin_integrals
 from ..analysis.arrays import align_arrays
+from ..analysis.fitting import FitResult, model_bin_integrals
 
 
 class InvalidAxisScaleError(ValueError):
@@ -877,8 +877,13 @@ def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
     x0 = result.reference_x if result.reference_x is not None else (lower + upper) / 2
     prediction = model_bin_integrals(result.model, edges, result.parameters, x0=x0)
     # A step representation remains valid for non-uniform bin widths.
-    ax.stairs(prediction[indices], edges[indices[0]:indices[-1] + 2],
-              color="tab:red", linewidth=2, label=f"{result.model} fit")
+    ax.stairs(
+        prediction[indices],
+        edges[indices[0] : indices[-1] + 2],
+        color="tab:red",
+        linewidth=2,
+        label=f"{result.model} fit",
+    )
     ax.legend()
 
 

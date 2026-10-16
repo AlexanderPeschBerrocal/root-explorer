@@ -121,6 +121,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         roots.extend([build_histogram_1d, draw_histogram_1d])
         if has_fit:
             from .plots import draw_fit_overlay
+
             roots.extend([FitConfig, fit_histogram_1d, draw_fit_overlay])
         if show_kde:
             roots.append(draw_kde_1d_overlay)
@@ -256,10 +257,12 @@ def _compatibility_lines(plan: StaticPlotExportPlan) -> list[str]:
         ),
         "    raise ValueError('This export is specialised to different log scales; regenerate it.')",
     ]
-    lines.extend([
-        "if (PLOT.fit_config is not None) != " + repr(plan.has_fit) + ":",
-        "    raise ValueError('This export is specialised to different fitting features; regenerate it.')",
-    ])
+    lines.extend(
+        [
+            "if (PLOT.fit_config is not None) != " + repr(plan.has_fit) + ":",
+            "    raise ValueError('This export is specialised to different fitting features; regenerate it.')",
+        ]
+    )
     if spec.y_spec is not None:
         lines.extend(
             [
@@ -443,11 +446,13 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         )
 
     if plan.has_fit:
-        lines.extend([
-            "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
-            "if not fit_result.success:",
-            "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
-        ])
+        lines.extend(
+            [
+                "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
+                "if not fit_result.success:",
+                "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
+            ]
+        )
 
     if spec.plot_type == "2D histogram":
         lines.extend(

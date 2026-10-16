@@ -155,6 +155,7 @@ def render_histogram_data(
 def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
     data = read_histogram(spec.root_path, spec.object_path)
     from ..analysis.fitting import fit_histogram_1d
+
     figure = render_histogram_data(data, spec.style, spec.labels)
     if spec.fit_config is not None:
         from .plots import draw_fit_overlay

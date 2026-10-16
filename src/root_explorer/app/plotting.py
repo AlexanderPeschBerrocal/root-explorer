@@ -47,8 +47,8 @@ from ..plotting.plots import (
 from .controls import (
     PLOT_TYPES,
     distribution_calculator_controls,
-    histogram_weight_selector,
     fit_controls,
+    histogram_weight_selector,
     label_controls,
     needs_y_variable,
     needs_z_variable,
@@ -351,7 +351,8 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     )
     fit_result = (
         fit_histogram_1d(prepared.histogram_1d, request.fit_config)
-        if request.fit_config is not None and prepared.histogram_1d is not None else None
+        if request.fit_config is not None and prepared.histogram_1d is not None
+        else None
     )
     figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
     save_name = (

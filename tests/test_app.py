@@ -589,7 +589,10 @@ def test_fit_controls_run_end_to_end_and_preserve_histogram(root_path) -> None:
     assert at.checkbox(key="plot_fit_enabled").label == "Enable fit"
     at.checkbox(key="plot_fit_enabled").check().run()
     assert at.selectbox(key="plot_fit_model").options == [
-        "Gaussian", "Exponential", "Crystal Ball", "Double-sided Crystal Ball"
+        "Gaussian",
+        "Exponential",
+        "Crystal Ball",
+        "Double-sided Crystal Ball",
     ]
     assert at.checkbox(key="plot_fit_variances").value is False
     at.selectbox(key="x_branch").select("Muon_pt").run()
@@ -623,11 +626,16 @@ def test_fit_controls_only_for_1d_histograms(root_path) -> None:
 def test_persisted_th1_fit_controls_use_same_backend(object_only_root_path) -> None:
     at = _load_root_file(make_app_test(), object_only_root_path)
     at.session_state["root_inspector_open"] = (
-        str(object_only_root_path), "Analysis/h_values;1", "TH1D"
+        str(object_only_root_path),
+        "Analysis/h_values;1",
+        "TH1D",
     )
     at.run()
-    toggle = next(item for item in at.checkbox if str(item.key).endswith("_fit_enabled")
-                  and str(item.key).startswith("persisted_"))
+    toggle = next(
+        item
+        for item in at.checkbox
+        if str(item.key).endswith("_fit_enabled") and str(item.key).startswith("persisted_")
+    )
     toggle.check().run()
     at.button(key="hist_make_plot").click().run()
     assert not at.exception

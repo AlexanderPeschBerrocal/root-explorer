@@ -415,6 +415,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
             minimum = st.text_input("Fit minimum", key=f"{prefix}_fit_min")
         with right:
             maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max")
+
         def parse(value: str) -> float | None:
             if not value.strip():
                 return None
@@ -422,6 +423,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
                 return float(value)
             except ValueError:
                 return float("nan")
+
         fit_range = (parse(minimum), parse(maximum))
 
     initial = {}
@@ -434,8 +436,14 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
             fields = []
             for col, suffix in zip(cols[1:], ("initial", "lower", "upper"), strict=True):
                 with col:
-                    value = st.text_input(suffix, key=f"{prefix}_fit_{model}_{name}_{suffix}", label_visibility="collapsed", placeholder=suffix)
+                    value = st.text_input(
+                        suffix,
+                        key=f"{prefix}_fit_{model}_{name}_{suffix}",
+                        label_visibility="collapsed",
+                        placeholder=suffix,
+                    )
                 fields.append(value)
+
             def parse_parameter(value: str) -> float | None:
                 if not value.strip():
                     return None
@@ -443,12 +451,19 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
                     return float(value)
                 except ValueError:
                     return float("nan")
+
             values = [parse_parameter(value) for value in fields]
             if values[0] is not None:
                 initial[name] = values[0]
             if values[1] is not None or values[2] is not None:
                 bounds[name] = (values[1], values[2])
-    return FitConfig(model, fit_range=fit_range, initial_values=initial, bounds=bounds, use_variances=use_variances)
+    return FitConfig(
+        model,
+        fit_range=fit_range,
+        initial_values=initial,
+        bounds=bounds,
+        use_variances=use_variances,
+    )
 
 
 def distribution_calculator_controls(

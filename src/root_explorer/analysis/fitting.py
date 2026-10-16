@@ -7,7 +7,6 @@ ordinary least squares or the variances retained by hist.Hist.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import hist
 import numpy as np
@@ -106,7 +105,9 @@ def _crystal_ball_integral(
     return left_area + core_area + right_area
 
 
-def model_density(model: str, x: np.ndarray, parameters: dict[str, float], *, x0: float) -> np.ndarray:
+def model_density(
+    model: str, x: np.ndarray, parameters: dict[str, float], *, x0: float
+) -> np.ndarray:
     """Evaluate an unnormalised density for display at arbitrary coordinates."""
     x = np.asarray(x, dtype=float)
     amplitude = parameters["A"]
@@ -120,14 +121,14 @@ def model_density(model: str, x: np.ndarray, parameters: dict[str, float], *, x0
     if model == "Crystal Ball":
         alpha, n = parameters["alpha"], parameters["n"]
         d = n / alpha
-        tail = np.exp(-alpha**2 / 2) * (d / (d - alpha - np.minimum(t, -alpha))) ** n
+        tail = np.exp(-(alpha**2) / 2) * (d / (d - alpha - np.minimum(t, -alpha))) ** n
         return amplitude * np.where(t < -alpha, tail, core)
     if model == "Double-sided Crystal Ball":
         al, nl = parameters["alpha_L"], parameters["n_L"]
         ar, nr = parameters["alpha_R"], parameters["n_R"]
         dl, dr = nl / al, nr / ar
-        left = np.exp(-al**2 / 2) * (dl / (dl - al - np.minimum(t, -al))) ** nl
-        right = np.exp(-ar**2 / 2) * (dr / (dr - ar + np.maximum(t, ar))) ** nr
+        left = np.exp(-(al**2) / 2) * (dl / (dl - al - np.minimum(t, -al))) ** nl
+        right = np.exp(-(ar**2) / 2) * (dr / (dr - ar + np.maximum(t, ar))) ** nr
         return amplitude * np.where(t < -al, left, np.where(t > ar, right, core))
     raise ValueError(f"Unsupported fit model: {model}")
 
@@ -161,8 +162,12 @@ def model_bin_integrals(
         )
     else:
         areas = _crystal_ball_integral(
-            t_left, t_right, parameters["alpha_L"], parameters["n_L"],
-            parameters["alpha_R"], parameters["n_R"],
+            t_left,
+            t_right,
+            parameters["alpha_L"],
+            parameters["n_L"],
+            parameters["alpha_R"],
+            parameters["n_R"],
         )
     return amplitude * sigma * areas
 
@@ -194,7 +199,9 @@ def _initial_guess(
                 pass
         k = float(np.clip(k, -20 / scale, 20 / scale))
         intercepts = np.log(density[positive_bins]) - k * (centers[positive_bins] - x0)
-        exponential_amplitude = float(np.exp(np.median(intercepts))) if intercepts.size else amplitude
+        exponential_amplitude = (
+            float(np.exp(np.median(intercepts))) if intercepts.size else amplitude
+        )
         return {"A": max(exponential_amplitude, 1e-6), "k": k}
 
     guessed = {"A": amplitude, "mu": mu, "sigma": sigma}
@@ -224,10 +231,24 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     With use_variances=True, only bins with finite positive stored variances
     contribute; excluded bins are reported in FitResult.
     """
-    objective = "Variance-weighted least squares" if config.use_variances else "Ordinary least squares"
+    objective = (
+        "Variance-weighted least squares" if config.use_variances else "Ordinary least squares"
+    )
 
     def failed(message: str, *, bins_used: int = 0, bins_excluded: int = 0) -> FitResult:
-        return FitResult(config.model, False, {}, {}, None, None, bins_used, bins_excluded, objective, None, message)
+        return FitResult(
+            config.model,
+            False,
+            {},
+            {},
+            None,
+            None,
+            bins_used,
+            bins_excluded,
+            objective,
+            None,
+            message,
+        )
 
     if config.model not in FIT_MODELS:
         return failed(f"Unknown fit model: {config.model}")
@@ -277,7 +298,9 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     guesses = _initial_guess(config.model, fit_edges, selected_values, x0=x0)
     allowed = set(FIT_MODELS[config.model])
     if config.initial_values and not set(config.initial_values).issubset(allowed):
-        return failed("Unknown initial-value parameter.", bins_used=len(indices), bins_excluded=excluded)
+        return failed(
+            "Unknown initial-value parameter.", bins_used=len(indices), bins_excluded=excluded
+        )
     if config.bounds and not set(config.bounds).issubset(allowed):
         return failed("Unknown parameter bound.", bins_used=len(indices), bins_excluded=excluded)
 
@@ -292,10 +315,18 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
             high = np.inf if override_high is None else float(override_high)
         value = float((config.initial_values or {}).get(name, guesses[name]))
         if not np.isfinite(value) or np.isnan(low) or np.isnan(high) or low >= high:
-            return failed(f"Invalid initial value or bounds for {name}.", bins_used=len(indices), bins_excluded=excluded)
+            return failed(
+                f"Invalid initial value or bounds for {name}.",
+                bins_used=len(indices),
+                bins_excluded=excluded,
+            )
         if value < low or value > high:
             if config.initial_values and name in config.initial_values:
-                return failed(f"Initial value for {name} lies outside its bounds.", bins_used=len(indices), bins_excluded=excluded)
+                return failed(
+                    f"Initial value for {name} lies outside its bounds.",
+                    bins_used=len(indices),
+                    bins_excluded=excluded,
+                )
             if np.isfinite(low) and np.isfinite(high):
                 value = (low + high) / 2
             elif np.isfinite(low):
@@ -311,7 +342,11 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         lower_bounds.append(low)
         upper_bounds.append(high)
 
-    sigma = np.sqrt(np.asarray(histogram.variances(), dtype=float)[indices]) if config.use_variances else np.ones(len(indices))
+    sigma = (
+        np.sqrt(np.asarray(histogram.variances(), dtype=float)[indices])
+        if config.use_variances
+        else np.ones(len(indices))
+    )
 
     def residual(params: np.ndarray) -> np.ndarray:
         params_dict = dict(zip(FIT_MODELS[config.model], params, strict=True))
@@ -321,8 +356,11 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         right = fit_edges[:, 1]
         if config.model == "Exponential":
             k = params_dict["k"]
-            predictions = (params_dict["A"] * (right - left) if abs(k) < 1e-10 else
-                           params_dict["A"] * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k)
+            predictions = (
+                params_dict["A"] * (right - left)
+                if abs(k) < 1e-10
+                else params_dict["A"] * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k
+            )
         else:
             # Two-endpoint arrays are integrated independently, without
             # interpreting the gaps between selected bins as additional bins.
@@ -330,10 +368,12 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
                 config.model, np.concatenate((left, [right[-1]])), params_dict, x0=x0
             )
             if np.any(right[:-1] != left[1:]):
-                integral_left = np.array([
-                    model_bin_integrals(config.model, pair, params_dict, x0=x0)[0]
-                    for pair in fit_edges
-                ])
+                integral_left = np.array(
+                    [
+                        model_bin_integrals(config.model, pair, params_dict, x0=x0)[0]
+                        for pair in fit_edges
+                    ]
+                )
             predictions = integral_left
         result = (predictions - selected_values) / sigma
         return np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100)
@@ -346,7 +386,11 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         return failed(f"Fit failed: {exc}", bins_used=len(indices), bins_excluded=excluded)
 
     if not solution.success or not np.all(np.isfinite(solution.x)):
-        return failed(f"Fit did not converge: {solution.message}", bins_used=len(indices), bins_excluded=excluded)
+        return failed(
+            f"Fit did not converge: {solution.message}",
+            bins_used=len(indices),
+            bins_excluded=excluded,
+        )
 
     parameters = dict(zip(FIT_MODELS[config.model], (float(x) for x in solution.x), strict=True))
     statistic = float(np.sum(solution.fun**2))
@@ -369,9 +413,20 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         notes.append("Covariance is singular; uncertainties are unavailable.")
 
     if excluded:
-        notes.append(f"{excluded} bin(s) excluded because stored variances were not positive and finite.")
+        notes.append(
+            f"{excluded} bin(s) excluded because stored variances were not positive and finite."
+        )
     return FitResult(
-        config.model, True, parameters, uncertainties, statistic, ndof, len(indices), excluded,
-        objective, (float(fit_left[0]), float(fit_right[-1])), "Fit converged. " + " ".join(notes),
+        config.model,
+        True,
+        parameters,
+        uncertainties,
+        statistic,
+        ndof,
+        len(indices),
+        excluded,
+        objective,
+        (float(fit_left[0]), float(fit_right[-1])),
+        "Fit converged. " + " ".join(notes),
         reference_x=x0,
     )

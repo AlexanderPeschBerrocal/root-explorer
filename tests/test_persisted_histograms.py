@@ -141,13 +141,16 @@ def test_log_scale_fails_without_positive_bins(tmp_path):
 
 
 def test_persisted_root_histogram_fit_export_executes():
-    from contextlib import contextmanager
-    from types import ModuleType
     import sys
+    from types import ModuleType
 
     from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
+
     spec = HistogramPlotSpec(
-        str(FIXTURE), "histogram_1d;1", _style(), {},
+        str(FIXTURE),
+        "histogram_1d;1",
+        _style(),
+        {},
         fit_config=FitConfig("Exponential"),
     )
     source = generate_histogram_plot_code(spec)
@@ -163,7 +166,10 @@ def test_persisted_root_histogram_fit_export_executes():
         figure = module.plt.gcf()
         data = read_histogram(str(FIXTURE), "histogram_1d;1")
         result = fit_histogram_1d(data.histogram, spec.fit_config)
-        assert result.success == module.fit_histogram_1d(data.histogram, module.PLOT.fit_config).success
+        assert (
+            result.success
+            == module.fit_histogram_1d(data.histogram, module.PLOT.fit_config).success
+        )
         assert figure.axes[0].get_title()
         plt.close(figure)
     finally:

@@ -10,8 +10,12 @@ import streamlit as st
 from ..analysis.fitting import fit_histogram_1d
 from ..io.histograms import UnsupportedHistogramError, read_histogram
 from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
-from ..plotting.plots import draw_fit_overlay
-from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, InvalidColorScaleError
+from ..plotting.plots import (
+    InvalidAxisLimitError,
+    InvalidAxisScaleError,
+    InvalidColorScaleError,
+    draw_fit_overlay,
+)
 from .controls import fit_controls
 from .results import show_cached_plot_result
 
@@ -85,7 +89,11 @@ def render_histogram_controls(
         labels["custom_z"] = st.text_input(
             "Colour-bar label", value=data.colorbar_label, key=f"hist_z_{identity}"
         )
-    fit_config = fit_controls(f"persisted_{identity}", "1D histogram") if h.ndim == 1 and not data.is_profile else None
+    fit_config = (
+        fit_controls(f"persisted_{identity}", "1D histogram")
+        if h.ndim == 1 and not data.is_profile
+        else None
+    )
     make_plot = st.button(
         "Make plot",
         key="hist_make_plot",

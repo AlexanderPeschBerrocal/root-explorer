@@ -586,14 +586,23 @@ def test_exported_weighted_log_2d_histogram_matches_pipeline(root_path) -> None:
         plt.close(generated)
 
 
-@pytest.mark.parametrize("model", ["Gaussian", "Exponential", "Crystal Ball", "Double-sided Crystal Ball"])
+@pytest.mark.parametrize(
+    "model", ["Gaussian", "Exponential", "Crystal Ball", "Double-sided Crystal Ball"]
+)
 def test_fit_enabled_export_executes_and_overlays(root_path, model) -> None:
     request = _request(
         root_path,
         plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
-        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 25,
-               "log_x": False, "log_y": False, "show_kde": False, "grid": False},
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 25,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "grid": False,
+        },
         fit_config=FitConfig(model),
     )
     source = generate_static_plot_code(request)
@@ -608,8 +617,11 @@ def test_fit_enabled_export_executes_and_overlays(root_path, model) -> None:
         expected = fit_histogram_1d(canonical.histogram_1d, request.fit_config)
         try:
             assert expected.success, expected.message
-            generated_lines = [artist for artist in generated.axes[0].patches
-                               if artist.get_label() == f"{model} fit"]
+            generated_lines = [
+                artist
+                for artist in generated.axes[0].patches
+                if artist.get_label() == f"{model} fit"
+            ]
             # Matplotlib stairs are rendered as a StepPatch, not ordinary Line2D.
             assert generated_lines
             exported = module.fit_histogram_1d(canonical.histogram_1d, module.PLOT.fit_config)
@@ -622,7 +634,8 @@ def test_fit_enabled_export_executes_and_overlays(root_path, model) -> None:
 
 def test_fit_disabled_export_remains_lightweight() -> None:
     request = _request(
-        "events.root", plot_type="1D histogram",
+        "events.root",
+        plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
         style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 20},
     )
@@ -634,11 +647,19 @@ def test_fit_disabled_export_remains_lightweight() -> None:
 
 def test_weighted_fit_export_uses_requested_stored_variances(root_path) -> None:
     request = _request(
-        root_path, plot_type="1D histogram",
+        root_path,
+        plot_type="1D histogram",
         x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
         weight_branch="genWeight",
-        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 20,
-               "log_x": False, "log_y": False, "show_kde": False, "grid": False},
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 20,
+            "log_x": False,
+            "log_y": False,
+            "show_kde": False,
+            "grid": False,
+        },
         fit_config=FitConfig("Gaussian", use_variances=True),
     )
     source = generate_static_plot_code(request)

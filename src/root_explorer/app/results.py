@@ -79,8 +79,14 @@ def show_cached_plot_result(
                 for key, value in fit_result.parameters.items()
             ]
             render_dataframe(pd.DataFrame(rows))
-            label = "Chi-squared" if fit_result.objective.startswith("Variance") else "Sum of squared residuals"
-            st.caption(f"{label}: {fit_result.statistic:.6g} · ndof: {fit_result.ndof} · fitted bins: {fit_result.bins_used}")
+            label = (
+                "Chi-squared"
+                if fit_result.objective.startswith("Variance")
+                else "Sum of squared residuals"
+            )
+            st.caption(
+                f"{label}: {fit_result.statistic:.6g} · ndof: {fit_result.ndof} · fitted bins: {fit_result.bins_used}"
+            )
             if fit_result.bins_excluded or fit_result.message != "Fit converged. ":
                 st.caption(fit_result.message)
         else:
