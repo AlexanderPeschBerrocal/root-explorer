@@ -300,16 +300,17 @@ def draw_kde_1d(
     *,
     weights: np.ndarray | None = None,
     bandwidth: str | float = "scott",
+    density: bool = False,
 ):
-    """Overlay a KDE scaled to the histogram's count or summed-weight units."""
+    """Overlay a KDE in density units or histogram yield units."""
 
     coordinates, sampled_weights, total_weight = _prepare_kde_sample([x], weights)
     kde = _build_kde(coordinates, sampled_weights, bandwidth)
     grid = np.linspace(float(histogram_edges[0]), float(histogram_edges[-1]), KDE_1D_GRID_SIZE)
     bin_widths = np.diff(histogram_edges)
-    if not np.allclose(bin_widths, bin_widths[0]):
+    if not density and not np.allclose(bin_widths, bin_widths[0]):
         raise KDEError("KDE scaling requires equal-width histogram bins.")
-    curve = kde(grid) * total_weight * float(bin_widths[0])
+    curve = kde(grid) if density else kde(grid) * total_weight * float(bin_widths[0])
     return ax.plot(grid, curve, color="tab:orange", linewidth=2.0, label="KDE")[0]
 
 
@@ -903,7 +904,7 @@ def draw_histogram_1d(
         ax.legend()
 
 
-def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
+def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult, *, density_denominator: float | None = None) -> None:
     """Display fitted bin predictions on the original histogram bin edges."""
     if not result.success or result.fit_range is None:
         return
@@ -926,6 +927,8 @@ def draw_fit_overlay(ax: Any, histogram: hist.Hist, result: FitResult) -> None:
         )
     except (ValueError, FloatingPointError, OverflowError):
         return
+    if density_denominator is not None:
+        prediction = prediction / (density_denominator * np.diff(selected_edges))
     # A step representation remains valid for non-uniform bin widths.
     ax.stairs(
         prediction,
@@ -1040,6 +1043,7 @@ def draw_kde_1d_overlay(
     style: dict[str, Any],
     *,
     weights: np.ndarray | None,
+    density: bool = False,
 ) -> str | None:
     """Draw a selected 1D KDE overlay, returning a displayable warning on failure."""
 
@@ -1047,7 +1051,7 @@ def draw_kde_1d_overlay(
         bandwidth = resolve_kde_bandwidth(
             style.get("kde_bandwidth", "scott"), style.get("kde_custom_factor", 1.0)
         )
-        draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth)
+        draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth, density=density)
     except Exception as exc:
         return str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
     return None
@@ -1128,6 +1132,8 @@ def render_static_plot(
     fit_result: FitResult | None = None,
     histogram_flow_summary: Any | None = None,
     histogram_flow_mode: str = "ignore",
+    fit_histogram_1d: hist.Hist | None = None,
+    normalisation_result: Any | None = None,
 ):
     warnings: list[str] = []
     if plot_type == "1D histogram":
@@ -1143,8 +1149,12 @@ def render_static_plot(
             flow_mode=histogram_flow_mode,
             log_x=bool(style.get("log_x", False)),
         )
+        density_enabled = normalisation_result is not None and normalisation_result.valid
         if fit_result is not None and fit_result.success:
-            draw_fit_overlay(ax, histogram_1d, fit_result)
+            draw_fit_overlay(
+                ax, fit_histogram_1d if fit_histogram_1d is not None else histogram_1d, fit_result,
+                density_denominator=normalisation_result.denominator if density_enabled else None,
+            )
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
         histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
         if style.get("show_kde", False):
@@ -1154,7 +1164,13 @@ def render_static_plot(
                 inside = (x >= histogram_edges[0]) & (x <= histogram_edges[-1])
                 kde_x = x[inside]
                 kde_weights = weights[inside] if weights is not None else None
-            warning = draw_kde_1d_overlay(ax, kde_x, histogram_edges, style, weights=kde_weights)
+            if density_enabled and histogram_flow_mode == "fold":
+                warning = "KDE unavailable for normalised flow-folded histograms."
+            else:
+                warning = draw_kde_1d_overlay(
+                    ax, kde_x, histogram_edges, style, weights=kde_weights,
+                    density=density_enabled,
+                )
             if warning is not None:
                 warnings.append(warning)
         # Histogram limits define the visible x-domain. Values assigned to flow

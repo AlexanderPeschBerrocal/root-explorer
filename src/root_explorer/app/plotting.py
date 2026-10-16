@@ -382,6 +382,10 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         else None
     )
     figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
+    if prepared.normalisation_result is not None and prepared.normalisation_result.error:
+        plot_warnings.append(prepared.normalisation_result.error)
+    elif prepared.normalisation_result is not None and prepared.normalisation_result.warning:
+        plot_warnings.append(prepared.normalisation_result.warning)
     save_name = (
         f"{request.save_name}_{request.event_index}"
         if request.event_index is not None
@@ -399,6 +403,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         "fit_result": fit_result,
         "histogram_flow_summary": prepared.histogram_flow_summary,
         "histogram_flow_mode": prepared.histogram_flow_mode,
+        "normalisation_result": prepared.normalisation_result,
         "correlation_result": correlation_result,
         "color_clipping_result": prepared.color_clipping_result,
         "warnings": plot_warnings,
