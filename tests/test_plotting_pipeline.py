@@ -7,11 +7,49 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from root_explorer.models import VariableSpec
+from root_explorer.plotting import pipeline
 from root_explorer.plotting.pipeline import (
     StaticPlotSpec,
     prepare_static_plot,
     render_prepared_static_plot,
 )
+
+
+def test_static_pipeline_closes_figure_when_rendering_fails(root_path, monkeypatch) -> None:
+    spec = StaticPlotSpec(
+        root_path=str(root_path),
+        tree_name="Events",
+        entry_start=0,
+        entry_stop=10,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=None,
+        color_spec=None,
+        weight_branch=None,
+        cut_specs=(),
+        cut_bounds=(),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 10,
+            "log_x": False,
+            "log_y": False,
+            "grid": False,
+        },
+        labels={},
+    )
+    prepared = prepare_static_plot(spec)
+    baseline = set(plt.get_fignums())
+
+    def fail_render(*args, **kwargs):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(pipeline, "render_static_plot", fail_render)
+
+    with pytest.raises(RuntimeError, match="render failed"):
+        render_prepared_static_plot(spec, prepared)
+
+    assert set(plt.get_fignums()) == baseline
 
 
 def test_static_pipeline_prepares_weighted_cut_histogram(root_path) -> None:

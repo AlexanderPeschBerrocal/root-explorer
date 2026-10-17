@@ -15,9 +15,14 @@
 
 ## Run the app
 
-From a checkout, users can launch the app directly:
+ROOT Explorer requires Python 3.12. From a checkout, create a virtual
+environment, install the project and its runtime dependencies, and launch the
+app:
 
 ```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 streamlit run streamlit_app.py
 ```
 

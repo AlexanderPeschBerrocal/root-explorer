@@ -382,7 +382,7 @@ def histogram_weight_selector(
         return None
     option_labels = field_option_labels(field_info) if show_field_details else {}
     return st.selectbox(
-        f"weight {item_name}",
+        f"Weight {item_name}",
         fields,
         index=choose_default(fields, ["weight", "genWeight", "eventWeight"]),
         format_func=lambda field_name: option_labels.get(field_name, field_name),
@@ -427,9 +427,9 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
     if range_enabled:
         left, right = st.columns(2)
         with left:
-            minimum = st.text_input("Fit minimum", key=f"{prefix}_fit_min")
+            minimum = st.text_input("Fit minimum", key=f"{prefix}_fit_min", placeholder="Automatic")
         with right:
-            maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max")
+            maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max", placeholder="Automatic")
 
         def parse(value: str) -> float | None:
             if not value.strip():
@@ -457,7 +457,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
                         suffix,
                         key=f"{prefix}_fit_{model}_{name}_{suffix}",
                         label_visibility="collapsed",
-                        placeholder=suffix,
+                        placeholder=suffix.capitalize(),
                     )
                 fields.append(value)
 
@@ -505,17 +505,17 @@ def distribution_calculator_controls(
         "range. Histogram flow settings do not change these calculations."
     )
     mode = st.selectbox(
-        "calculator mode",
-        ["Threshold fractions", "Quantile"],
+        "Calculator mode",
+        ["Threshold", "Quantile"],
         key=f"{prefix}_distribution_mode",
     )
-    if mode == "Threshold fractions":
+    if mode == "Threshold":
         threshold = st.number_input(
-            "threshold", value=0.0, format="%.6g", key=f"{prefix}_threshold"
+            "Threshold", value=0.0, format="%.6g", key=f"{prefix}_threshold"
         )
         return float(threshold), None
     percentile = st.number_input(
-        "quantile percentile (%)",
+        "Quantile percentile (%)",
         min_value=0.0,
         max_value=100.0,
         value=50.0,
@@ -536,7 +536,13 @@ def range_cut_controls(
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
-        "Number of cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
+        "Number of cuts",
+        min_value=0,
+        max_value=20,
+        value=0,
+        step=1,
+        key=f"{prefix}_n_cuts",
+        help="Leave the minimum empty for no lower bound, and leave the maximum empty for no upper bound.",
     )
     cut_specs: list[VariableSpec] = []
     cut_bounds: list[tuple[float | None, float | None]] = []
@@ -554,8 +560,18 @@ def range_cut_controls(
                     display_prefix=f"cut_{i + 1}",
                 )
             )
-            lo = st.text_input(f"cut {i + 1} min", value="", key=f"{prefix}_cut_{i}_min")
-            hi = st.text_input(f"cut {i + 1} max", value="", key=f"{prefix}_cut_{i}_max")
+            lo = st.text_input(
+                f"Cut {i + 1} minimum",
+                value="",
+                key=f"{prefix}_cut_{i}_min",
+                placeholder="No lower bound",
+            )
+            hi = st.text_input(
+                f"Cut {i + 1} maximum",
+                value="",
+                key=f"{prefix}_cut_{i}_max",
+                placeholder="No upper bound",
+            )
             lo_value = parse_optional_float(lo)
             hi_value = parse_optional_float(hi)
             if str(lo).strip() and lo_value is None:
@@ -596,11 +612,11 @@ def histogram_analysis_controls(
             hmin_col, hmax_col = st.columns(2)
             with hmin_col:
                 style["hist_x_min_text"] = st.text_input(
-                    "Histogram minimum", key=f"{prefix}_hist_x_min"
+                    "Histogram minimum", key=f"{prefix}_hist_x_min", placeholder="Automatic"
                 )
             with hmax_col:
                 style["hist_x_max_text"] = st.text_input(
-                    "Histogram maximum", key=f"{prefix}_hist_x_max"
+                    "Histogram maximum", key=f"{prefix}_hist_x_max", placeholder="Automatic"
                 )
             style["hist_flow_mode"] = st.selectbox(
                 "Underflow / overflow",
@@ -612,7 +628,7 @@ def histogram_analysis_controls(
                 }[value],
                 key=f"{prefix}_hist_flow_mode",
             )
-        style["bins_x"] = st.slider("bins", 5, 500, default_bins, key=f"{prefix}_bins")
+        style["bins_x"] = st.slider("Bins", 5, 500, default_bins, key=f"{prefix}_bins")
         separate_flow = (
             style["manual_histogram_limits"]
             and style["hist_flow_mode"] == "separate"
@@ -639,8 +655,8 @@ def histogram_analysis_controls(
                 "because they have no finite bin widths. Choose Ignore or Fold."
             )
     else:
-        style["bins_x"] = st.slider("x bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
-        style["bins_y"] = st.slider("y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
+        style["bins_x"] = st.slider("X bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
+        style["bins_y"] = st.slider("Y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
 
     style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
     style["kde_bandwidth"] = "scott"
@@ -668,12 +684,12 @@ def histogram_analysis_controls(
 
     if plot_type == "2D histogram":
         style["show_contours"] = st.checkbox(
-            "show contours", value=False, key=f"{prefix}_show_contours"
+            "Show contours", value=False, key=f"{prefix}_show_contours"
         )
         style["contour_levels"] = []
         if style["show_contours"]:
             contour_text = st.text_input(
-                "contour levels (%)",
+                "Contour levels (%)",
                 value="68, 95, 99",
                 key=f"{prefix}_contour_levels",
                 help="Highest-density regions enclosing these percentages of the histogram content.",
@@ -706,17 +722,17 @@ def plot_style_controls(
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
         style["fig_width"] = st.slider(
-            "figure width",
+            "Figure width",
             4.0,
             16.0,
             8.0,
             key=f"{prefix}_fig_width",
             help=f"Static previews are rendered at {DEFAULT_STATIC_DISPLAY_DPI} DPI.",
         )
-        style["fig_height"] = st.slider("figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
+        style["fig_height"] = st.slider("Figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
         style["display_dpi"] = DEFAULT_STATIC_DISPLAY_DPI
-        style["log_x"] = st.checkbox("log x-axis", value=False, key=f"{prefix}_log_x")
-        style["log_y"] = st.checkbox("log y-axis", value=False, key=f"{prefix}_log_y")
+        style["log_x"] = st.checkbox("Log x-axis", value=False, key=f"{prefix}_log_x")
+        style["log_y"] = st.checkbox("Log y-axis", value=False, key=f"{prefix}_log_y")
         style["manual_axis_limits"] = st.checkbox(
             "Manual plot limits", value=False, key=f"{prefix}_manual_axis_limits"
         )
@@ -728,34 +744,42 @@ def plot_style_controls(
             st.caption("Leave a bound blank to use the automatic limit for that side.")
             x_min_column, x_max_column = st.columns(2)
             with x_min_column:
-                style["x_min_text"] = st.text_input("x minimum", value="", key=f"{prefix}_x_min")
+                style["x_min_text"] = st.text_input(
+                    "X minimum", value="", key=f"{prefix}_x_min", placeholder="Automatic"
+                )
             with x_max_column:
-                style["x_max_text"] = st.text_input("x maximum", value="", key=f"{prefix}_x_max")
+                style["x_max_text"] = st.text_input(
+                    "X maximum", value="", key=f"{prefix}_x_max", placeholder="Automatic"
+                )
             y_min_column, y_max_column = st.columns(2)
             with y_min_column:
-                style["y_min_text"] = st.text_input("y minimum", value="", key=f"{prefix}_y_min")
+                style["y_min_text"] = st.text_input(
+                    "Y minimum", value="", key=f"{prefix}_y_min", placeholder="Automatic"
+                )
             with y_max_column:
-                style["y_max_text"] = st.text_input("y maximum", value="", key=f"{prefix}_y_max")
+                style["y_max_text"] = st.text_input(
+                    "Y maximum", value="", key=f"{prefix}_y_max", placeholder="Automatic"
+                )
 
     if plot_type == "1D histogram":
-        style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
+        style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":
-        style["log_z"] = st.checkbox("log color scale", value=True, key=f"{prefix}_log_z")
+        style["log_z"] = st.checkbox("Log color scale", value=False, key=f"{prefix}_log_z")
         style["equal_aspect"] = st.checkbox(
-            "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
+            "Equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )
-        style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
+        style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D scatter":
         style["marker_size_2d"] = st.slider(
-            "marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d"
+            "Marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d"
         )
         style["opacity_2d"] = st.slider(
-            "marker opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
+            "Marker opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
         )
         style["max_points"] = st.number_input(
-            "max scatter points",
+            "Maximum scatter points",
             min_value=1_000,
             max_value=10_000_000,
             value=DEFAULT_MAX_POINTS,
@@ -764,34 +788,40 @@ def plot_style_controls(
         )
         if color_enabled:
             style["colorscale"] = st.selectbox(
-                "color scale", COLOR_SCALES, key=f"{prefix}_colorscale_2d"
+                "Color scale", COLOR_SCALES, key=f"{prefix}_colorscale_2d"
             )
             style["reverse_colorscale"] = st.checkbox(
-                "reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
+                "Reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
             )
             style["log_color"] = st.checkbox(
-                "log color scale", value=False, key=f"{prefix}_log_color_2d"
+                "Log color scale", value=False, key=f"{prefix}_log_color_2d"
             )
             style["color_min_text"] = st.text_input(
-                "color min", value="", key=f"{prefix}_color_min_2d"
+                "Color minimum",
+                value="",
+                key=f"{prefix}_color_min_2d",
+                placeholder="Automatic",
             )
             style["color_max_text"] = st.text_input(
-                "color max", value="", key=f"{prefix}_color_max_2d"
+                "Color maximum",
+                value="",
+                key=f"{prefix}_color_max_2d",
+                placeholder="Automatic",
             )
         style["equal_aspect"] = st.checkbox(
-            "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
+            "Equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )
-        style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
+        style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "3D scatter interactive":
         style["marker_size_3d"] = st.slider(
-            "marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d"
+            "Marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d"
         )
         style["opacity_3d"] = st.slider(
-            "marker opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
+            "Marker opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
         )
         style["max_points"] = st.number_input(
-            "max scatter points",
+            "Maximum scatter points",
             min_value=1_000,
             max_value=10_000_000,
             value=DEFAULT_MAX_POINTS,
@@ -799,20 +829,26 @@ def plot_style_controls(
             key=f"{prefix}_max_points_3d",
         )
         style["aspectmode"] = st.selectbox(
-            "aspect mode", ["data", "cube", "auto", "manual"], key=f"{prefix}_aspectmode"
+            "Aspect mode", ["data", "cube", "auto"], key=f"{prefix}_aspectmode"
         )
         if color_enabled:
             style["colorscale"] = st.selectbox(
-                "color scale", COLOR_SCALES, key=f"{prefix}_colorscale_3d"
+                "Color scale", COLOR_SCALES, key=f"{prefix}_colorscale_3d"
             )
             style["reverse_colorscale"] = st.checkbox(
-                "reverse color scale", key=f"{prefix}_reverse_colorscale_3d"
+                "Reverse color scale", key=f"{prefix}_reverse_colorscale_3d"
             )
             style["color_min_text"] = st.text_input(
-                "color min", value="", key=f"{prefix}_color_min_3d"
+                "Color minimum",
+                value="",
+                key=f"{prefix}_color_min_3d",
+                placeholder="Automatic",
             )
             style["color_max_text"] = st.text_input(
-                "color max", value="", key=f"{prefix}_color_max_3d"
+                "Color maximum",
+                value="",
+                key=f"{prefix}_color_max_3d",
+                placeholder="Automatic",
             )
 
     return style
@@ -820,13 +856,15 @@ def plot_style_controls(
 
 def label_controls(prefix: str, plot_type: str, *, default_title: str = "") -> dict[str, Any]:
     controls = {
-        "title": st.text_input("title", value=default_title, key=f"{prefix}_title"),
-        "custom_x": st.text_input("x label override", value="", key=f"{prefix}_custom_x"),
-        "custom_y": st.text_input("y label override", value="", key=f"{prefix}_custom_y"),
+        "title": st.text_input("Title", value=default_title, key=f"{prefix}_title"),
+        "custom_x": st.text_input("X-axis label override", value="", key=f"{prefix}_custom_x"),
+        "custom_y": st.text_input("Y-axis label override", value="", key=f"{prefix}_custom_y"),
         "custom_z": "",
     }
     if needs_z_variable(plot_type):
-        controls["custom_z"] = st.text_input("z label override", value="", key=f"{prefix}_custom_z")
+        controls["custom_z"] = st.text_input(
+            "Z-axis label override", value="", key=f"{prefix}_custom_z"
+        )
     return controls
 
 
@@ -836,20 +874,24 @@ def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> d
     st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
     controls["save_directory"] = st.text_input(
-        "save directory",
+        "Save directory",
         value="root_explorer_plots",
         key=f"{prefix}_save_directory",
+        help=(
+            "Directory on the filesystem of the machine running ROOT Explorer. "
+            "Use the Download buttons instead to save files through your browser."
+        ),
     )
     controls["save_name"] = st.text_input(
-        "filename",
+        "Filename",
         value=default_save_name,
         key=f"{prefix}_save_name",
     )
     if plot_kind == "matplotlib":
-        controls["save_png"] = st.checkbox("save PNG", value=True, key=f"{prefix}_save_png")
-        controls["save_pdf"] = st.checkbox("save PDF", value=False, key=f"{prefix}_save_pdf")
+        controls["save_png"] = st.checkbox("Save PNG", value=True, key=f"{prefix}_save_png")
+        controls["save_pdf"] = st.checkbox("Save PDF", value=False, key=f"{prefix}_save_pdf")
         controls["export_dpi"] = st.selectbox(
-            "raster export resolution",
+            "Raster export resolution",
             STATIC_EXPORT_DPI_OPTIONS,
             index=STATIC_EXPORT_DPI_OPTIONS.index(DEFAULT_STATIC_EXPORT_DPI),
             format_func=lambda dpi: f"{dpi} DPI",

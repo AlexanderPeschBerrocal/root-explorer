@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import gc
 import hashlib
+import weakref
 from io import BytesIO
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
@@ -23,6 +26,8 @@ from root_explorer.app.controls import (
 from root_explorer.app.results import (
     collection_summary,
     color_clipping_summary,
+    discard_plot_result,
+    store_plot_result,
     store_uploaded_file,
 )
 from root_explorer.app.state import DataContext
@@ -35,6 +40,48 @@ class _Upload:
 
     def getbuffer(self):
         return BytesIO(b"test root bytes").getbuffer()
+
+
+def test_cached_matplotlib_results_do_not_retain_pyplot_managers(monkeypatch) -> None:
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(results.st, "session_state", session_state)
+    baseline = set(plt.get_fignums())
+
+    first = plt.figure()
+    store_plot_result("plot_result", {"kind": "matplotlib", "figure": first})
+
+    assert session_state["plot_result"]["figure"] is first  # type: ignore[index]
+    assert set(plt.get_fignums()) == baseline
+    assert results.matplotlib_figure_bytes(first, "png").startswith(b"\x89PNG")
+    first_reference = weakref.ref(first)
+
+    second = plt.figure()
+    store_plot_result("plot_result", {"kind": "matplotlib", "figure": second})
+    del first
+    gc.collect()
+
+    assert session_state["plot_result"]["figure"] is second  # type: ignore[index]
+    assert set(plt.get_fignums()) == baseline
+    assert first_reference() is None
+
+    second_reference = weakref.ref(second)
+    discard_plot_result("plot_result")
+    del second
+    gc.collect()
+    assert "plot_result" not in session_state
+    assert set(plt.get_fignums()) == baseline
+    assert second_reference() is None
+
+
+def test_plotly_results_are_not_closed(monkeypatch) -> None:
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(results.st, "session_state", session_state)
+    figure = object()
+
+    store_plot_result("plot_result", {"kind": "plotly", "figure": figure})
+    discard_plot_result("plot_result")
+
+    assert "plot_result" not in session_state
 
 
 def test_control_predicates_and_static_formats() -> None:

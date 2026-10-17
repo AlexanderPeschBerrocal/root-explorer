@@ -16,7 +16,7 @@ from ..io.root import (
     numeric_fields,
     parse_cli_rootfile,
 )
-from .results import store_uploaded_file
+from .results import discard_plot_result, store_uploaded_file
 from .state import DataContext, RootFileContext
 
 
@@ -67,7 +67,7 @@ def render_data_input() -> RootFileContext:
         return RootFileContext(root_path=root_path, catalogue=catalogue, data=None)
 
     available_containers = [info.path for info in available_container_infos]
-    event_container_name = st.selectbox("Event dataset", available_containers, index=0)
+    event_container_name = st.selectbox("Event container", available_containers, index=0)
     selected_container = next(
         info for info in available_container_infos if info.path == event_container_name
     )
@@ -75,7 +75,7 @@ def render_data_input() -> RootFileContext:
     n_entries = get_entry_count(root_path, event_container_name)
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
-        st.warning("This event dataset has no entries to inspect.")
+        st.warning("This event container has no entries to inspect.")
         st.stop()
 
     st.subheader("Read range", anchor=False)
@@ -112,7 +112,9 @@ def invalidate_data_results(context: DataContext) -> None:
 
     if st.session_state.get("data_context") == context.cache_key:
         return
-    for key in ["plot_result", "event_plot_result", "rank_df", "rank_label"]:
+    for key in ["plot_result", "event_plot_result"]:
+        discard_plot_result(key)
+    for key in ["rank_df", "rank_label"]:
         st.session_state.pop(key, None)
     st.session_state["event_index"] = 0
     st.session_state["data_context"] = context.cache_key

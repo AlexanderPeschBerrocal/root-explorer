@@ -19,7 +19,7 @@ APP_ICON = files("root_explorer").joinpath("assets/root-explorer-app-icon-transp
 GITHUB_URL = "https://github.com/AlexanderPeschBerrocal/root-explorer"
 
 ABOUT_TEXT = f"""
-### {APP_TITLE}
+**{APP_TITLE}**
 
 **Version:** `{__version__}`
 

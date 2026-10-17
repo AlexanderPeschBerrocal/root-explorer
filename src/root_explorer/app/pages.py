@@ -10,7 +10,7 @@ import streamlit as st
 from ..io.root import filter_root_objects
 from ..models import RootObjectInfo
 from .controls import field_structure_label
-from .results import collection_summary
+from .results import collection_summary, discard_plot_result
 from .state import DataContext
 
 
@@ -64,11 +64,11 @@ def render_field_browser(context: DataContext) -> None:
             help="Documentation supplied by the ROOT file, when available.",
             width="large",
         )
-    st.dataframe(dataframe, width="stretch", height=540, column_config=column_config)
+    st.dataframe(dataframe, width="stretch", height="auto", column_config=column_config)
 
     st.markdown("#### Collections", anchors=False)
     st.dataframe(
-        collection_summary(context.field_info, item_name=item_name), width="stretch", height=540
+        collection_summary(context.field_info, item_name=item_name), width="stretch", height="auto"
     )
 
 
@@ -91,8 +91,8 @@ def render_root_objects_browser(
     opened = st.session_state.get("root_inspector_open")
     if opened is not None and opened[0] != file_name:
         st.session_state.pop("root_inspector_open", None)
-        st.session_state.pop("root_graph_result", None)
-        st.session_state.pop("root_histogram_result", None)
+        discard_plot_result("root_graph_result")
+        discard_plot_result("root_histogram_result")
         opened = None
 
     def render_catalogue(*, compact: bool) -> None:
@@ -203,8 +203,8 @@ def render_root_objects_browser(
                 selected_info.qualified_path,
                 selected_info.classname,
             )
-            st.session_state.pop("root_graph_result", None)
-            st.session_state.pop("root_histogram_result", None)
+            discard_plot_result("root_graph_result")
+            discard_plot_result("root_histogram_result")
             st.rerun()
 
     if opened is None:
@@ -220,8 +220,8 @@ def render_root_objects_browser(
             shortcut="Esc" if shortcuts_enabled else None,
         ):
             st.session_state.pop("root_inspector_open", None)
-            st.session_state.pop("root_graph_result", None)
-            st.session_state.pop("root_histogram_result", None)
+            discard_plot_result("root_graph_result")
+            discard_plot_result("root_histogram_result")
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
@@ -265,7 +265,7 @@ def render_help_tab(context: DataContext) -> None:
     st.markdown(
         f"""
 **Basic workflow**
-1. Choose a ROOT file, event dataset (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
+1. Choose a ROOT file, event container (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
 4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
@@ -288,7 +288,10 @@ def render_help_tab(context: DataContext) -> None:
 **Saving plots**
 - Static matplotlib plots can be saved as PNG, PDF, or both using the export checkboxes.
 - Interactive 3D Plotly plots are saved as HTML.
-- The save button exports the currently displayed generated plot, not merely the current control settings.
+- **Save** writes the currently displayed plot to the specified directory on the filesystem of the machine running ROOT Explorer. If the app runs on a remote server, that is the server's filesystem, not your computer.
+- **Download** sends the selected file directly to your browser so you can save it on your computer.
+- **Download plot code** downloads a Python script that can be used as a starting point for reproducing a static plot.
+- Export actions use the currently displayed generated plot, not merely the current control settings.
 
 **Performance tips**
 - Large entry ranges, many cached {item_name}s, high scatter point limits, and detailed GDML meshes can consume a lot of memory.

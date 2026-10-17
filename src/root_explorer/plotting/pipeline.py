@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import hist
+import matplotlib.pyplot as plt
 import numpy as np
 
 from ..analysis.arrays import (
@@ -351,40 +352,44 @@ def render_prepared_static_plot(
 
     x, y, color = prepared.render_arrays(spec.plot_type)
     figure, axes = create_static_figure(spec.style)
-    warnings = render_static_plot(
-        figure,
-        axes,
-        spec.plot_type,
-        x,
-        y,
-        prepared.x_label,
-        prepared.y_label,
-        spec.style,
-        title=prepared.title,
-        histogram_1d=(
-            prepared.normalisation_result.histogram
-            if prepared.normalisation_result is not None and prepared.normalisation_result.valid
-            else prepared.display_histogram_1d
-        ),
-        fit_histogram_1d=prepared.display_histogram_1d,
-        normalisation_result=prepared.normalisation_result,
-        histogram_flow_summary=prepared.histogram_flow_summary,
-        histogram_flow_mode=prepared.histogram_flow_mode,
-        histogram_2d=prepared.histogram_2d,
-        weights=prepared.weights,
-        weight_branch=spec.weight_branch,
-        color=color,
-        color_label=prepared.color_label,
-        reference_x=prepared.reference_x,
-        reference_label=prepared.reference_label,
-        fit_result=fit_result,
-        colorbar_extend=(
-            prepared.color_clipping_result.extend
-            if prepared.color_clipping_result is not None
-            else "neither"
-        ),
-    )
-    return figure, warnings
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            spec.plot_type,
+            x,
+            y,
+            prepared.x_label,
+            prepared.y_label,
+            spec.style,
+            title=prepared.title,
+            histogram_1d=(
+                prepared.normalisation_result.histogram
+                if prepared.normalisation_result is not None and prepared.normalisation_result.valid
+                else prepared.display_histogram_1d
+            ),
+            fit_histogram_1d=prepared.display_histogram_1d,
+            normalisation_result=prepared.normalisation_result,
+            histogram_flow_summary=prepared.histogram_flow_summary,
+            histogram_flow_mode=prepared.histogram_flow_mode,
+            histogram_2d=prepared.histogram_2d,
+            weights=prepared.weights,
+            weight_branch=spec.weight_branch,
+            color=color,
+            color_label=prepared.color_label,
+            reference_x=prepared.reference_x,
+            reference_label=prepared.reference_label,
+            fit_result=fit_result,
+            colorbar_extend=(
+                prepared.color_clipping_result.extend
+                if prepared.color_clipping_result is not None
+                else "neither"
+            ),
+        )
+        return figure, warnings
+    except Exception:
+        plt.close(figure)
+        raise
 
 
 def _unpack_prepared_arrays(
