@@ -50,12 +50,14 @@ def _graph_controls(graph, object_id: str) -> tuple[dict[str, Any], dict[str, st
     style["grid"] = st.checkbox("Grid", value=True, key="graph_grid")
     manual = st.checkbox("Apply manual axis limits", key="graph_manual_limits")
     for key, title in (
-        ("x_min_text", "x minimum"),
-        ("x_max_text", "x maximum"),
-        ("y_min_text", "y minimum"),
-        ("y_max_text", "y maximum"),
+        ("x_min_text", "X minimum"),
+        ("x_max_text", "X maximum"),
+        ("y_min_text", "Y minimum"),
+        ("y_max_text", "Y maximum"),
     ):
-        style[key] = st.text_input(title, key=f"graph_{key}") if manual else ""
+        style[key] = (
+            st.text_input(title, key=f"graph_{key}", placeholder="Automatic") if manual else ""
+        )
     st.markdown("#### Labels", anchors=False)
     labels = {
         "title": st.text_input("Title", value=graph.title, key=f"graph_title_{object_id}"),

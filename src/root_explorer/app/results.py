@@ -203,7 +203,10 @@ def show_cached_plot_result(
     outdir = Path(export["save_directory"])
     save_name = export["save_name"]
     download_name = safe_filename(save_name)
-    st.caption("Save writes to the cluster; Download sends the file to this browser.")
+    st.caption(
+        "Save writes to the filesystem of the machine running ROOT Explorer; "
+        "Download saves a copy through this browser."
+    )
 
     if kind == "plotly":
         save_col, download_col = st.columns(2)
