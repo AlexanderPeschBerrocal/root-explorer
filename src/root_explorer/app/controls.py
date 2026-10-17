@@ -506,10 +506,10 @@ def distribution_calculator_controls(
     )
     mode = st.selectbox(
         "calculator mode",
-        ["Threshold fractions", "Quantile"],
+        ["Threshold", "Quantile"],
         key=f"{prefix}_distribution_mode",
     )
-    if mode == "Threshold fractions":
+    if mode == "Threshold":
         threshold = st.number_input(
             "threshold", value=0.0, format="%.6g", key=f"{prefix}_threshold"
         )
@@ -536,7 +536,13 @@ def range_cut_controls(
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
-        "Number of cuts", min_value=0, max_value=20, value=0, step=1, key=f"{prefix}_n_cuts"
+        "Number of cuts",
+        min_value=0,
+        max_value=20,
+        value=0,
+        step=1,
+        key=f"{prefix}_n_cuts",
+        help="Leave the minimum empty for no lower bound, and leave the maximum empty for no upper bound.",
     )
     cut_specs: list[VariableSpec] = []
     cut_bounds: list[tuple[float | None, float | None]] = []
@@ -741,7 +747,7 @@ def plot_style_controls(
         style["grid"] = st.checkbox("grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":
-        style["log_z"] = st.checkbox("log color scale", value=True, key=f"{prefix}_log_z")
+        style["log_z"] = st.checkbox("log color scale", value=False, key=f"{prefix}_log_z")
         style["equal_aspect"] = st.checkbox(
             "equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )
@@ -799,7 +805,7 @@ def plot_style_controls(
             key=f"{prefix}_max_points_3d",
         )
         style["aspectmode"] = st.selectbox(
-            "aspect mode", ["data", "cube", "auto", "manual"], key=f"{prefix}_aspectmode"
+            "aspect mode", ["data", "cube", "auto"], key=f"{prefix}_aspectmode"
         )
         if color_enabled:
             style["colorscale"] = st.selectbox(

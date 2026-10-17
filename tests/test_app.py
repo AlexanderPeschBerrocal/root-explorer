@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import gc
+import weakref
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import uproot
@@ -103,7 +106,9 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert at.text_input(key="plot_save_name").value == "muon_pt"
     assert at.selectbox(key="plot_export_dpi").value == 300
     assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
-    assert any("Make plot button again or press P" in caption.value for caption in at.caption)
+    assert any(
+        "**Make plot** button again or **press P**" in caption.value for caption in at.caption
+    )
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
         button
@@ -111,6 +116,25 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
         if button.key == "plot_save_cached_download_code"
     )
     assert code_download.label == "Download plot code"
+
+
+def test_repeated_static_plot_generation_does_not_accumulate_pyplot_figures(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    baseline = set(plt.get_fignums())
+
+    at.button(key="plot_make").click().run()
+    first_figure_reference = weakref.ref(at.session_state["plot_result"]["figure"])
+
+    for _ in range(24):
+        at.button(key="plot_make").click().run()
+        assert not at.exception
+        assert set(plt.get_fignums()) == baseline
+
+    gc.collect()
+    assert first_figure_reference() is None
+    result = at.session_state["plot_result"]
+    assert result["kind"] == "matplotlib"
+    assert result["figure"].axes
 
 
 def test_root_object_browser_shows_nontrivial_catalogue(catalogue_root_path) -> None:
@@ -365,7 +389,7 @@ def test_app_calculates_threshold_fractions_with_optional_weights(root_path) -> 
     initial_dataframes = len(at.dataframe)
     at.selectbox(key="x_branch").select("Muon_pt").run()
     at.checkbox(key="plot_distribution_enabled").check().run()
-    at.selectbox(key="plot_distribution_mode").select("Threshold fractions").run()
+    at.selectbox(key="plot_distribution_mode").select("Threshold").run()
     at.number_input(key="plot_threshold").set_value(50.0).run()
     at.button(key="plot_make").click().run()
 
@@ -399,7 +423,8 @@ def test_app_loads_rntuple_and_makes_static_plot(rntuple_path) -> None:
 
     assert not at.exception
     assert (
-        next(widget for widget in at.selectbox if widget.label == "Event dataset").value == "Events"
+        next(widget for widget in at.selectbox if widget.label == "Event container").value
+        == "Events"
     )
     assert "Fields and objects" in [tab.label for tab in at.tabs]
     assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
@@ -422,13 +447,13 @@ def test_app_updates_data_item_terminology_for_the_selected_container(
     mixed_event_containers_path,
 ) -> None:
     at = _load_root_file(make_app_test(), mixed_event_containers_path)
-    container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
+    container = next(widget for widget in at.selectbox if widget.label == "Event container")
 
     container.select("ntuples/Events").run()
     assert at.selectbox(key="x_mode").options[0] == "Direct field values: A"
     assert at.selectbox(key="x_branch").label == "x: field"
 
-    container = next(widget for widget in at.selectbox if widget.label == "Event dataset")
+    container = next(widget for widget in at.selectbox if widget.label == "Event container")
     container.select("trees/Events").run()
     assert at.selectbox(key="x_mode").options[0] == "Direct branch values: A"
     assert at.selectbox(key="x_branch").label == "x: branch"
@@ -453,7 +478,8 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     assert result["kind"] == "plotly"
     assert result["figure"].data[0].type == "scatter3d"
     assert any(
-        "Make event plot button again or press Shift + P" in caption.value for caption in at.caption
+        "**Make event plot** button again or **press Shift + P**" in caption.value
+        for caption in at.caption
     )
 
 

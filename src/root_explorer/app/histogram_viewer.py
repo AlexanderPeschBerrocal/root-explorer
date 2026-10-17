@@ -17,7 +17,12 @@ from ..plotting.plots import (
     draw_fit_overlay,
 )
 from .controls import fit_controls
-from .results import show_cached_plot_result
+from .results import (
+    close_plot_result,
+    discard_plot_result,
+    show_cached_plot_result,
+    store_plot_result,
+)
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
@@ -101,6 +106,7 @@ def render_histogram_controls(
         shortcut="P" if shortcuts_enabled else None,
     )
     if "root_histogram_result" not in st.session_state or make_plot:
+        figure = None
         try:
             spec = HistogramPlotSpec(root_path, object_path, style, labels, fit_config=fit_config)
             fit_result = fit_histogram_1d(h, fit_config) if fit_config is not None else None
@@ -116,21 +122,26 @@ def render_histogram_controls(
             except (ValueError, TypeError, RuntimeError) as exc:
                 code = None
                 warnings.append(f"Plot-code export unavailable: {exc}")
-            st.session_state["root_histogram_result"] = {
-                "kind": "matplotlib",
-                "figure": figure,
-                "code": code,
-                "save_name": "root_histogram",
-                "warnings": warnings,
-                "fit_result": fit_result,
-            }
+            store_plot_result(
+                "root_histogram_result",
+                {
+                    "kind": "matplotlib",
+                    "figure": figure,
+                    "code": code,
+                    "save_name": "root_histogram",
+                    "warnings": warnings,
+                    "fit_result": fit_result,
+                },
+            )
         except (
             InvalidAxisLimitError,
             InvalidAxisScaleError,
             InvalidColorScaleError,
             ValueError,
         ) as exc:
-            st.session_state.pop("root_histogram_result", None)
+            if figure is not None:
+                close_plot_result({"kind": "matplotlib", "figure": figure})
+            discard_plot_result("root_histogram_result")
             st.warning(str(exc))
 
 

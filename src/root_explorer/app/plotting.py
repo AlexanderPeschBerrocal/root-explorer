@@ -59,7 +59,7 @@ from .controls import (
     supports_point_color,
     variable_selector,
 )
-from .results import show_cached_plot_result
+from .results import discard_plot_result, show_cached_plot_result, store_plot_result
 from .state import DataContext, GeometryState
 
 
@@ -313,9 +313,9 @@ def _generate_and_show(
 ) -> None:
     if make_plot:
         try:
-            st.session_state[result_key] = _build_plot_result(request)
+            store_plot_result(result_key, _build_plot_result(request))
         except ArrayShapeMismatchError as exc:
-            st.session_state.pop(result_key, None)
+            discard_plot_result(result_key)
             st.warning(str(exc))
         except (
             InvalidAxisLimitError,
@@ -323,10 +323,10 @@ def _generate_and_show(
             InvalidColorScaleError,
             InvalidHistogramRangeError,
         ) as exc:
-            st.session_state.pop(result_key, None)
+            discard_plot_result(result_key)
             st.warning(str(exc))
         except Exception as exc:
-            st.session_state.pop(result_key, None)
+            discard_plot_result(result_key)
             prefix = "Event plot" if request.event_index is not None else "Plot"
             st.error(f"{prefix} failed: {exc}")
             st.exception(exc)
@@ -337,9 +337,9 @@ def _generate_and_show(
         make_plot_label="Make event plot" if request.event_index is not None else "Make plot",
         make_plot_shortcut="Shift + P" if request.event_index is not None else "P",
         empty_message=(
-            "Choose an event and settings, then click Make event plot or press Shift + P."
+            "Choose an event and settings, then click **Make event plot** or **press Shift + P**."
             if request.event_index is not None
-            else "Configure settings on the left, then click Make plot or press P."
+            else "Configure settings on the left, then click **Make plot** or **press P**."
         ),
     )
 
@@ -381,40 +381,46 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         if request.fit_config is not None and prepared.histogram_1d is not None
         else None
     )
-    figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
-    if prepared.normalisation_result is not None and prepared.normalisation_result.error:
-        plot_warnings.append(prepared.normalisation_result.error)
-    elif prepared.normalisation_result is not None and prepared.normalisation_result.warning:
-        plot_warnings.append(prepared.normalisation_result.warning)
-    save_name = (
-        f"{request.save_name}_{request.event_index}"
-        if request.event_index is not None
-        else request.save_name
-    )
-    return {
-        "kind": "matplotlib",
-        "plot_type": request.plot_type,
-        "figure": figure,
-        "code": _safe_generate_plot_code(request, plot_warnings),
-        "summary": summary,
-        "preview": preview,
-        "threshold_result": prepared.threshold_result,
-        "quantile_result": prepared.quantile_result,
-        "fit_result": fit_result,
-        "histogram_flow_summary": prepared.histogram_flow_summary,
-        "histogram_flow_mode": prepared.histogram_flow_mode,
-        "normalisation_result": prepared.normalisation_result,
-        "normalisation_range": (
-            tuple(float(edge) for edge in prepared.histogram_1d.axes[0].edges[[0, -1]])
-            if prepared.histogram_1d is not None and prepared.normalisation_result is not None
-            else None
-        ),
-        "correlation_result": correlation_result,
-        "color_clipping_result": prepared.color_clipping_result,
-        "warnings": plot_warnings,
-        "save_name": save_name,
-        "save_button_label": "Save selected formats",
-    }
+    figure = None
+    try:
+        figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
+        if prepared.normalisation_result is not None and prepared.normalisation_result.error:
+            plot_warnings.append(prepared.normalisation_result.error)
+        elif prepared.normalisation_result is not None and prepared.normalisation_result.warning:
+            plot_warnings.append(prepared.normalisation_result.warning)
+        save_name = (
+            f"{request.save_name}_{request.event_index}"
+            if request.event_index is not None
+            else request.save_name
+        )
+        return {
+            "kind": "matplotlib",
+            "plot_type": request.plot_type,
+            "figure": figure,
+            "code": _safe_generate_plot_code(request, plot_warnings),
+            "summary": summary,
+            "preview": preview,
+            "threshold_result": prepared.threshold_result,
+            "quantile_result": prepared.quantile_result,
+            "fit_result": fit_result,
+            "histogram_flow_summary": prepared.histogram_flow_summary,
+            "histogram_flow_mode": prepared.histogram_flow_mode,
+            "normalisation_result": prepared.normalisation_result,
+            "normalisation_range": (
+                tuple(float(edge) for edge in prepared.histogram_1d.axes[0].edges[[0, -1]])
+                if prepared.histogram_1d is not None and prepared.normalisation_result is not None
+                else None
+            ),
+            "correlation_result": correlation_result,
+            "color_clipping_result": prepared.color_clipping_result,
+            "warnings": plot_warnings,
+            "save_name": save_name,
+            "save_button_label": "Save selected formats",
+        }
+    except Exception:
+        if figure is not None:
+            plt.close(figure)
+        raise
 
 
 def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
@@ -582,40 +588,44 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "save_button_label": "Save HTML",
         }
     figure, axes = plt.subplots(figsize=(request.style["fig_width"], request.style["fig_height"]))
-    plot_warnings = render_static_plot(
-        figure,
-        axes,
-        request.plot_type,
-        x,
-        y,
-        x_label,
-        y_axis_label,
-        request.style,
-        title=title,
-        weights=weights,
-        weight_branch=request.weight_branch,
-        color=color,
-        color_label=color_label,
-        reference_x=reference_x,
-        reference_label=reference_label,
-        colorbar_extend=(
-            color_clipping_result.extend if color_clipping_result is not None else "neither"
-        ),
-    )
-    return {
-        "kind": "matplotlib",
-        "figure": figure,
-        "code": generate_static_plot_code(request),
-        "summary": summary,
-        "preview": preview,
-        "threshold_result": threshold_result,
-        "quantile_result": quantile_result,
-        "correlation_result": correlation_result,
-        "color_clipping_result": color_clipping_result,
-        "warnings": plot_warnings,
-        "save_name": save_name,
-        "save_button_label": "Save selected formats",
-    }
+    try:
+        plot_warnings = render_static_plot(
+            figure,
+            axes,
+            request.plot_type,
+            x,
+            y,
+            x_label,
+            y_axis_label,
+            request.style,
+            title=title,
+            weights=weights,
+            weight_branch=request.weight_branch,
+            color=color,
+            color_label=color_label,
+            reference_x=reference_x,
+            reference_label=reference_label,
+            colorbar_extend=(
+                color_clipping_result.extend if color_clipping_result is not None else "neither"
+            ),
+        )
+        return {
+            "kind": "matplotlib",
+            "figure": figure,
+            "code": generate_static_plot_code(request),
+            "summary": summary,
+            "preview": preview,
+            "threshold_result": threshold_result,
+            "quantile_result": quantile_result,
+            "correlation_result": correlation_result,
+            "color_clipping_result": color_clipping_result,
+            "warnings": plot_warnings,
+            "save_name": save_name,
+            "save_button_label": "Save selected formats",
+        }
+    except Exception:
+        plt.close(figure)
+        raise
 
 
 def _evaluate_optional(

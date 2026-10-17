@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import tempfile
 from pathlib import Path
+from typing import Any
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
@@ -26,6 +28,33 @@ from ..plotting.plots import (
 )
 from .controls import export_controls, selected_static_formats
 from .tables import render_dataframe
+
+
+def close_plot_result(result: Any) -> None:
+    """Release a cached Matplotlib figure from pyplot's global registry."""
+
+    if not isinstance(result, dict) or result.get("kind") != "matplotlib":
+        return
+    figure = result.get("figure")
+    if figure is not None:
+        plt.close(figure)
+
+
+def store_plot_result(result_key: str, result: dict[str, Any]) -> None:
+    """Replace a cached plot without retaining pyplot figure managers."""
+
+    previous = st.session_state.get(result_key)
+    st.session_state[result_key] = result
+    close_plot_result(previous)
+    # Closing only unregisters the manager. Session state retains the Figure,
+    # which remains usable by st.pyplot(), savefig(), and download generation.
+    close_plot_result(result)
+
+
+def discard_plot_result(result_key: str) -> None:
+    """Remove a cached plot and release any Matplotlib figure it owns."""
+
+    close_plot_result(st.session_state.pop(result_key, None))
 
 
 def show_cached_plot_result(
@@ -50,8 +79,8 @@ def show_cached_plot_result(
         return
 
     st.caption(
-        f"Showing the most recently generated plot. Click the {make_plot_label} button again "
-        f"or press {make_plot_shortcut} to update it after changing settings."
+        f"Showing the most recently generated plot. Click the **{make_plot_label}** button again "
+        f"or **press {make_plot_shortcut}** to update it after changing settings."
     )
 
     summary = result.get("summary")

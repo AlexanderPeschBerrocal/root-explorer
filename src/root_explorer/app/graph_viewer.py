@@ -10,7 +10,12 @@ import streamlit as st
 from ..io.graphs import UnsupportedGraphError, read_graph
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError
-from .results import show_cached_plot_result
+from .results import (
+    close_plot_result,
+    discard_plot_result,
+    show_cached_plot_result,
+    store_plot_result,
+)
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
@@ -88,20 +93,26 @@ def render_graph_controls(
         shortcut="P" if shortcuts_enabled else None,
     )
     if "root_graph_result" not in st.session_state or make_plot:
+        figure = None
         try:
             spec = GraphPlotSpec(root_path, object_path, style, labels)
             figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code
 
-            st.session_state["root_graph_result"] = {
-                "kind": "matplotlib",
-                "figure": figure,
-                "code": generate_graph_plot_code(spec),
-                "save_name": "root_graph",
-                "warnings": [],
-            }
+            store_plot_result(
+                "root_graph_result",
+                {
+                    "kind": "matplotlib",
+                    "figure": figure,
+                    "code": generate_graph_plot_code(spec),
+                    "save_name": "root_graph",
+                    "warnings": [],
+                },
+            )
         except (InvalidAxisLimitError, InvalidAxisScaleError, ValueError) as exc:
-            st.session_state.pop("root_graph_result", None)
+            if figure is not None:
+                close_plot_result({"kind": "matplotlib", "figure": figure})
+            discard_plot_result("root_graph_result")
             st.warning(str(exc))
     # The output is rendered separately in the right-hand master-detail pane.
 
