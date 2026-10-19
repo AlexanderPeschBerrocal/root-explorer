@@ -110,16 +110,29 @@ def plot_button(page: Page, *, event: bool = False) -> Locator:
 def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None:
     """Select a named Streamlit option rather than relying on default order."""
     widget = section.get_by_role("combobox", name=name, exact=True)
-    if widget.input_value() == value:
+    current = widget.input_value()
+    if current == value:
         return
 
-    # Streamlit's selectbox wraps the combobox in a group with a separate
-    # accessible "Open" button. Clicking the input itself may only focus it
-    # (not open its options), particularly after a plot rerun.
-    opener = widget.locator("xpath=ancestor::*[@role='group'][1]").get_by_role(
-        "button", name="Open"
-    )
-    opener.click()
+    # Streamlit's Plot type selectbox does not reliably expose its dropdown
+    # options to Playwright after a rerun, even when its adjacent Open button
+    # is clicked. Its accessible keyboard interface does work; use the stable
+    # source-defined ordering instead of trying to find an absent option.
+    if name == "Plot type":
+        types = ("1D histogram", "2D histogram", "2D scatter", "3D scatter interactive")
+        if current not in types or value not in types:
+            raise ValueError(f"Unexpected plot type transition: {current!r} -> {value!r}")
+        delta = types.index(value) - types.index(current)
+        widget.focus()
+        for _ in range(abs(delta)):
+            widget.press("ArrowDown" if delta > 0 else "ArrowUp")
+        widget.press("Enter")
+        expect(widget).to_have_value(value, timeout=20000)
+        return
+
+    # For branch selectors, the popup options are accessible; this route
+    # selects a named branch independent of input ordering.
+    widget.click()
     option = page.get_by_role("option", name=value, exact=True)
     expect(option).to_be_visible(timeout=20000)
     option.click()
