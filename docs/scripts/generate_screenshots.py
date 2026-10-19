@@ -107,6 +107,16 @@ def plot_button(page: Page, *, event: bool = False) -> Locator:
     return page.get_by_role("button", name=re.compile(label))
 
 
+def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None:
+    """Select a named Streamlit option rather than relying on default order."""
+    widget = section.get_by_role("combobox", name=name, exact=True)
+    widget.click()
+    option = page.get_by_role("option", name=value, exact=True)
+    expect(option).to_be_visible(timeout=20000)
+    option.click()
+    expect(widget).to_have_value(value, timeout=20000)
+
+
 def select_demo(page: Page, data: Path) -> Locator:
     expect(page.get_by_text("ROOT Explorer", exact=True).first).to_be_visible(timeout=30000)
     page.get_by_label("ROOT file path").fill(str(data))
@@ -125,7 +135,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
         context = browser.new_context(
             viewport={"width": 1440, "height": 900},
             device_scale_factor=1,
-            color_scheme="light",
+            color_scheme="dark",
             locale="en-GB",
             reduced_motion="reduce",
         )
@@ -135,17 +145,13 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             page.goto(base_url, wait_until="domcontentloaded")
             plotter = select_demo(page, data)
 
+            choose_combobox(page, plotter, "x: branch", "Muon_pt")
             plot_button(page).click()
             overview = plot_image(plotter)
             capture(page, out / "overview.png", overview)
 
-            # Muon_eta is Gaussian in the seeded synthetic fixture and therefore
-            # makes a more informative example of the Gaussian fit than Muon_pt.
-            field = plotter.get_by_role("combobox", name="x: branch")
-            field.focus()
-            field.press("m")
-            # Use the accessibility-backed Streamlit selectbox, not CSS styling.
-            field.press("Escape")
+            # A Gaussian muon pseudorapidity distribution makes a meaningful fit.
+            choose_combobox(page, plotter, "x: branch", "Muon_eta")
             fit_box = plotter.get_by_role("checkbox", name="Enable fit")
             fit_box.focus()
             fit_box.press("Space")
@@ -161,11 +167,9 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
 
             # A different plot type must yield a genuinely new plot rather than
             # capturing the previously cached 1D histogram during a rerun.
-            kind = plotter.get_by_role("combobox", name="Plot type")
-            kind.focus()
-            kind.press("ArrowDown")
-            kind.press("Enter")
-            expect(kind).to_have_value("2D histogram")
+            choose_combobox(page, plotter, "Plot type", "2D histogram")
+            choose_combobox(page, plotter, "x: branch", "Muon_pt")
+            choose_combobox(page, plotter, "y: branch", "Muon_eta")
             previous_src = fitted.get_attribute("src")
             plot_button(page).click()
             hist2d = plot_image(plotter)
@@ -178,6 +182,9 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             entry.fill("10")  # Seeded demo: entry 10 has four generated muons.
             entry.press("Tab")
             expect(entry).to_have_value("10")
+            choose_combobox(page, event_tab, "Plot type", "2D scatter")
+            choose_combobox(page, event_tab, "event_x: branch", "Muon_eta")
+            choose_combobox(page, event_tab, "event_y: branch", "Muon_pt")
             plot_button(page, event=True).click()
             expect(event_tab.get_by_text("Output: event 10")).to_be_visible(timeout=60000)
             event_plot = plot_image(event_tab)
@@ -216,6 +223,21 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="root-explorer-docs-") as temp:
         data = generate(Path(temp) / "synthetic.root")
+        # Screenshot-only Matplotlib configuration: keep the plot surface dark
+        # without changing ROOT Explorer's defaults for normal users.
+        mplconfig = Path(temp) / "matplotlib"
+        mplconfig.mkdir()
+        (mplconfig / "matplotlibrc").write_text(
+            "figure.facecolor: #0e1117\\n"
+            "axes.facecolor: #0e1117\\n"
+            "savefig.facecolor: #0e1117\\n"
+            "axes.edgecolor: #fafafa\\n"
+            "axes.labelcolor: #fafafa\\n"
+            "text.color: #fafafa\\n"
+            "xtick.color: #fafafa\\n"
+            "ytick.color: #fafafa\\n"
+            "grid.color: #606975\\n"
+        )
         app = subprocess.Popen(
             [
                 sys.executable,
@@ -227,9 +249,14 @@ def main() -> None:
                 "--server.address=127.0.0.1",
                 f"--server.port={args.port}",
                 "--browser.gatherUsageStats=false",
+                "--theme.base=dark",
             ],
             cwd=ROOT,
-            env={**os.environ, "STREAMLIT_SERVER_RUN_ON_SAVE": "false"},
+            env={
+                **os.environ,
+                "STREAMLIT_SERVER_RUN_ON_SAVE": "false",
+                "MPLCONFIGDIR": str(mplconfig),
+            },
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
             text=True,
