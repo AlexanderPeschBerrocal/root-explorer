@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "root-explorer"
-version = "2026.9.2"
+version = "2026.10.0"
 description = "A Streamlit app for interactive inspection and plotting of HEP ROOT TTrees and RNTuples."
 authors = [
   { name = "Alexander Pesch Berrocal", email = "alexander.pesch.berrocal@rwth-aachen.de" },
