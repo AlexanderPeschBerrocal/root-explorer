@@ -4,6 +4,8 @@ This chapter covers histograms **computed from events**, and where explicitly
 noted, persisted ROOT histograms. Histogram operations affect physical and
 statistical interpretation: a displayed bin height is not always a count.
 
+![Histogram fit displayed in ROOT Explorer, generated with synthetic ROOT data](../_static/screenshots/histogram-fit.png)
+
 ## Counts, weights and statistical uncertainty
 
 An unweighted bin yield counts selected observations; for a jagged branch,

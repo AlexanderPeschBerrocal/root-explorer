@@ -4,6 +4,8 @@ Event inspection is distinct from the Plotter's aggregation across an
 entry range. The **Event inspection** tab shows the selected event and its
 objects, allowing you to investigate individual outliers and event topology.
 
+![ROOT Explorer event inspection with synthetic data](../_static/screenshots/event-inspection.png)
+
 ## Select an event
 
 1. Open a ROOT file containing a TTree or RNTuple and choose an event

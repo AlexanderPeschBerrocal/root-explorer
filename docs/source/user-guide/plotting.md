@@ -2,6 +2,8 @@
 
 After opening a ROOT file and selecting a TTree or RNTuple, use the **Plotter** tab to build a plot from one or more branches. For a first example, follow [Your first plot](../getting-started.md).
 
+![2D histogram in the ROOT Explorer Plotter, generated from synthetic ROOT data](../_static/screenshots/plot-2d.png)
+
 ## Main plot types
 
 ROOT Explorer supports **1D histograms**, **2D histograms**, and scatter plotting. Interactive three-dimensional scatter plots can be combined with a GDML geometry overlay when a suitable geometry file and coordinates are available. Some options depend on the selected plot type.
