@@ -31,7 +31,7 @@ d_i = \frac{\sum_{j \in B_i} w_j}{S\,\Delta x_i},
 \sum_i d_i\,\Delta x_i = 1.
 $$
 
-where $B_i$ is the set of observations in bin $i$, $\\Delta x_i$ is its
+where $B_i$ is the set of observations in bin $i$, $\Delta x_i$ is its
 width and $S$ is the sum of weights in the chosen normalisation domain.
 
 The operation is performed after variable evaluation, selections, non-finite
@@ -53,7 +53,7 @@ flow tables are unchanged. The y-axis defaults to **Normalised density**;
 for an observable measured in GeV, the physical density unit is GeV⁻¹.
 
 For a fixed denominator $S$, stored variances are rescaled by
-$1/(S\\,\\Delta x_i)^2$. Since the denominator is estimated from the
+$1/(S\,\Delta x_i)^2$. Since the denominator is estimated from the
 same data, these diagonal variances do not capture the full covariance of a
 self-normalised distribution. They must not be treated as independent
 statistical uncertainties in shape-only fits or tests.
