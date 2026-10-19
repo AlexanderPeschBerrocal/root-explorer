@@ -1,10 +1,26 @@
 # Your first ROOT Explorer plot
 
-ROOT Explorer lets you inspect a ROOT file without writing a plotting script. This walk-through uses a **local ROOT file** containing a TTree called `Events` with a numeric branch such as `MET_pt`. You can use your own ROOT file or generate the small synthetic example below.
+This tutorial shows how to produce a histogram from a ROOT `TTree` named `Events`, with a numerical branch called `MET_pt`. You can use your own ROOT file, or create the entirely synthetic example below.
 
-## Create a demonstration ROOT file
+## Launch ROOT Explorer
 
-Install ROOT Explorer as described in [Installation](installation.md), then, from the repository root, create `demo.root` with Uproot (already installed as a dependency):
+The easiest route is **Docker**, without a local Python installation:
+
+```bash
+docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
+```
+
+Open [http://localhost:8501](http://localhost:8501) in your browser. See [Installation](installation.md) for host-directory mounts, versioned image tags, and the optional Python source setup.
+
+## Prepare a ROOT file
+
+If you already have a ROOT file containing a TTree or RNTuple, you can use it directly with **Upload**. Otherwise, generate `demo.root` using Python with `numpy` and `uproot`. These are only needed for **generating this example**, not for running the Docker container.
+
+```bash
+python3 -m pip install numpy uproot
+```
+
+Run the following in Python in the directory where you want the example file:
 
 ```python
 import numpy as np
@@ -21,20 +37,23 @@ with uproot.recreate("demo.root") as root_file:
     )
 ```
 
-These are **synthetic demonstration values**, not experimental data.
+These are **synthetic values**, not experimental data. If you run ROOT Explorer from Python source, `numpy` and `uproot` are already part of its dependencies.
 
-## Open and inspect the file
+## Open the file and make a histogram
 
-1. Launch the application with `streamlit run streamlit_app.py` and open the local URL shown in the terminal (normally `http://localhost:8501`).
-2. In the **Input** sidebar, choose **Path** and enter the absolute path to `demo.root`. Alternatively choose **Upload** and select the file in your browser.
-3. Choose the **Events** event container and keep the default **Read range**, or select entries `0` through `5000` to use the whole example.
-4. In the **Plotter** tab, select a 1D histogram, choose the direct `MET_pt` branch for the x-axis and click **Make plot**.
-5. Try `nMuon` to inspect the event-by-event muon multiplicity. The displayed plot represents the **last generated** settings until you click **Make plot** again.
+1. In the **Input** sidebar, choose **Upload** and select `demo.root` from your computer.
+2. Choose the **Events** event container. Keep the default **Read range**, or select entries `0` through `5000` to use the complete example.
+3. In the **Plotter** tab, select a **1D histogram**, choose the direct `MET_pt` branch for the x-axis and click **Make plot**.
+4. Switch to `nMuon` to display the discrete event-by-event muon multiplicity, then click **Make plot** again.
 
-The ROOT object browser can inspect file contents independently of your choice of plot variables. The [files and objects](user-guide/files-and-objects.md) guide explains the distinction.
+The plot represents the **most recently generated configuration**. Changing a control does not regenerate the plot until you click **Make plot**.
+
+If you prefer **Path** rather than Upload while running Docker, mount a read-only host directory and use the **container** path as described in [Installation](installation.md).
+
+The ROOT object browser can inspect persisted ROOT objects independently of event plotting; see [ROOT files and objects](user-guide/files-and-objects.md).
 
 ## Continue exploring
 
-Read [plotting](user-guide/plotting.md) for plot types, and [variables and collections](user-guide/variables-and-collections.md) for per-event scalars, jagged particle collections and reductions. For larger samples, first select a small read range while configuring the plot.
+Read [Plotting](user-guide/plotting.md) and [Variables and collections](user-guide/variables-and-collections.md) for more workflows. Start with a limited entry range when exploring a large dataset.
 
-ROOT Explorer is intended for exploration. Preserve important final selections and plots in reproducible analysis code.
+ROOT Explorer is intended for exploratory work. Preserve final physics selections and plots in reproducible analysis code.

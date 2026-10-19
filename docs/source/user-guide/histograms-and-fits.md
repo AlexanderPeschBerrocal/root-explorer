@@ -10,8 +10,8 @@ statistical interpretation: a displayed bin height is not always a count.
 
 An unweighted bin yield counts selected observations; for a jagged branch,
 these can be *objects*, rather than *events*. For weighted yields, the bin
-content is the sum of weights, \(\sum_i w_i\), and stored per-bin variance
-is typically \(\sum_i w_i^2\), not \(\sum_i w_i\).
+content is the sum of weights, $\sum_i w_i$, and stored per-bin variance
+is typically $\sum_i w_i^2$, not $\sum_i w_i$.
 Negative generator weights allow negative bin sums. The resulting yield
 need not be a probability distribution; never apply ordinary Poisson
 count formulas indiscriminately to weighted histograms.
@@ -20,18 +20,19 @@ Statistics describing the selected sample are calculated after selection
 and are not redefined by histogram range, zoom, or flow display settings.
 If your physics selection changes, regenerate the plot.
 
-The following sections retain the detailed mathematical and implementation
-constraints originally documented in the README.
-
 ## Unit-area density normalisation
 
 For event-derived **1D histograms**, enable **Normalise to unit area** under
 Histogram analysis. The displayed histogram is a bin-width-corrected density:
 
-```text
-density[i] = sum_weights[i] / (normalisation_sum * bin_width[i])
-sum_i density[i] * bin_width[i] = 1
-```
+$
+d_i = \\frac{\\sum_{j \\in B_i} w_j}{S \\, \\Delta x_i},
+\\qquad
+\\sum_i d_i \\, \\Delta x_i = 1,
+$
+
+where $B_i$ is the set of observations in bin $i$, $\\Delta x_i$ is its
+width and $S$ is the sum of weights in the chosen normalisation domain.
 
 The operation is performed after variable evaluation, selections, non-finite
 filtering and optional event weights. **Ignore** normalises using only nominal
@@ -51,8 +52,8 @@ the original yields visible with a warning. Original sample statistics and
 flow tables are unchanged. The y-axis defaults to **Normalised density**;
 for an observable measured in GeV, the physical density unit is GeV⁻¹.
 
-For a fixed denominator `S`, stored variances are rescaled by
-`1 / (S * bin_width[i])**2`. Since the denominator is estimated from the
+For a fixed denominator $S$, stored variances are rescaled by
+$1/(S\\,\\Delta x_i)^2$. Since the denominator is estimated from the
 same data, these diagonal variances do not capture the full covariance of a
 self-normalised distribution. They must not be treated as independent
 statistical uncertainties in shape-only fits or tests.
@@ -134,5 +135,3 @@ for the selected static plot. It contains only the analysis and rendering
 operations selected at export time. Input paths, branch names, labels, ranges,
 and non-structural styles can be edited directly; regenerate the script after
 changing the plot type, variable modes, optional features, or logarithmic scales.
-
-

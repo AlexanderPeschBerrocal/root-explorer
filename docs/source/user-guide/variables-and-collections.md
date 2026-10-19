@@ -30,7 +30,7 @@ Range cuts restrict which values are selected. In the current interface, support
 
 For weighted histograms, an event-level `genWeight` can be broadcast to each selected object in that event; object-level weights can be used when they match the plotted observations. Thus a weighted object histogram sums **object contributions with their associated weights**, which need not equal the number of events.
 
-Negative generator weights can produce signed bin yields. Statistical uncertainty, flow bins and density normalisation require additional care; the detailed scientific guide will follow in the next documentation commit.
+Negative generator weights can produce signed bin yields. For the interpretation of uncertainties, flow bins and density normalisation, consult [Histogram statistics, normalisation and fitting](histograms-and-fits.md).
 
 For supported selector structure badges, turn on **Show entry details in selectors** (the word *entry* changes to the selected container's field type) and inspect whether values are tagged scalar, jagged or another structure.
 

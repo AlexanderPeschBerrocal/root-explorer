@@ -13,7 +13,7 @@ objects, allowing you to investigate individual outliers and event topology.
 2. Open **Event inspection**. Use the event-index control to select an event
    inside the chosen range.
 3. Choose an appropriate plot type and coordinate variables (for example,
-   muon \(p_T\) and \(\eta\)) and click **Make event plot**.
+   muon $p_T$ and $\eta$) and click **Make event plot**.
 4. Change the selected entry and regenerate the plot to inspect another
    event. Do not mistake a previous plot for a newly selected event.
 

@@ -23,7 +23,7 @@ The plot area continues displaying the **most recently generated plot** until yo
 
 ## Interpretation
 
-**Selected entry range, cuts, finite-value filtering, weights, flow-bin handling and normalisation** can change the statistical meaning of the displayed histogram. A histogram density, weighted yield, and simple count distribution are not interchangeable. The dedicated scientific explanation of histogram statistics and fitting is scheduled for the next documentation commit; meanwhile, the current repository README contains the precise implementation notes.
+**Selected entry range, cuts, finite-value filtering, weights, flow-bin handling and normalisation** can change the statistical meaning of the displayed histogram. A histogram density, weighted yield, and simple count distribution are not interchangeable. For precise definitions of weighted yields, statistical uncertainties, density normalisation and fit objectives, see [Histogram statistics, normalisation and fitting](histograms-and-fits.md).
 
 Static plots can be downloaded and selected plotting configurations can be exported as standalone Python code. Retain a reproducible script for final physics results.
 
