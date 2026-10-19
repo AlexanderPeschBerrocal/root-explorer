@@ -19,6 +19,7 @@ final scientific selections and publication plots in reproducible scripts.
 This screenshot is generated automatically from entirely synthetic ROOT data.
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: Getting started
 
@@ -26,6 +27,7 @@ This screenshot is generated automatically from entirely synthetic ROOT data.
    getting-started
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: User guide
 
@@ -38,6 +40,7 @@ This screenshot is generated automatically from entirely synthetic ROOT data.
    user-guide/exporting
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: Additional information
 
