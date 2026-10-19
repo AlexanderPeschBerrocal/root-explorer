@@ -96,7 +96,10 @@ def run(base_url: str, out: Path, data: Path) -> None:
             make_plot(page)
             image(page, out / "overview.png")
 
-            page.get_by_role("tabpanel", name="Plotter").get_by_role("checkbox", name="Enable fit").check(force=True)
+            fit_box = page.get_by_role("tabpanel", name="Plotter").get_by_role("checkbox", name="Enable fit")
+            fit_box.focus()
+            fit_box.press("Space")
+            expect(fit_box).to_be_checked()
             page.get_by_role("button", name=re.compile(r"^Make plot")).click()
             expect(page.get_by_text("Histogram fit", exact=True).last).to_be_visible(timeout=60000)
             image(page, out / "histogram-fit.png")
