@@ -2,6 +2,12 @@ name: Documentation screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches: [docs/74-readthedocs]
+    paths:
+      - "docs/scripts/**"
+      - ".github/workflows/docs-screenshots.yaml"
+      - "pyproject.toml"
   pull_request:
     branches: [main]
     paths:
@@ -11,7 +17,7 @@ on:
       - "pyproject.toml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
@@ -36,3 +42,14 @@ jobs:
           path: |
             docs/source/_static/screenshots/*.png
           if-no-files-found: warn
+
+      - name: Commit reviewed branch screenshot baseline
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/docs/74-readthedocs' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/source/_static/screenshots/overview.png docs/source/_static/screenshots/histogram-fit.png docs/source/_static/screenshots/plot-2d.png docs/source/_static/screenshots/object-browser.png docs/source/_static/screenshots/event-inspection.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: capture generated ROOT Explorer screenshots (#74)"
+            git push origin HEAD:docs/74-readthedocs
+          fi

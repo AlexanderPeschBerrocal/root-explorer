@@ -21,7 +21,9 @@ http://127.0.0.1:8752`).
 The separate `Documentation screenshots` GitHub Actions workflow also runs
 automatically for relevant PRs and on `workflow_dispatch`, and uploads the
 resulting PNGs for review. It does **not** automatically commit images on
-untrusted PRs or perform fragile pixel equality checks. After regenerating,
+untrusted PRs or perform fragile pixel equality checks. On the trusted
+`docs/74-readthedocs` branch, the first baseline is committed automatically
+by the push workflow; subsequent screenshot refreshes should use a reviewed PR. After regenerating,
 review the images for legibility and privacy, commit the reviewed PNGs, and
 submit them in the same documentation/application PR. The ordinary Sphinx/RTD
 build never installs Chromium.
