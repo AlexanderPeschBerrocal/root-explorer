@@ -101,7 +101,7 @@ def run(base_url: str, out: Path, data: Path) -> None:
             fit_box.press("Space")
             expect(fit_box).to_be_checked()
             page.get_by_role("button", name=re.compile(r"^Make plot")).click()
-            expect(page.get_by_text("Histogram fit", exact=True).last).to_be_visible(timeout=60000)
+            expect(page.get_by_role("tabpanel", name="Plotter").get_by_role("heading", name="Histogram fit")).to_be_visible(timeout=60000)
             image(page, out / "histogram-fit.png")
 
             page.get_by_role("combobox", name="Plot type").click()
