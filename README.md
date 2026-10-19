@@ -7,7 +7,7 @@
 
 **Explore HEP ROOT files directly in your browser.** ROOT Explorer is an interactive Streamlit app for browsing TTrees, RNTuples and persisted ROOT objects, making plots, fitting histograms and inspecting individual events.
 
-**[Documentation](https://root-explorer.readthedocs.io/en/latest/)** · **[Source](https://github.com/AlexanderPeschBerrocal/root-explorer)** · **[Issues](https://github.com/AlexanderPeschBerrocal/root-explorer/issues)**
+**[Documentation (source)](docs/source/index.rst)** · **[Source](https://github.com/AlexanderPeschBerrocal/root-explorer)** · **[Issues](https://github.com/AlexanderPeschBerrocal/root-explorer/issues)**
 
 ![ROOT Explorer: real application interface generated with synthetic ROOT data](docs/source/_static/screenshots/overview.png)
 
@@ -29,7 +29,8 @@ docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
 
 Open [http://localhost:8501](http://localhost:8501). Use **Upload** to select a ROOT file from your computer. For local paths and reproducible deployments, consult [installation and Docker](docs/source/installation.md). A versioned image tag is recommended in production.
 
-For Python 3.12 source installation, development, and scientific explanations of histogram statistics and fitting, use the [full documentation](https://root-explorer.readthedocs.io/en/latest/).
+For Python 3.12 source installation, development, and scientific explanations of histogram statistics and fitting, use the [documentation in this repository](docs/source/index.rst).
+The public Read the Docs URL will be added after the hosting project is registered and its first build verified.
 
 ## Licence
 
