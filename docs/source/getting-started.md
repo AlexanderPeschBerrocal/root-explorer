@@ -13,10 +13,12 @@ import uproot
 rng = np.random.default_rng(42)
 with uproot.recreate("demo.root") as root_file:
     root_file.mktree("Events", {"MET_pt": "float32", "nMuon": "int32"})
-    root_file["Events"].extend({
-        "MET_pt": rng.exponential(40.0, 5000).astype("float32"),
-        "nMuon": rng.poisson(1.5, 5000).astype("int32"),
-    })
+    root_file["Events"].extend(
+        {
+            "MET_pt": rng.exponential(40.0, 5000).astype("float32"),
+            "nMuon": rng.poisson(1.5, 5000).astype("int32"),
+        }
+    )
 ```
 
 These are **synthetic demonstration values**, not experimental data.

@@ -36,9 +36,7 @@ def wait_for_server(base_url: str, process: subprocess.Popen[str] | None) -> Non
         if process is not None and process.poll() is not None:
             raise RuntimeError("Streamlit exited before becoming healthy")
         try:
-            with urllib.request.urlopen(
-                f"{base_url}/_stcore/health", timeout=2
-            ) as response:
+            with urllib.request.urlopen(f"{base_url}/_stcore/health", timeout=2) as response:
                 if response.status == 200:
                     return
         except (OSError, urllib.error.URLError):
@@ -127,7 +125,8 @@ def run(base_url: str, out: Path, data: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output-dir", type=Path,
+        "--output-dir",
+        type=Path,
         default=ROOT / "docs/source/_static/screenshots",
     )
     parser.add_argument("--base-url", default="http://127.0.0.1:8751")
@@ -139,8 +138,13 @@ def main() -> None:
         data = generate(Path(temp) / "synthetic.root")
         app = subprocess.Popen(
             [
-                sys.executable, "-m", "streamlit", "run", str(ROOT / "streamlit_app.py"),
-                "--server.headless=true", "--server.address=127.0.0.1",
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                str(ROOT / "streamlit_app.py"),
+                "--server.headless=true",
+                "--server.address=127.0.0.1",
                 f"--server.port={args.port}",
                 "--browser.gatherUsageStats=false",
             ],
