@@ -58,6 +58,8 @@ def select_demo(page: Page, data: Path) -> None:
     page.get_by_label("ROOT file path").press("Tab")
     expect(page.get_by_text("Entries/events:")).to_be_visible(timeout=30000)
     expect(page.get_by_role("tab", name="Plotter")).to_be_visible()
+    page.get_by_role("tab", name="Plotter").click()
+    expect(page.get_by_role("button", name="Make plot", exact=True)).to_be_visible()
 
 
 def image(page: Page, path: Path) -> None:
