@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -58,7 +59,7 @@ def select_demo(page: Page, data: Path) -> None:
     expect(page.get_by_text("Entries/events:")).to_be_visible(timeout=30000)
     expect(page.get_by_role("tab", name="Plotter")).to_be_visible()
     page.get_by_role("tab", name="Plotter").click()
-    expect(page.get_by_role("button", name="Make plot", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile(r"^Make plot"))).to_be_visible()
 
 
 def image(page: Page, path: Path) -> None:
@@ -100,7 +101,8 @@ def run(base_url: str, out: Path, data: Path) -> None:
             expect(page.get_by_text("Histogram fit", exact=True).last).to_be_visible(timeout=60000)
             image(page, out / "histogram-fit.png")
 
-            page.get_by_label("Plot type").select_option(label="2D histogram")
+            page.get_by_role("combobox", name="Plot type").click()
+            page.get_by_role("option", name="2D histogram").click()
             make_plot(page)
             image(page, out / "plot-2d.png")
 
@@ -110,7 +112,7 @@ def run(base_url: str, out: Path, data: Path) -> None:
             image(page, out / "event-inspection.png")
 
             # A separate capture avoids accidental hidden-tab or stale-plot state.
-            page.get_by_role("tab", name="Events and objects").click()
+            page.get_by_role("tab", name="Branches and objects").click()
             expect(page.get_by_text("ROOT file contents")).to_be_visible()
             image(page, out / "object-browser.png")
         except PlaywrightTimeoutError as exc:
