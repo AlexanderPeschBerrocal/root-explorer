@@ -32,6 +32,6 @@ For weighted histograms, an event-level `genWeight` can be broadcast to each sel
 
 Negative generator weights can produce signed bin yields. Statistical uncertainty, flow bins and density normalisation require additional care; the detailed scientific guide will follow in the next documentation commit.
 
-For supported selector structure badges, turn on **Show branch details in selectors** (wording can vary by event container) and inspect whether values are tagged scalar, jagged or another structure.
+For supported selector structure badges, turn on **Show entry details in selectors** (the word *entry* changes to the selected container's field type) and inspect whether values are tagged scalar, jagged or another structure.
 
 Continue with [Plotting](plotting.md).
