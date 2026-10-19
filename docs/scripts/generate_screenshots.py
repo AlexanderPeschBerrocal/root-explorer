@@ -251,9 +251,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots"
-    )
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots")
     parser.add_argument("--base-url", default="http://127.0.0.1:8751")
     parser.add_argument("--port", type=int, default=8751)
     args = parser.parse_args()
