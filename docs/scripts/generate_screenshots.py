@@ -72,7 +72,7 @@ def image(page: Page, path: Path) -> None:
 
 def make_plot(page: Page) -> None:
     page.get_by_role("button", name=re.compile(r"^Make plot")).click()
-    expect(page.get_by_text("Download plot code")).to_be_visible(timeout=60000)
+    expect(page.get_by_role("button", name="Download plot code")).to_be_visible(timeout=60000)
 
 
 def run(base_url: str, out: Path, data: Path) -> None:
