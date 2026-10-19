@@ -104,8 +104,11 @@ def run(base_url: str, out: Path, data: Path) -> None:
             expect(page.get_by_role("tabpanel", name="Plotter").get_by_role("heading", name="Histogram fit")).to_be_visible(timeout=60000)
             image(page, out / "histogram-fit.png")
 
-            page.get_by_role("combobox", name="Plot type").click()
-            page.get_by_role("option", name="2D histogram").click()
+            plot_combo = page.get_by_role("tabpanel", name="Plotter").get_by_role("combobox", name="Plot type")
+            plot_combo.focus()
+            plot_combo.press("ArrowDown")
+            plot_combo.press("Enter")
+            expect(plot_combo).to_contain_text("2D histogram")
             make_plot(page)
             image(page, out / "plot-2d.png")
 
