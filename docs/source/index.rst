@@ -1,15 +1,28 @@
 ROOT Explorer documentation
 ===========================
 
-**ROOT Explorer** is a Streamlit application for inspecting and visualising
-high-energy physics ROOT files in a web browser. Explore event data stored in
-TTrees and RNTuples, browse persisted ROOT objects, create plots and inspect
-individual events.
+**ROOT Explorer** is an interactive Streamlit application for inspecting
+and visualising high-energy physics ROOT files directly in your browser.
+Work with TTree and RNTuple event data, inspect persisted ROOT objects,
+create histograms and scatter plots, and inspect selected events.
 
-This site is being developed as a task-oriented guide to using ROOT Explorer.
-The project source and installation instructions are currently available on
-`GitHub <https://github.com/AlexanderPeschBerrocal/root-explorer>`_.
+Start with :doc:`getting-started` to produce your first histogram using a
+local ROOT file. See :doc:`installation` for Python and Docker options.
 
-ROOT Explorer is intended for interactive exploration and plot prototyping.
-Keep final scientific selections and publication-ready plots in reproducible
-analysis code.
+ROOT Explorer is designed for exploration and plot prototyping, not as a
+replacement for reproducible production analysis.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting started
+
+   getting-started
+   installation
+
+.. toctree::
+   :maxdepth: 2
+   :caption: User guide
+
+   user-guide/files-and-objects
+   user-guide/plotting
+   user-guide/variables-and-collections
