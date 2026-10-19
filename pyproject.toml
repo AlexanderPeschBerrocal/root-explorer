@@ -49,6 +49,9 @@ docs = [
     "sphinx>=7",
     "sphinx-rtd-theme",
 ]
+screenshots = [
+    "playwright>=1.55,<2",
+]
 
 [project.urls]
 Homepage = "https://github.com/AlexanderPeschBerrocal/root-explorer"
