@@ -108,7 +108,7 @@ def run(base_url: str, out: Path, data: Path) -> None:
             plot_combo.focus()
             plot_combo.press("ArrowDown")
             plot_combo.press("Enter")
-            expect(plot_combo).to_contain_text("2D histogram")
+            expect(plot_combo).to_have_value("2D histogram")
             make_plot(page)
             image(page, out / "plot-2d.png")
 
