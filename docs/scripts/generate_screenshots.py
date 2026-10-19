@@ -1,7 +1,7 @@
-"""Capture actual Streamlit UI examples in deterministic Chromium sessions.
+"""Capture reproducible, legible screenshots of actual Streamlit plot output.
 
-Run after installing `.[screenshots]` and `python -m playwright install chromium`.
-This tool is intentionally independent of Sphinx/Read the Docs.
+Requires the optional `.[screenshots]` extras and Playwright Chromium.
+Never overwrite a reviewed image from CI: GitHub Actions uploads only artefacts.
 """
 
 from __future__ import annotations
@@ -18,7 +18,8 @@ import urllib.request
 from pathlib import Path
 
 from generate_demo_data import generate
-from playwright.sync_api import Page, expect, sync_playwright
+from PIL import Image
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMES = (
@@ -30,10 +31,10 @@ NAMES = (
 )
 
 
-def wait_for_server(base_url: str, process: subprocess.Popen[str] | None) -> None:
+def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
     deadline = time.monotonic() + 75
     while time.monotonic() < deadline:
-        if process is not None and process.poll() is not None:
+        if process.poll() is not None:
             raise RuntimeError("Streamlit exited before becoming healthy")
         try:
             with urllib.request.urlopen(f"{base_url}/_stcore/health", timeout=2) as response:
@@ -45,42 +46,82 @@ def wait_for_server(base_url: str, process: subprocess.Popen[str] | None) -> Non
     raise TimeoutError(f"Streamlit did not become healthy: {base_url}")
 
 
-def settle(page: Page) -> None:
-    """Ensure Streamlit has completed the rerun after each browser action."""
+def plot_image(tab: Locator) -> Locator:
+    """Identify the rendered Matplotlib plot, never a button/export control."""
+    image = tab.locator('[data-testid="stImage"] img').first
+    expect(image).to_be_visible(timeout=60000)
+    expect(image).to_have_attribute("src", re.compile(r".+"), timeout=60000)
+    return image
+
+
+def wait_for_clean_render(page: Page, target: Locator) -> None:
+    """Wait until the plotted result is in view and Streamlit has *unfaded* it.
+
+    Streamlit marks old page content stale during widget-triggered reruns. A
+    visible heading/button is insufficient: these can already exist while the
+    app and its plot remain semi-transparent. Inspect effective opacity up the
+    DOM ancestry instead of inserting a fixed sleep or changing application CSS.
+    """
+    expect(target).to_be_visible(timeout=60000)
+    target.evaluate("(node) => node.scrollIntoView({block: 'center', inline: 'nearest'})")
+    handle = target.element_handle()
+    if handle is None:
+        raise RuntimeError("The plot disappeared before screenshot capture")
+    page.wait_for_function(
+        """node => {
+            if (!node.isConnected) return false;
+            for (let parent = node; parent; parent = parent.parentElement) {
+                const style = window.getComputedStyle(parent);
+                if (Number(style.opacity) < 0.99 ||
+                    style.visibility !== 'visible' ||
+                    parent.getAttribute('data-stale') === 'true') {
+                    return false;
+                }
+            }
+            const bounds = node.getBoundingClientRect();
+            return bounds.width > 150 && bounds.height > 150 &&
+                bounds.top >= 0 && bounds.bottom <= window.innerHeight &&
+                bounds.left >= 0 && bounds.right <= window.innerWidth;
+        }""",
+        arg=handle,
+        timeout=60000,
+    )
+    expect(page.locator(".stException")).to_have_count(0)
+
+
+def capture(page: Page, path: Path, focus: Locator) -> None:
+    """Save the current viewport with the actual *visible* result centred."""
+    wait_for_clean_render(page, focus)
+    # Streamlit scrolls its central pane independently; full_page=True took
+    # screenshots of scrolled-away configuration controls, not the output.
+    page.screenshot(path=str(path), animations="disabled", full_page=False)
+    with Image.open(path) as screenshot:
+        if screenshot.width < 1200 or screenshot.height < 700:
+            raise RuntimeError(f"Screenshot has unexpected size: {path}")
+    if path.stat().st_size < 16000:
+        raise RuntimeError(f"Suspiciously empty screenshot: {path}")
+
+
+def plot_button(page: Page, *, event: bool = False) -> Locator:
+    label = r"^Make event plot" if event else r"^Make plot"
+    return page.get_by_role("button", name=re.compile(label))
+
+
+def select_demo(page: Page, data: Path) -> Locator:
     expect(page.get_by_text("ROOT Explorer", exact=True).first).to_be_visible(timeout=30000)
-    expect(page.get_by_text("Error running app")).to_have_count(0)
-
-
-def select_demo(page: Page, data: Path) -> None:
-    page.goto(page.url, wait_until="domcontentloaded")
-    settle(page)
     page.get_by_label("ROOT file path").fill(str(data))
     page.get_by_label("ROOT file path").press("Tab")
     expect(page.get_by_text("Entries/events:")).to_be_visible(timeout=30000)
-    expect(page.get_by_role("tab", name="Plotter")).to_be_visible()
     page.get_by_role("tab", name="Plotter").click()
-    expect(page.get_by_role("button", name=re.compile(r"^Make plot"))).to_be_visible()
+    tab = page.get_by_role("tabpanel", name="Plotter")
+    expect(plot_button(page)).to_be_visible(timeout=30000)
+    return tab
 
 
-def image(page: Page, path: Path) -> None:
-    # Fixed device scale and viewport are configured in the browser context.
-    expect(page.locator(".stException")).to_have_count(0)
-    page.screenshot(path=str(path), animations="disabled", full_page=True)
-    if path.stat().st_size < 12000:
-        raise RuntimeError(f"Suspiciously small screenshot: {path}")
-
-
-def make_plot(page: Page) -> None:
-    page.get_by_role("button", name=re.compile(r"^Make plot")).click()
-    expect(page.get_by_role("button", name="Download plot code")).to_be_visible(timeout=60000)
-
-
-def run(base_url: str, out: Path, data: Path) -> None:
-    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-
+def generate_captures(base_url: str, out: Path, data: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
             viewport={"width": 1440, "height": 900},
             device_scale_factor=1,
@@ -89,51 +130,76 @@ def run(base_url: str, out: Path, data: Path) -> None:
             reduced_motion="reduce",
         )
         page = context.new_page()
-        page.set_default_timeout(20000)
-        page.goto(base_url, wait_until="domcontentloaded")
+        page.set_default_timeout(30000)
         try:
-            select_demo(page, data)
-            make_plot(page)
-            image(page, out / "overview.png")
+            page.goto(base_url, wait_until="domcontentloaded")
+            plotter = select_demo(page, data)
 
-            fit_box = page.get_by_role("tabpanel", name="Plotter").get_by_role(
-                "checkbox", name="Enable fit"
-            )
+            plot_button(page).click()
+            overview = plot_image(plotter)
+            capture(page, out / "overview.png", overview)
+
+            # Muon_eta is Gaussian in the seeded synthetic fixture and therefore
+            # makes a more informative example of the Gaussian fit than Muon_pt.
+            field = plotter.get_by_role("combobox", name="x: branch")
+            field.focus()
+            field.press("m")
+            # Use the accessibility-backed Streamlit selectbox, not CSS styling.
+            field.press("Escape")
+            fit_box = plotter.get_by_role("checkbox", name="Enable fit")
             fit_box.focus()
             fit_box.press("Space")
             expect(fit_box).to_be_checked()
-            page.get_by_role("button", name=re.compile(r"^Make plot")).click()
-            expect(
-                page.get_by_role("tabpanel", name="Plotter").get_by_role(
-                    "heading", name="Histogram fit"
-                )
-            ).to_be_visible(timeout=60000)
-            image(page, out / "histogram-fit.png")
-
-            plot_combo = page.get_by_role("tabpanel", name="Plotter").get_by_role(
-                "combobox", name="Plot type"
+            previous_src = overview.get_attribute("src")
+            plot_button(page).click()
+            expect(plotter.get_by_role("heading", name="Histogram fit")).to_be_visible(
+                timeout=60000
             )
-            plot_combo.focus()
-            plot_combo.press("ArrowDown")
-            plot_combo.press("Enter")
-            expect(plot_combo).to_have_value("2D histogram")
-            make_plot(page)
-            image(page, out / "plot-2d.png")
+            fitted = plot_image(plotter)
+            expect(fitted).not_to_have_attribute("src", previous_src, timeout=60000)
+            capture(page, out / "histogram-fit.png", fitted)
+
+            # A different plot type must yield a genuinely new plot rather than
+            # capturing the previously cached 1D histogram during a rerun.
+            kind = plotter.get_by_role("combobox", name="Plot type")
+            kind.focus()
+            kind.press("ArrowDown")
+            kind.press("Enter")
+            expect(kind).to_have_value("2D histogram")
+            previous_src = fitted.get_attribute("src")
+            plot_button(page).click()
+            hist2d = plot_image(plotter)
+            expect(hist2d).not_to_have_attribute("src", previous_src, timeout=60000)
+            capture(page, out / "plot-2d.png", hist2d)
 
             page.get_by_role("tab", name="Event inspection").click()
-            page.get_by_role("button", name="Make event plot").click()
-            expect(page.get_by_text("Output: event", exact=False)).to_be_visible(timeout=60000)
-            image(page, out / "event-inspection.png")
+            event_tab = page.get_by_role("tabpanel", name="Event inspection")
+            entry = event_tab.get_by_role("spinbutton", name="event index")
+            entry.fill("10")  # Seeded demo: entry 10 has four generated muons.
+            entry.press("Tab")
+            expect(entry).to_have_value("10")
+            plot_button(page, event=True).click()
+            expect(event_tab.get_by_text("Output: event 10")).to_be_visible(timeout=60000)
+            event_plot = plot_image(event_tab)
+            capture(page, out / "event-inspection.png", event_plot)
 
-            # A separate capture avoids accidental hidden-tab or stale-plot state.
             page.get_by_role("tab", name="Branches and objects").click()
-            expect(page.get_by_text("ROOT file contents")).to_be_visible()
-            image(page, out / "object-browser.png")
-        except PlaywrightTimeoutError as exc:
-            page.screenshot(path=str(out / "failure.png"), full_page=True)
-            raise RuntimeError("Screenshot browser scenario failed; see failure.png") from exc
+            objects = page.get_by_role("tabpanel", name="Branches and objects")
+            expect(objects.get_by_text("ROOT file contents")).to_be_visible(timeout=30000)
+            objects.get_by_role("button", name=re.compile(r"^Open selected object")).click()
+            expect(objects.get_by_role("button", name="Close inspection")).to_be_visible(
+                timeout=60000
+            )
+            stored_hist = plot_image(objects)
+            capture(page, out / "object-browser.png", stored_hist)
+        except Exception:
+            # A full-page capture is useful for debugging selectors/timeouts but
+            # is never published as one of the documentation illustrations.
+            page.screenshot(path=str(out / "failure.png"), full_page=False)
+            raise
         finally:
             browser.close()
+
     missing = [name for name in NAMES if not (out / name).is_file()]
     if missing:
         raise RuntimeError(f"Missing screenshots: {missing}")
@@ -142,15 +208,12 @@ def run(base_url: str, out: Path, data: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=ROOT / "docs/source/_static/screenshots",
+        "--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots"
     )
     parser.add_argument("--base-url", default="http://127.0.0.1:8751")
     parser.add_argument("--port", type=int, default=8751)
     args = parser.parse_args()
 
-    # The local server is trusted and deliberately accepts a synthetic Path.
     with tempfile.TemporaryDirectory(prefix="root-explorer-docs-") as temp:
         data = generate(Path(temp) / "synthetic.root")
         app = subprocess.Popen(
@@ -173,7 +236,7 @@ def main() -> None:
         )
         try:
             wait_for_server(args.base_url, app)
-            run(args.base_url, args.output_dir, data)
+            generate_captures(args.base_url, args.output_dir, data)
         finally:
             app.terminate()
             try:
