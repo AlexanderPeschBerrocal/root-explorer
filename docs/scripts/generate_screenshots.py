@@ -130,13 +130,28 @@ def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None
         expect(widget).to_have_value(value, timeout=20000)
         return
 
-    # For branch selectors, the popup options are accessible; this route
-    # selects a named branch independent of input ordering.
-    widget.click()
-    option = page.get_by_role("option", name=value, exact=True)
-    expect(option).to_be_visible(timeout=20000)
-    option.click()
-    expect(widget).to_have_value(value, timeout=20000)
+    # A Streamlit rerun from the preceding selector can close a freshly
+    # opened popup. Filter the searchable selectbox to the desired branch and
+    # retry opening it if the rerun ate the first interaction. Clicking an
+    # unfiltered option is also fragile when options are virtualised.
+    for attempt in range(3):
+        widget = section.get_by_role("combobox", name=name, exact=True)
+        if widget.input_value() == value:
+            return
+        widget.click()
+        widget.fill(value)
+        option = page.get_by_role("option", name=value, exact=True)
+        try:
+            expect(option).to_be_visible(timeout=5000)
+        except AssertionError:
+            if attempt == 2:
+                raise
+            # The attempted popup may have disappeared during a rerun.
+            # Re-resolve the combobox on the next iteration.
+            continue
+        option.click()
+        expect(widget).to_have_value(value, timeout=20000)
+        return
 
 
 def select_demo(page: Page, data: Path) -> Locator:
