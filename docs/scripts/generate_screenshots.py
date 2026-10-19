@@ -228,15 +228,15 @@ def main() -> None:
         mplconfig = Path(temp) / "matplotlib"
         mplconfig.mkdir()
         (mplconfig / "matplotlibrc").write_text(
-            "figure.facecolor: #0e1117\\n"
-            "axes.facecolor: #0e1117\\n"
-            "savefig.facecolor: #0e1117\\n"
-            "axes.edgecolor: #fafafa\\n"
-            "axes.labelcolor: #fafafa\\n"
-            "text.color: #fafafa\\n"
-            "xtick.color: #fafafa\\n"
-            "ytick.color: #fafafa\\n"
-            "grid.color: #606975\\n"
+            "figure.facecolor: #0e1117\n"
+            "axes.facecolor: #0e1117\n"
+            "savefig.facecolor: #0e1117\n"
+            "axes.edgecolor: #fafafa\n"
+            "axes.labelcolor: #fafafa\n"
+            "text.color: #fafafa\n"
+            "xtick.color: #fafafa\n"
+            "ytick.color: #fafafa\n"
+            "grid.color: #606975\n"
         )
         app = subprocess.Popen(
             [
