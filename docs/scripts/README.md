@@ -18,15 +18,14 @@ already be listening on this port. To use a different free port, pass both
 `--port` and `--base-url` (e.g. `--port 8752 --base-url
 http://127.0.0.1:8752`).
 
-The separate `Documentation screenshots` GitHub Actions workflow also runs
-automatically for relevant PRs and on `workflow_dispatch`, and uploads the
-resulting PNGs for review. It does **not** automatically commit images on
-untrusted PRs or perform fragile pixel equality checks. On the trusted
-`docs/74-readthedocs` branch, the first baseline is committed automatically
-by the push workflow; subsequent screenshot refreshes should use a reviewed PR. After regenerating,
-review the images for legibility and privacy, commit the reviewed PNGs, and
-submit them in the same documentation/application PR. The ordinary Sphinx/RTD
-build never installs Chromium.
+The separate `Documentation screenshots` GitHub Actions workflow runs on
+relevant pull requests and on `workflow_dispatch`, and uploads the resulting
+PNGs for human review. It has read-only repository permissions: **CI never
+commits or pushes generated images**, including on trusted branches. It does
+not perform brittle pixel equality checks. To refresh screenshots, run the
+generator, review the resulting images for legibility and privacy, and commit
+the changed PNGs in an ordinary pull request. The Sphinx/Read the Docs build
+never installs Chromium.
 
 The generated PNGs are expected to be committed; if the first capture fails,
 check the CI artifact `failure.png` and update selectors in the deterministic
