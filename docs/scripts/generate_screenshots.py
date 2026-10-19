@@ -16,9 +16,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from playwright.sync_api import Page, expect, sync_playwright
-
 from generate_demo_data import generate
+from playwright.sync_api import Page, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMES = (
