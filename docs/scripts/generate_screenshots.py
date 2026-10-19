@@ -71,7 +71,7 @@ def image(page: Page, path: Path) -> None:
 
 
 def make_plot(page: Page) -> None:
-    page.get_by_role("button", name="Make plot", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"^Make plot")).click()
     expect(page.get_by_text("Download plot code")).to_be_visible(timeout=60000)
 
 
@@ -97,7 +97,7 @@ def run(base_url: str, out: Path, data: Path) -> None:
             image(page, out / "overview.png")
 
             page.get_by_label("Enable fit").check()
-            page.get_by_role("button", name="Make plot", exact=True).click()
+            page.get_by_role("button", name=re.compile(r"^Make plot")).click()
             expect(page.get_by_text("Histogram fit", exact=True).last).to_be_visible(timeout=60000)
             image(page, out / "histogram-fit.png")
 
