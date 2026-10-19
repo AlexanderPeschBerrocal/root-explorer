@@ -25,11 +25,11 @@ If your physics selection changes, regenerate the plot.
 For event-derived **1D histograms**, enable **Normalise to unit area** under
 Histogram analysis. The displayed histogram is a bin-width-corrected density:
 
-$
-d_i = \\frac{\\sum_{j \\in B_i} w_j}{S \\, \\Delta x_i},
-\\qquad
-\\sum_i d_i \\, \\Delta x_i = 1,
-$
+$$
+d_i = \frac{\sum_{j \in B_i} w_j}{S\,\Delta x_i},
+\qquad
+\sum_i d_i\,\Delta x_i = 1.
+$$
 
 where $B_i$ is the set of observations in bin $i$, $\\Delta x_i$ is its
 width and $S$ is the sum of weights in the chosen normalisation domain.
