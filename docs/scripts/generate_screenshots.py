@@ -48,19 +48,22 @@ def matplotlib_rc(theme: str) -> str:
     background = "#0e1117" if theme == "dark" else "#ffffff"
     foreground = "#fafafa" if theme == "dark" else "#242424"
     grid = "#606975" if theme == "dark" else "#d0d4da"
-    return "\n".join(
-        (
-            f"figure.facecolor: {background}",
-            f"axes.facecolor: {background}",
-            f"savefig.facecolor: {background}",
-            f"axes.edgecolor: {foreground}",
-            f"axes.labelcolor: {foreground}",
-            f"text.color: {foreground}",
-            f"xtick.color: {foreground}",
-            f"ytick.color: {foreground}",
-            f"grid.color: {grid}",
+    return (
+        "\n".join(
+            (
+                f"figure.facecolor: {background}",
+                f"axes.facecolor: {background}",
+                f"savefig.facecolor: {background}",
+                f"axes.edgecolor: {foreground}",
+                f"axes.labelcolor: {foreground}",
+                f"text.color: {foreground}",
+                f"xtick.color: {foreground}",
+                f"ytick.color: {foreground}",
+                    f"grid.color: {grid}",
+            )
         )
-    ) + "\n"
+        + "\n"
+    )
 
 
 def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
@@ -276,7 +279,11 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
         finally:
             browser.close()
 
-    missing = [screenshot_name(name, theme) for name in NAMES if not (out / screenshot_name(name, theme)).is_file()]
+    missing = [
+        screenshot_name(name, theme)
+        for name in NAMES
+        if not (out / screenshot_name(name, theme)).is_file()
+    ]
     if missing:
         raise RuntimeError(f"Missing screenshots: {missing}")
 
