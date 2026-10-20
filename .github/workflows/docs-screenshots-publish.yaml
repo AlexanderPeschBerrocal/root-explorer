@@ -90,7 +90,7 @@ jobs:
               assert len(data) > 16000 and data[:8] == b"\x89PNG\r\n\x1a\n", f"Invalid PNG: {name}"
               assert data[12:16] == b"IHDR", f"Missing PNG header: {name}"
               width, height = struct.unpack(">II", data[16:24])
-              assert width >= 1200 and height >= 700, f"Unexpected dimensions: {name}"
+              assert (width, height) == (2880, 1800), f"Unexpected dimensions: {name}"
               print(f"Validated {name}: {width} x {height}")
           PY
       - name: Commit screenshot replacements to review branch

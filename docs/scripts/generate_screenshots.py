@@ -30,6 +30,9 @@ NAMES = (
     "event-inspection.png",
 )
 THEMES = ("dark", "light")
+VIEWPORT_WIDTH = 1440
+VIEWPORT_HEIGHT = 900
+SCREENSHOT_SCALE = 2  # Retina-style captures (2880 x 1800 physical pixels)
 
 
 def screenshot_name(name: str, theme: str) -> str:
@@ -131,8 +134,12 @@ def capture(page: Page, path: Path, focus: Locator) -> None:
     # screenshots of scrolled-away configuration controls, not the output.
     page.screenshot(path=str(path), animations="disabled", full_page=False)
     with Image.open(path) as screenshot:
-        if screenshot.width < 1200 or screenshot.height < 700:
-            raise RuntimeError(f"Screenshot has unexpected size: {path}")
+        expected_size = (VIEWPORT_WIDTH * SCREENSHOT_SCALE, VIEWPORT_HEIGHT * SCREENSHOT_SCALE)
+        if screenshot.size != expected_size:
+            raise RuntimeError(
+                f"Screenshot has unexpected size: {path}, "
+                f"expected {expected_size}, got {screenshot.size}"
+            )
     if path.stat().st_size < 16000:
         raise RuntimeError(f"Suspiciously empty screenshot: {path}")
 
@@ -261,8 +268,8 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
-            viewport={"width": 1440, "height": 900},
-            device_scale_factor=1,
+            viewport={"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT},
+            device_scale_factor=SCREENSHOT_SCALE,
             color_scheme=theme,
             locale="en-GB",
             reduced_motion="reduce",
