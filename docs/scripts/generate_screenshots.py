@@ -59,7 +59,7 @@ def matplotlib_rc(theme: str) -> str:
                 f"text.color: {foreground}",
                 f"xtick.color: {foreground}",
                 f"ytick.color: {foreground}",
-                    f"grid.color: {grid}",
+                f"grid.color: {grid}",
             )
         )
         + "\n"
