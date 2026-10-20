@@ -28,13 +28,13 @@ jobs:
           python -m pip install -e ".[screenshots]"
           python -m playwright install --with-deps chromium
       - name: Generate screenshots from synthetic data
-        run: python docs/scripts/generate_screenshots.py --output-dir docs/source/_static/screenshots
+        run: python docs/scripts/generate_screenshots.py --output-dir docs/_build/screenshots --theme both
       - name: Upload screenshots for human review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: root-explorer-screenshots
           path: |
-            docs/source/_static/screenshots/*.png
+            docs/_build/screenshots/*.png
           if-no-files-found: warn
 

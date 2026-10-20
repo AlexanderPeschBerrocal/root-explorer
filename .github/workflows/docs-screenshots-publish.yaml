@@ -62,7 +62,7 @@ jobs:
           git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$TARGET_BRANCH" || {
             echo "::error::The screenshot run SHA is not part of the selected branch"; exit 1;
           }
-      - name: Download and verify the five screenshots
+      - name: Download and verify both themes of all five screenshots
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
@@ -78,10 +78,8 @@ jobs:
           from pathlib import Path
 
           folder = Path(os.environ["RUNNER_TEMP"]) / "screenshots"
-          expected = {
-              "overview.png", "histogram-fit.png", "plot-2d.png",
-              "object-browser.png", "event-inspection.png",
-          }
+          stems = {"overview", "histogram-fit", "plot-2d", "object-browser", "event-inspection"}
+          expected = {f"{stem}{suffix}.png" for stem in stems for suffix in ("", "-light")}
           found = list(folder.rglob("*"))
           actual = {p.name for p in found if p.is_file()}
           assert actual == expected, f"Unexpected or missing image files: {actual ^ expected}"
@@ -104,10 +102,12 @@ jobs:
           set -euo pipefail
           git switch --detach "refs/remotes/origin/$TARGET_BRANCH"
           for name in overview histogram-fit plot-2d object-browser event-inspection; do
-            source="$(find "$RUNNER_TEMP/screenshots" -name "$name.png" -type f -print -quit)"
-            install -m 644 "$source" "docs/source/_static/screenshots/$name.png"
+            for suffix in "" "-light"; do
+              source="$(find "$RUNNER_TEMP/screenshots" -name "$name$suffix.png" -type f -print -quit)"
+              install -m 644 "$source" "docs/source/_static/screenshots/$name$suffix.png"
+            done
           done
-          git add docs/source/_static/screenshots/{overview,histogram-fit,plot-2d,object-browser,event-inspection}.png
+          git add docs/source/_static/screenshots/*.png
           if git diff --cached --quiet; then
             echo "Screenshots already match the reviewed CI artefact."
             exit 0

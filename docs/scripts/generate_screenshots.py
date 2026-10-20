@@ -29,6 +29,38 @@ NAMES = (
     "object-browser.png",
     "event-inspection.png",
 )
+THEMES = ("dark", "light")
+
+
+def screenshot_name(name: str, theme: str) -> str:
+    """Preserve the reviewed dark filenames; suffix additional light captures."""
+    if theme not in THEMES:
+        raise ValueError(f"Unsupported screenshot theme: {theme}")
+    if name not in NAMES:
+        raise ValueError(f"Unknown screenshot: {name}")
+    return name if theme == "dark" else f"{Path(name).stem}-light.png"
+
+
+def matplotlib_rc(theme: str) -> str:
+    """Give figures the same theme as their Streamlit surroundings."""
+    if theme not in THEMES:
+        raise ValueError(f"Unsupported screenshot theme: {theme}")
+    background = "#0e1117" if theme == "dark" else "#ffffff"
+    foreground = "#fafafa" if theme == "dark" else "#242424"
+    grid = "#606975" if theme == "dark" else "#d0d4da"
+    return "\n".join(
+        (
+            f"figure.facecolor: {background}",
+            f"axes.facecolor: {background}",
+            f"savefig.facecolor: {background}",
+            f"axes.edgecolor: {foreground}",
+            f"axes.labelcolor: {foreground}",
+            f"text.color: {foreground}",
+            f"xtick.color: {foreground}",
+            f"ytick.color: {foreground}",
+            f"grid.color: {grid}",
+        )
+    ) + "\n"
 
 
 def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
@@ -165,14 +197,14 @@ def select_demo(page: Page, data: Path) -> Locator:
     return tab
 
 
-def generate_captures(base_url: str, out: Path, data: Path) -> None:
+def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> None:
     out.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
             viewport={"width": 1440, "height": 900},
             device_scale_factor=1,
-            color_scheme="dark",
+            color_scheme=theme,
             locale="en-GB",
             reduced_motion="reduce",
         )
@@ -185,7 +217,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             choose_combobox(page, plotter, "x: branch", "Muon_pt")
             plot_button(page).click()
             overview = plot_image(plotter)
-            capture(page, out / "overview.png", overview)
+            capture(page, out / screenshot_name("overview.png", theme), overview)
 
             # A Gaussian muon pseudorapidity distribution makes a meaningful fit.
             choose_combobox(page, plotter, "x: branch", "Muon_eta")
@@ -200,7 +232,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             )
             fitted = plot_image(plotter)
             expect(fitted).not_to_have_attribute("src", previous_src, timeout=60000)
-            capture(page, out / "histogram-fit.png", fitted)
+            capture(page, out / screenshot_name("histogram-fit.png", theme), fitted)
 
             # A different plot type must yield a genuinely new plot rather than
             # capturing the previously cached 1D histogram during a rerun.
@@ -211,7 +243,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             plot_button(page).click()
             hist2d = plot_image(plotter)
             expect(hist2d).not_to_have_attribute("src", previous_src, timeout=60000)
-            capture(page, out / "plot-2d.png", hist2d)
+            capture(page, out / screenshot_name("plot-2d.png", theme), hist2d)
 
             page.get_by_role("tab", name="Event inspection").click()
             event_tab = page.get_by_role("tabpanel", name="Event inspection")
@@ -225,7 +257,7 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
             plot_button(page, event=True).click()
             expect(event_tab.get_by_text("Output: event 10")).to_be_visible(timeout=60000)
             event_plot = plot_image(event_tab)
-            capture(page, out / "event-inspection.png", event_plot)
+            capture(page, out / screenshot_name("event-inspection.png", theme), event_plot)
 
             page.get_by_role("tab", name="Branches and objects").click()
             objects = page.get_by_role("tabpanel", name="Branches and objects")
@@ -235,16 +267,16 @@ def generate_captures(base_url: str, out: Path, data: Path) -> None:
                 timeout=60000
             )
             stored_hist = plot_image(objects)
-            capture(page, out / "object-browser.png", stored_hist)
+            capture(page, out / screenshot_name("object-browser.png", theme), stored_hist)
         except Exception:
             # A full-page capture is useful for debugging selectors/timeouts but
             # is never published as one of the documentation illustrations.
-            page.screenshot(path=str(out / "failure.png"), full_page=False)
+            page.screenshot(path=str(out / f"failure-{theme}.png"), full_page=False)
             raise
         finally:
             browser.close()
 
-    missing = [name for name in NAMES if not (out / name).is_file()]
+    missing = [screenshot_name(name, theme) for name in NAMES if not (out / screenshot_name(name, theme)).is_file()]
     if missing:
         raise RuntimeError(f"Missing screenshots: {missing}")
 
@@ -254,58 +286,55 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots")
     parser.add_argument("--base-url", default="http://127.0.0.1:8751")
     parser.add_argument("--port", type=int, default=8751)
+    parser.add_argument(
+        "--theme",
+        choices=(*THEMES, "both"),
+        default="both",
+        help="Capture dark, light, or both themes (default: both)",
+    )
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory(prefix="root-explorer-docs-") as temp:
         data = generate(Path(temp) / "synthetic.root")
-        # Screenshot-only Matplotlib configuration: keep the plot surface dark
-        # without changing ROOT Explorer's defaults for normal users.
-        mplconfig = Path(temp) / "matplotlib"
-        mplconfig.mkdir()
-        (mplconfig / "matplotlibrc").write_text(
-            "figure.facecolor: #0e1117\n"
-            "axes.facecolor: #0e1117\n"
-            "savefig.facecolor: #0e1117\n"
-            "axes.edgecolor: #fafafa\n"
-            "axes.labelcolor: #fafafa\n"
-            "text.color: #fafafa\n"
-            "xtick.color: #fafafa\n"
-            "ytick.color: #fafafa\n"
-            "grid.color: #606975\n"
-        )
-        app = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "streamlit",
-                "run",
-                str(ROOT / "streamlit_app.py"),
-                "--server.headless=true",
-                "--server.address=127.0.0.1",
-                f"--server.port={args.port}",
-                "--browser.gatherUsageStats=false",
-                "--theme.base=dark",
-            ],
-            cwd=ROOT,
-            env={
-                **os.environ,
-                "STREAMLIT_SERVER_RUN_ON_SAVE": "false",
-                "MPLCONFIGDIR": str(mplconfig),
-            },
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        try:
-            wait_for_server(args.base_url, app)
-            generate_captures(args.base_url, args.output_dir, data)
-        finally:
-            app.terminate()
+        themes = THEMES if args.theme == "both" else (args.theme,)
+        for theme in themes:
+            # Each theme gets its own Streamlit process and Matplotlib config,
+            # so no settings can leak between the light and dark captures.
+            mplconfig = Path(temp) / f"matplotlib-{theme}"
+            mplconfig.mkdir()
+            (mplconfig / "matplotlibrc").write_text(matplotlib_rc(theme))
+            app = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "streamlit",
+                    "run",
+                    str(ROOT / "streamlit_app.py"),
+                    "--server.headless=true",
+                    "--server.address=127.0.0.1",
+                    f"--server.port={args.port}",
+                    "--browser.gatherUsageStats=false",
+                    f"--theme.base={theme}",
+                ],
+                cwd=ROOT,
+                env={
+                    **os.environ,
+                    "STREAMLIT_SERVER_RUN_ON_SAVE": "false",
+                    "MPLCONFIGDIR": str(mplconfig),
+                },
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
             try:
-                app.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                app.kill()
-                app.wait()
+                wait_for_server(args.base_url, app)
+                generate_captures(args.base_url, args.output_dir, data, theme=theme)
+            finally:
+                app.terminate()
+                try:
+                    app.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    app.kill()
 
 
 if __name__ == "__main__":
