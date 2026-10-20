@@ -150,36 +150,17 @@ def plot_button(page: Page, *, event: bool = False) -> Locator:
 
 
 def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None:
-    """Select a named Streamlit option rather than relying on default order."""
+    """Select a Streamlit combobox option with one committed UI action.
+
+    Sending several ArrowDown presses is unreliable for React Aria selectboxes:
+    each press can trigger a Streamlit rerun and replace the input before the
+    next press. Selecting an exact menu option avoids those intermediate
+    committed values. Search is needed only if the option is virtualised.
+    """
     widget = section.get_by_role("combobox", name=name, exact=True)
-    current = widget.input_value()
-    if current == value:
+    if widget.input_value() == value:
         return
 
-    # Streamlit's Plot type selectbox does not reliably expose its dropdown
-    # options to Playwright after a rerun, even when its adjacent Open button
-    # is clicked. Its accessible keyboard interface does work; use the stable
-    # source-defined ordering instead of trying to find an absent option.
-    if name == "Plot type":
-        types = ("1D histogram", "2D histogram", "2D scatter", "3D scatter interactive")
-        if current not in types or value not in types:
-            raise ValueError(f"Unexpected plot type transition: {current!r} -> {value!r}")
-        delta = types.index(value) - types.index(current)
-        widget.focus()
-        for _ in range(abs(delta)):
-            widget.press("ArrowDown" if delta > 0 else "ArrowUp")
-        widget.press("Enter")
-        expect(widget).to_have_value(value, timeout=20000)
-        return
-
-    # Prefer selecting the *actual* menu option without typing into the
-    # searchable combobox. Filling it first can cause a separate autocomplete
-    # rerender to race with the option-click update: the UI briefly displays
-    # the requested branch but the next Streamlit rerun restores its default
-    # (for example, the jagged counter branch nMuon_eta rather than Muon_pt).
-    # The synthetic screenshot fixture has few options, so the target is
-    # normally available without filtering. Retain filtering only as a
-    # fallback for virtualised menus with many branches.
     for attempt in range(3):
         widget = section.get_by_role("combobox", name=name, exact=True)
         if widget.input_value() == value:
@@ -187,22 +168,34 @@ def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None
         widget.click()
         option = page.get_by_role("option", name=value, exact=True)
         try:
-            expect(option).to_be_visible(timeout=2000)
+            expect(option).to_be_visible(timeout=2500)
         except AssertionError:
+            # React Aria's searchable selectbox may virtualise long lists or
+            # lose its open popover during a previous Streamlit rerun.
             widget = section.get_by_role("combobox", name=name, exact=True)
             widget.fill(value)
             try:
                 expect(option).to_be_visible(timeout=5000)
             except AssertionError:
                 if attempt == 2:
-                    raise
-                # A pending rerun may have closed the dropdown entirely.
+                    raise RuntimeError(
+                        f"Cannot find option {value!r} in selectbox {name!r}"
+                    ) from None
                 continue
         option.click()
-        expect(
-            section.get_by_role("combobox", name=name, exact=True)
-        ).to_have_value(value, timeout=20000)
+        widget = section.get_by_role("combobox", name=name, exact=True)
+        try:
+            expect(widget).to_have_value(value, timeout=8000)
+        except AssertionError:
+            if attempt == 2:
+                raise RuntimeError(
+                    f"Selectbox {name!r} did not retain {value!r}; "
+                    f"actual value is {widget.input_value()!r}"
+                ) from None
+            continue
         return
+
+    raise RuntimeError(f"Failed to select {value!r} for {name!r}")
 
 
 def verified_event_plot(page: Page, section: Locator) -> Locator:
