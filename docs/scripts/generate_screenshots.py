@@ -172,27 +172,36 @@ def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None
         expect(widget).to_have_value(value, timeout=20000)
         return
 
-    # A Streamlit rerun from the preceding selector can close a freshly
-    # opened popup. Filter the searchable selectbox to the desired branch and
-    # retry opening it if the rerun ate the first interaction. Clicking an
-    # unfiltered option is also fragile when options are virtualised.
+    # Prefer selecting the *actual* menu option without typing into the
+    # searchable combobox. Filling it first can cause a separate autocomplete
+    # rerender to race with the option-click update: the UI briefly displays
+    # the requested branch but the next Streamlit rerun restores its default
+    # (for example, the jagged counter branch nMuon_eta rather than Muon_pt).
+    # The synthetic screenshot fixture has few options, so the target is
+    # normally available without filtering. Retain filtering only as a
+    # fallback for virtualised menus with many branches.
     for attempt in range(3):
         widget = section.get_by_role("combobox", name=name, exact=True)
         if widget.input_value() == value:
             return
         widget.click()
-        widget.fill(value)
         option = page.get_by_role("option", name=value, exact=True)
         try:
-            expect(option).to_be_visible(timeout=5000)
+            expect(option).to_be_visible(timeout=2000)
         except AssertionError:
-            if attempt == 2:
-                raise
-            # The attempted popup may have disappeared during a rerun.
-            # Re-resolve the combobox on the next iteration.
-            continue
+            widget = section.get_by_role("combobox", name=name, exact=True)
+            widget.fill(value)
+            try:
+                expect(option).to_be_visible(timeout=5000)
+            except AssertionError:
+                if attempt == 2:
+                    raise
+                # A pending rerun may have closed the dropdown entirely.
+                continue
         option.click()
-        expect(widget).to_have_value(value, timeout=20000)
+        expect(
+            section.get_by_role("combobox", name=name, exact=True)
+        ).to_have_value(value, timeout=20000)
         return
 
 
