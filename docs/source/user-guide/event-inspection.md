@@ -4,7 +4,15 @@ Event inspection is distinct from the Plotter's aggregation across an
 entry range. The **Event inspection** tab shows the selected event and its
 objects, allowing you to investigate individual outliers and event topology.
 
-![ROOT Explorer event inspection with synthetic data](../_static/screenshots/event-inspection.png)
+```{image} ../_static/screenshots/event-inspection-light.png
+:alt: ROOT Explorer event inspection with synthetic data
+:class: only-light
+```
+
+```{image} ../_static/screenshots/event-inspection.png
+:alt: ROOT Explorer event inspection with synthetic data
+:class: only-dark
+```
 
 ## Select an event
 

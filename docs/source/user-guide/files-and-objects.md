@@ -5,7 +5,15 @@ A ROOT file may contain multiple kinds of objects. ROOT Explorer exposes two rel
 - **Event-data exploration:** Select a TTree or RNTuple containing entries/events, choose a read range and plot branches (fields) from those entries.
 - **Persisted-object inspection:** Browse a ROOT file's existing stored histograms, graphs and profiles. These objects are not created afresh from event branches by ROOT Explorer.
 
-![ROOT Explorer file-object and branch browser with synthetic data](../_static/screenshots/object-browser.png)
+```{image} ../_static/screenshots/object-browser-light.png
+:alt: ROOT Explorer file-object and branch browser with synthetic data
+:class: only-light
+```
+
+```{image} ../_static/screenshots/object-browser.png
+:alt: ROOT Explorer file-object and branch browser with synthetic data
+:class: only-dark
+```
 
 ## Choose a TTree or RNTuple
 

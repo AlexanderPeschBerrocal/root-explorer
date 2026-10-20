@@ -12,9 +12,15 @@ create histograms and scatter plots, and inspect individual events.
 ROOT Explorer is designed for exploration and plot prototyping. Preserve
 final scientific selections and publication plots in reproducible scripts.
 
+.. image:: _static/screenshots/overview-light.png
+   :alt: ROOT Explorer Plotter showing a histogram of synthetic data
+   :width: 100%
+   :class: only-light
+
 .. image:: _static/screenshots/overview.png
    :alt: ROOT Explorer Plotter showing a histogram of synthetic data
    :width: 100%
+   :class: only-dark
 
 This screenshot is generated automatically from entirely synthetic ROOT data.
 

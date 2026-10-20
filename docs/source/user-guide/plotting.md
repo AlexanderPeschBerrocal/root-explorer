@@ -2,7 +2,15 @@
 
 After opening a ROOT file and selecting a TTree or RNTuple, use the **Plotter** tab to build a plot from one or more branches. For a first example, follow [Your first plot](../getting-started.md).
 
-![2D histogram in the ROOT Explorer Plotter, generated from synthetic ROOT data](../_static/screenshots/plot-2d.png)
+```{image} ../_static/screenshots/plot-2d-light.png
+:alt: 2D histogram in the ROOT Explorer Plotter, generated from synthetic ROOT data
+:class: only-light
+```
+
+```{image} ../_static/screenshots/plot-2d.png
+:alt: 2D histogram in the ROOT Explorer Plotter, generated from synthetic ROOT data
+:class: only-dark
+```
 
 ## Main plot types
 
