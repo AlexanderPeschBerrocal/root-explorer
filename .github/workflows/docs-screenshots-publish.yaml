@@ -1,0 +1,184 @@
+name: Publish reviewed documentation screenshots
+
+# Available from the Actions UI once this workflow exists on the default branch.
+# Deliberately separate from the read-only screenshot generation workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful Documentation screenshots run ID to publish"
+        required: true
+        type: string
+      target_branch:
+        description: "Existing review branch receiving the images (not main)"
+        required: true
+        default: "docs/74-readthedocs"
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: docs-screenshot-publish-${{ inputs.target_branch }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify screenshot run and target branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Run ID must be numeric"; exit 1; }
+          git check-ref-format --branch "$TARGET_BRANCH"
+          case "$TARGET_BRANCH" in main|master) echo "::error::Publish to a review branch, not the default branch"; exit 1;; esac
+          git fetch origin "refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/source-run.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "source-run.json").read_text())
+          assert data["name"] == "Documentation screenshots", "Source is not screenshot CI"
+          assert data["status"] == "completed" and data["conclusion"] == "success", "Source run was not successful"
+          assert data["repository"]["full_name"] == os.environ["GITHUB_REPOSITORY"], "Run belongs to another repository"
+          assert data["head_branch"] == os.environ["TARGET_BRANCH"], "Run came from a different branch"
+          assert data["event"] in {"pull_request", "workflow_dispatch"}, "Unexpected source event"
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"SOURCE_SHA={data['head_sha']}\n")
+          PY
+          git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$TARGET_BRANCH" || {
+            echo "::error::The screenshot run SHA is not part of the selected branch"; exit 1;
+          }
+      - name: Download and verify both themes of all five screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/screenshots"
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name root-explorer-screenshots --dir "$RUNNER_TEMP/screenshots"
+          python - <<'PY'
+          import os
+          import struct
+          from pathlib import Path
+
+          folder = Path(os.environ["RUNNER_TEMP"]) / "screenshots"
+          stems = {"overview", "histogram-fit", "plot-2d", "object-browser", "event-inspection"}
+          expected = {f"{stem}{suffix}.png" for stem in stems for suffix in ("", "-light")}
+          found = list(folder.rglob("*"))
+          actual = {p.name for p in found if p.is_file()}
+          assert actual == expected, f"Unexpected or missing image files: {actual ^ expected}"
+          for name in expected:
+              matches = list(folder.rglob(name))
+              assert len(matches) == 1, f"Expected one {name}"
+              data = matches[0].read_bytes()
+              assert len(data) > 16000 and data[:8] == b"\x89PNG\r\n\x1a\n", f"Invalid PNG: {name}"
+              assert data[12:16] == b"IHDR", f"Missing PNG header: {name}"
+              width, height = struct.unpack(">II", data[16:24])
+              assert (width, height) == (2880, 1800), f"Unexpected dimensions: {name}"
+              print(f"Validated {name}: {width} x {height}")
+          PY
+      - name: Commit screenshot replacements to review branch
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch --detach "refs/remotes/origin/$TARGET_BRANCH"
+          for name in overview histogram-fit plot-2d object-browser event-inspection; do
+            for suffix in "" "-light"; do
+              source="$(find "$RUNNER_TEMP/screenshots" -name "$name$suffix.png" -type f -print -quit)"
+              install -m 644 "$source" "docs/source/_static/screenshots/$name$suffix.png"
+            done
+          done
+          # Introduce the theme-specific references only once both reviewed
+          # image sets exist. Until then, the docs keep building with dark PNGs.
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path("docs/source")
+          index = root / "index.rst"
+          text = index.read_text()
+          original = (
+              ".. image:: _static/screenshots/overview.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%"
+          )
+          themed = (
+              ".. image:: _static/screenshots/overview-light.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%\n"
+              "   :class: only-light\n\n"
+              ".. image:: _static/screenshots/overview.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%\n"
+              "   :class: only-dark"
+          )
+          if original in text and themed not in text:
+              text = text.replace(original, themed, 1)
+              index.write_text(text)
+          else:
+              assert themed in text, "Unexpected index screenshot markup"
+
+          paths = {
+              "user-guide/plotting.md": "plot-2d",
+              "user-guide/histograms-and-fits.md": "histogram-fit",
+              "user-guide/event-inspection.md": "event-inspection",
+              "user-guide/files-and-objects.md": "object-browser",
+          }
+          for relative, stem in paths.items():
+              file = root / relative
+              text = file.read_text()
+              pattern = re.compile(
+                  rf"!\[([^\]]+)\]\(([^\n)]*/{re.escape(stem)}\.png)\)"
+              )
+              matches = list(pattern.finditer(text))
+              if matches:
+                  assert len(matches) == 1, f"Unexpected screenshot occurrences: {file}"
+                  match = matches[0]
+                  alt, image = match.groups()
+                  light = image.removesuffix(".png") + "-light.png"
+                  replacement = (
+                      f"```{{image}} {light}\n"
+                      f":alt: {alt}\n"
+                      ":class: only-light\n"
+                      "```\n\n"
+                      f"```{{image}} {image}\n"
+                      f":alt: {alt}\n"
+                      ":class: only-dark\n"
+                      "```"
+                  )
+                  text = text[:match.start()] + replacement + text[match.end():]
+                  file.write_text(text)
+              else:
+                  assert ":class: only-light" in text and f"{stem}-light.png" in text, (
+                      f"Unexpected screenshot markup: {file}"
+                  )
+          PY
+          git add docs/source/index.rst docs/source/user-guide/*.md
+          git add docs/source/_static/screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "Screenshots already match the reviewed CI artefact."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs: publish reviewed screenshots from run $RUN_ID (#74)"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"

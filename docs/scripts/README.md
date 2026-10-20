@@ -1,0 +1,68 @@
+# Regenerating documentation screenshots
+
+Screenshots are actual Chromium captures of the locally running Streamlit app
+using deterministic, completely synthetic NanoAOD-like test data; no external
+ROOT data, CMS collaboration files, PyROOT, or production server are required.
+
+Use Python 3.12 and run from the repository root:
+
+```bash
+python -m pip install -e ".[screenshots]"
+python -m playwright install chromium
+python docs/scripts/generate_screenshots.py
+```
+
+The command launches and stops its own Streamlit instance on port 8751 and
+generates **ten PNGs**, five each in light and dark mode, in
+`docs/source/_static/screenshots/`. Dark images retain their existing names
+(e.g. `overview.png`); light images use `-light.png` (e.g.
+`overview-light.png`). Both themes use a 1440 × 900 CSS-pixel viewport
+captured at 2× device scale (2880 × 1800 PNG pixels) for sharp documentation
+images. This increases pixel density, not nominal PNG DPI metadata.
+
+The app must not already be listening on this port. To use a different free
+port, pass both `--port` and `--base-url` (e.g.
+`--port 8752 --base-url http://127.0.0.1:8752`).
+Run `python docs/scripts/generate_screenshots.py --theme light` to regenerate
+only the light screenshots (or `--theme dark` for dark only).
+
+The separate `Documentation screenshots` GitHub Actions workflow runs on
+relevant pull requests and on `workflow_dispatch`, and uploads the resulting
+PNGs for human review. It has read-only repository permissions: **CI never
+commits or pushes generated images**, including on trusted branches. It does
+not perform brittle pixel equality checks. To refresh screenshots, run the
+generator, review the resulting images for legibility and privacy, and commit
+the changed PNGs in an ordinary pull request. The Sphinx/Read the Docs build
+never installs Chromium.
+
+To publish a successful screenshot run **without downloading the ZIP locally**,
+use the separate **Publish reviewed documentation screenshots** workflow in
+GitHub Actions: choose *Run workflow*, enter the numeric run ID from the
+successful **Documentation screenshots** job, and select the review branch
+(currently `docs/74-readthedocs`). The workflow verifies the run's origin,
+success status, matching branch and ten images, then commits both sets of
+PNGs *and* updates the Sphinx/MyST image references to use Furo's `only-light`
+and `only-dark` classes atomically on the review branch. It never publishes
+directly to `main`; the images enter `main` through normal PR review and merge.
+
+**Important:** GitHub only exposes the manual Run workflow button after the
+publication workflow file exists on the repository's default branch. Until
+this PR is merged, manually download the reviewed screenshots from a
+successful CI run or generate them locally and commit the PNG files.
+For example, from the repository root on the PR branch, run:
+
+```bash
+gh run download <successful-run-id> --repo AlexanderPeschBerrocal/root-explorer --name root-explorer-screenshots --dir docs/source/_static/screenshots
+```
+
+Then review all ten screenshots and commit them. The documentation image
+references must also be updated to display theme-specific variants; the
+publisher workflow handles that automatically, but local publication requires
+equivalent changes to `index.rst` and the four affected MyST guides.
+
+Only publish after visually reviewing the screenshots. If the source run
+predates a change to the capture script or UI, regenerate first.
+
+Generated PNGs are expected to be committed; if capture fails, check the CI
+artifact `failure-dark.png` or `failure-light.png` and update selectors
+in the deterministic browser scenario.
