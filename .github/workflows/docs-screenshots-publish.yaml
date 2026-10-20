@@ -107,6 +107,72 @@ jobs:
               install -m 644 "$source" "docs/source/_static/screenshots/$name$suffix.png"
             done
           done
+          # Introduce the theme-specific references only once both reviewed
+          # image sets exist. Until then, the docs keep building with dark PNGs.
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path("docs/source")
+          index = root / "index.rst"
+          text = index.read_text()
+          original = (
+              ".. image:: _static/screenshots/overview.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%"
+          )
+          themed = (
+              ".. image:: _static/screenshots/overview-light.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%\n"
+              "   :class: only-light\n\n"
+              ".. image:: _static/screenshots/overview.png\n"
+              "   :alt: ROOT Explorer Plotter showing a histogram of synthetic data\n"
+              "   :width: 100%\n"
+              "   :class: only-dark"
+          )
+          if original in text and themed not in text:
+              text = text.replace(original, themed, 1)
+              index.write_text(text)
+          else:
+              assert themed in text, "Unexpected index screenshot markup"
+
+          paths = {
+              "user-guide/plotting.md": "plot-2d",
+              "user-guide/histograms-and-fits.md": "histogram-fit",
+              "user-guide/event-inspection.md": "event-inspection",
+              "user-guide/files-and-objects.md": "object-browser",
+          }
+          for relative, stem in paths.items():
+              file = root / relative
+              text = file.read_text()
+              pattern = re.compile(
+                  rf"!\[([^\]]+)\]\(([^\n)]*/{re.escape(stem)}\.png)\)"
+              )
+              matches = list(pattern.finditer(text))
+              if matches:
+                  assert len(matches) == 1, f"Unexpected screenshot occurrences: {file}"
+                  match = matches[0]
+                  alt, image = match.groups()
+                  light = image.removesuffix(".png") + "-light.png"
+                  replacement = (
+                      f"```{{image}} {light}\n"
+                      f":alt: {alt}\n"
+                      ":class: only-light\n"
+                      "```\n\n"
+                      f"```{{image}} {image}\n"
+                      f":alt: {alt}\n"
+                      ":class: only-dark\n"
+                      "```"
+                  )
+                  text = text[:match.start()] + replacement + text[match.end():]
+                  file.write_text(text)
+              else:
+                  assert ":class: only-light" in text and f"{stem}-light.png" in text, (
+                      f"Unexpected screenshot markup: {file}"
+                  )
+          PY
+          git add docs/source/index.rst docs/source/user-guide/*.md
           git add docs/source/_static/screenshots/*.png
           if git diff --cached --quiet; then
             echo "Screenshots already match the reviewed CI artefact."
