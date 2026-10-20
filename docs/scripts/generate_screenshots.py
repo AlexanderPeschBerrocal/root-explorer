@@ -189,6 +189,62 @@ def choose_combobox(page: Page, section: Locator, name: str, value: str) -> None
         return
 
 
+def verified_event_plot(page: Page, section: Locator) -> Locator:
+    """Recover if a pending Streamlit rerun resets an event-axis selector.
+
+    Immediately after choosing a branch, the client-side combobox can show
+    the requested value while a previously queued rerun is still updating
+    Streamlit's widget state. That rerun may restore an older choice before
+    the Make event plot request is processed. Verify the values *after* the
+    plot request, and never publish a plot with unexpected axes.
+    """
+    axes = {"event_x: branch": "Muon_eta", "event_y: branch": "Muon_pt"}
+    image = section.locator('[data-testid="stImage"] img').first
+
+    for attempt in range(3):
+        for name, value in axes.items():
+            choose_combobox(page, section, name, value)
+
+        # The immediate check helps diagnose a missed popup interaction, but
+        # does not by itself guarantee a pending Streamlit rerun has finished.
+        for name, value in axes.items():
+            expect(section.get_by_role("combobox", name=name, exact=True)).to_have_value(value)
+        previous_src = image.get_attribute("src") if image.count() else None
+        plot_button(page, event=True).click()
+        expect(section.get_by_text("Output: event 10")).to_be_visible(timeout=30000)
+
+        try:
+            expect(image).to_be_visible(timeout=15000)
+            if previous_src is not None:
+                expect(image).not_to_have_attribute("src", previous_src, timeout=15000)
+        except AssertionError:
+            current = {
+                name: section.get_by_role("combobox", name=name, exact=True).input_value()
+                for name in axes
+            }
+            if current == axes:
+                errors = section.get_by_role("alert").all_text_contents()
+                raise RuntimeError(
+                    f"Event plot failed with the expected axes {axes}: {errors}"
+                ) from None
+        else:
+            current = {
+                name: section.get_by_role("combobox", name=name, exact=True).input_value()
+                for name in axes
+            }
+            if current == axes:
+                expect(section.get_by_role("alert")).to_have_count(0)
+                return image
+
+        print(
+            f"Event-axis selectors reverted during rerun (attempt {attempt + 1}/3): "
+            f"expected {axes}, got {current}; reselecting.",
+            file=sys.stderr,
+        )
+
+    raise RuntimeError(f"Event-axis selectors repeatedly reverted: expected {axes}")
+
+
 def select_demo(page: Page, data: Path) -> Locator:
     expect(page.get_by_text("ROOT Explorer", exact=True).first).to_be_visible(timeout=30000)
     page.get_by_label("ROOT file path").fill(str(data))
@@ -255,11 +311,7 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
             entry.press("Tab")
             expect(entry).to_have_value("10")
             choose_combobox(page, event_tab, "Plot type", "2D scatter")
-            choose_combobox(page, event_tab, "event_x: branch", "Muon_eta")
-            choose_combobox(page, event_tab, "event_y: branch", "Muon_pt")
-            plot_button(page, event=True).click()
-            expect(event_tab.get_by_text("Output: event 10")).to_be_visible(timeout=60000)
-            event_plot = plot_image(event_tab)
+            event_plot = verified_event_plot(page, event_tab)
             capture(page, out / screenshot_name("event-inspection.png", theme), event_plot)
 
             page.get_by_role("tab", name="Branches and objects").click()
