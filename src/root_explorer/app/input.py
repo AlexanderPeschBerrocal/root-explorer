@@ -116,5 +116,5 @@ def invalidate_data_results(context: DataContext) -> None:
         discard_plot_result(key)
     for key in ["rank_df", "rank_label"]:
         st.session_state.pop(key, None)
-    st.session_state["event_index"] = 0
+    st.session_state["event_index"] = context.entry_start
     st.session_state["data_context"] = context.cache_key

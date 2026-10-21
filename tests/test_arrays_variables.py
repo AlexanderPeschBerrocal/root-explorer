@@ -33,6 +33,16 @@ def test_jagged_array_helpers_and_finite_filter() -> None:
     assert [array.tolist() for array in filtered] == [[1.0], [4.0]]
 
 
+@pytest.mark.parametrize("values", [np.array([1.0, 2.0, 3.0]), ak.Array([1.0, 2.0, 3.0])])
+def test_nth_per_event_treats_scalar_values_as_single_item_collections(values) -> None:
+    np.testing.assert_allclose(nth_per_event(values, 0), [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(
+        nth_per_event(values, 1),
+        [np.nan, np.nan, np.nan],
+        equal_nan=True,
+    )
+
+
 def test_alignment_reports_shape_and_jagged_boundary_errors() -> None:
     with pytest.raises(ArrayShapeMismatchError, match="No values were truncated"):
         align_arrays([np.array([1.0, 2.0]), np.array([3.0])], names=["x", "y"])
@@ -89,6 +99,51 @@ def test_variable_evaluation_and_weight_broadcasting(request, fixture_name: str)
     )
     assert met_label == "MET_pt"
     assert len(met_values) == len(pt)
+
+    scalar_nth_zero, scalar_nth_zero_label = evaluate_variable(
+        VariableSpec(mode="nth", branch="MET_pt", index=0),
+        str(root_path),
+        "Events",
+        0,
+        12,
+    )
+    scalar_nth_missing, _ = evaluate_variable(
+        VariableSpec(mode="nth", branch="MET_pt", index=7),
+        str(root_path),
+        "Events",
+        0,
+        12,
+    )
+    raw_met = np.asarray(read_field(str(root_path), "Events", "MET_pt", 0, 12), dtype=float)
+    assert scalar_nth_zero_label == "MET_pt[0]"
+    np.testing.assert_allclose(scalar_nth_zero, raw_met)
+    assert np.isnan(scalar_nth_missing).all()
+
+
+@pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
+def test_event_nth_variable_uses_scalar_only_at_index_zero(request, fixture_name: str) -> None:
+    root_path = request.getfixturevalue(fixture_name)
+    raw_met = np.asarray(read_field(str(root_path), "Events", "MET_pt", 0, 1), dtype=float)
+
+    scalar_nth_zero, _ = evaluate_variable(
+        VariableSpec(mode="nth", branch="MET_pt", index=0),
+        str(root_path),
+        "Events",
+        0,
+        12,
+        event_index=0,
+    )
+    scalar_nth_missing, _ = evaluate_variable(
+        VariableSpec(mode="nth", branch="MET_pt", index=7),
+        str(root_path),
+        "Events",
+        0,
+        12,
+        event_index=0,
+    )
+
+    np.testing.assert_allclose(scalar_nth_zero, raw_met)
+    assert np.isnan(scalar_nth_missing).all()
 
 
 @pytest.mark.parametrize(

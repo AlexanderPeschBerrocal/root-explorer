@@ -16,6 +16,7 @@ For event-level observables derived from a collection, use the appropriate varia
 
 - **Multiplicity per event:** the number of objects in the event.
 - **nth object per event:** a specified position in each event's collection, when available.
+  For an event-level scalar, index 0 returns that scalar and later indices are missing.
 - **Sum / Mean / Max / Min per event:** reduce selected object values to an event-level quantity.
 
 These operations carry different missing/empty-collection semantics; check the app's explanatory labels and resulting statistics rather than silently treating them as interchangeable.

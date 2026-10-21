@@ -32,7 +32,7 @@ from root_explorer.app.results import (
 )
 from root_explorer.app.state import DataContext
 from root_explorer.models import FieldInfo
-from root_explorer.plotting.plots import ColorClippingResult
+from root_explorer.plotting.plots import ColorClippingResult, matplotlib_cmap_name
 
 
 class _Upload:
@@ -85,7 +85,9 @@ def test_plotly_results_are_not_closed(monkeypatch) -> None:
 
 
 def test_control_predicates_and_static_formats() -> None:
-    assert COLOR_SCALES[-2:] == ["Greys", "coolwarm"]
+    assert COLOR_SCALES[-2:] == ["Greys", "Coolwarm"]
+    # Every displayed name must resolve to a real Matplotlib colour map.
+    assert all(matplotlib_cmap_name(name) in plt.colormaps() for name in COLOR_SCALES)
     assert needs_y_variable("2D scatter")
     assert not needs_y_variable("1D histogram")
     assert needs_z_variable("3D scatter interactive")

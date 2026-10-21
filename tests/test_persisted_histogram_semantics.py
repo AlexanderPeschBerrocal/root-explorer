@@ -5,10 +5,12 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import types
 
 import hist
 import numpy as np
 import uproot
+from matplotlib.colors import to_rgba
 from uproot.writing.identify import to_TAxis, to_TProfile, to_TProfile2D
 
 from root_explorer.io.histograms import read_histogram
@@ -219,6 +221,10 @@ def test_sparse_profile1d_distinguishes_empty_bins_from_measured_zero(tmp_path):
             # Path. No vertex may remain in the empty first bin (x < 1).
             assert len(vertices) > 0
             assert np.min(vertices[:, 0]) >= 1.0
+            if mode == "Step + error bars":
+                step_color = to_rgba(fig.axes[0].patches[0].get_edgecolor())
+                marker_color = to_rgba(fig.axes[0].lines[0].get_color())
+                assert step_color == marker_color == to_rgba("tab:blue")
         finally:
             plt.close(fig)
     np.testing.assert_array_equal(data.histogram.values(), [0.0, 0.0, 3.0])
@@ -283,3 +289,49 @@ def test_sparse_profile2d_masks_empty_cells_but_not_measured_zero(tmp_path):
             plt.close(fig)
 
     np.testing.assert_array_equal(data.histogram.values(), [[0.0, 0.0], [0.0, 3.0]])
+
+
+def test_persisted_2d_histogram_colour_settings_and_export(tmp_path) -> None:
+    import matplotlib.pyplot as plt
+
+    path = tmp_path / "colour.root"
+    with uproot.recreate(path) as root_file:
+        root_file["h2"] = np.histogram2d([0.1, 0.1, 0.6, 0.9], [0.1, 0.6, 0.6, 0.9], bins=2)
+    style = {
+        "fig_width": 6,
+        "fig_height": 4,
+        "colorscale": "Cividis",
+        "reverse_colorscale": True,
+        "color_min_text": "1.5",
+        "color_max_text": "",
+    }
+    labels = {"custom_z": "stored entries"}
+    figure = render_histogram_data(read_histogram(str(path), "h2"), style, labels)
+    try:
+        mesh = figure.axes[0].collections[0]
+        assert mesh.cmap.name == "cividis_r"
+        assert mesh.norm.vmin == 1.5
+        assert mesh.colorbar.extend == "min"
+        assert figure.axes[1].get_ylabel() == "stored entries"
+    finally:
+        plt.close(figure)
+
+    source = generate_histogram_plot_code(HistogramPlotSpec(str(path), "h2", style, labels))
+    assert "from root_explorer" not in source
+    # Register the generated code as a real module so its dataclasses resolve.
+    module = types.ModuleType("exported_histogram")
+    sys.modules[module.__name__] = module
+    try:
+        exec(compile(source, "exported_histogram.py", "exec"), module.__dict__)
+        plot = module.PLOT
+        exported = module.render_histogram_data(
+            module.read_histogram(plot.root_path, plot.object_path), plot.style, plot.labels
+        )
+    finally:
+        sys.modules.pop(module.__name__, None)
+    try:
+        assert exported.axes[0].collections[0].cmap.name == "cividis_r"
+        assert exported.axes[0].collections[0].norm.vmin == 1.5
+        assert exported.axes[1].get_ylabel() == "stored entries"
+    finally:
+        plt.close(exported)

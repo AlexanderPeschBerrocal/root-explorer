@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import colormaps
-from matplotlib.colors import LogNorm, to_hex
+from matplotlib.colors import LogNorm, Normalize, to_hex
 from scipy.stats import gaussian_kde
 
 from ..analysis.arrays import align_arrays
@@ -429,7 +429,7 @@ def apply_range_cut(
 
 
 def _scatter_color_limits(style: dict[str, Any]) -> tuple[float | None, float | None]:
-    """Parse and validate explicit 2D-scatter colour limits."""
+    """Parse and validate explicit scatter colour limits."""
 
     cmin_text = style.get("color_min_text", "")
     cmax_text = style.get("color_max_text", "")
@@ -478,7 +478,7 @@ def calculate_color_clipping(
 
 
 def scatter_color_scale_linear(style: dict[str, Any]) -> tuple[float | None, float | None]:
-    """Resolve explicit limits for a linear 2D-scatter colour scale."""
+    """Resolve explicit limits for a linear scatter colour scale."""
 
     return _scatter_color_limits(style)
 
@@ -607,26 +607,41 @@ def describe_array(name: str, arr: np.ndarray) -> dict[str, Any]:
     }
 
 
-def draw_hist2d_linear(ax: Any, histogram: hist.Hist):
-    """Draw visible contents of a prepared 2D histogram with a linear colour scale."""
-    values = np.asarray(histogram.values(), dtype=float)
-    return ax.pcolormesh(histogram.axes[0].edges, histogram.axes[1].edges, values.T, shading="auto")
+def histogram_2d_color_scale(
+    values: np.ndarray, style: dict[str, Any], *, log_scale: bool
+) -> tuple[Normalize, str]:
+    """Resolve the colour normalisation and colour-bar extension for 2D bins.
 
+    ``values`` are the displayed bin contents. Explicit colour limits replace
+    the automatic minimum/maximum; bins outside them are clipped, not hidden.
+    """
 
-def draw_hist2d_log(ax: Any, histogram: hist.Hist):
-    """Draw visible contents with the existing logarithmic-colour fallback."""
-    values = np.asarray(histogram.values(), dtype=float)
-    positive = values[np.isfinite(values) & (values > 0)]
-    norm = None
-    if len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
-        norm = LogNorm(vmin=float(np.nanmin(positive)), vmax=float(np.nanmax(positive)))
-    return ax.pcolormesh(
-        histogram.axes[0].edges,
-        histogram.axes[1].edges,
-        values.T,
-        shading="auto",
-        norm=norm,
-    )
+    cmin, cmax = _scatter_color_limits(style)
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if log_scale:
+        finite = finite[finite > 0]
+        if finite.size == 0:
+            raise InvalidColorScaleError("Log colour scale requires positive bin contents.")
+        if (cmin is not None and cmin <= 0) or (cmax is not None and cmax <= 0):
+            raise InvalidColorScaleError(
+                "Log colour scale requires positive color min and color max."
+            )
+    lo = cmin if cmin is not None else (float(np.min(finite)) if finite.size else None)
+    hi = cmax if cmax is not None else (float(np.max(finite)) if finite.size else None)
+    if lo is not None and hi is not None:
+        if lo > hi:
+            raise InvalidColorScaleError(
+                f"color min must be smaller than color max (automatic range: "
+                f"{np.min(finite):g} to {np.max(finite):g})."
+            )
+        if lo == hi:
+            hi = float(np.nextafter(hi, np.inf))
+    below = cmin is not None and bool(np.any(finite < cmin))
+    above = cmax is not None and bool(np.any(finite > cmax))
+    extend = "both" if below and above else "min" if below else "max" if above else "neither"
+    norm = LogNorm(vmin=lo, vmax=hi) if log_scale else Normalize(vmin=lo, vmax=hi)
+    return norm, extend
 
 
 def draw_highest_density_contours(
@@ -878,7 +893,7 @@ def draw_histogram_1d(
                 height,
                 width=bar_width,
                 align="edge",
-                color="tab:orange",
+                color="tab:purple",
                 hatch="//",
                 edgecolor="black",
                 linewidth=1,
@@ -896,7 +911,7 @@ def draw_histogram_1d(
     if reference_x is not None:
         ax.axvline(
             reference_x,
-            color="tab:red",
+            color="tab:green",
             linestyle="--",
             linewidth=1.5,
             label=reference_label or f"x = {reference_x:g}",
@@ -949,14 +964,40 @@ def draw_histogram_2d(
     *,
     log_scale: bool,
     colorbar_label: str,
-) -> None:
-    """Render a prepared 2D histogram, without reconstructing its binning."""
+    style: dict[str, Any] | None = None,
+    hidden_bins: np.ndarray | None = None,
+):
+    """Render a prepared 2D histogram, without reconstructing its binning.
+
+    ``style`` supplies the colour map and optional colour limits. Bins marked in
+    ``hidden_bins`` (for example unoccupied profile cells) are left blank and do
+    not influence the automatic colour range.
+    """
     if len(histogram.axes) != 2:
         raise ValueError("2D histogram rendering requires exactly two axes.")
-    mesh = draw_hist2d_log(ax, histogram) if log_scale else draw_hist2d_linear(ax, histogram)
+    style = style or {}
+    values = np.asarray(histogram.values(), dtype=float)
+    hidden = ~np.isfinite(values)
+    if hidden_bins is not None:
+        hidden |= np.asarray(hidden_bins, dtype=bool)
+    if log_scale:
+        hidden |= values <= 0
+    norm, extend = histogram_2d_color_scale(values[~hidden], style, log_scale=log_scale)
+    # pcolormesh expects y-major bin order.
+    mesh = ax.pcolormesh(
+        histogram.axes[0].edges,
+        histogram.axes[1].edges,
+        np.ma.array(values, mask=hidden).T,
+        shading="auto",
+        cmap=matplotlib_cmap_name(
+            style.get("colorscale", "Viridis"), style.get("reverse_colorscale", False)
+        ),
+        norm=norm,
+    )
     ax.set_xlabel(histogram.axes[0].label)
     ax.set_ylabel(histogram.axes[1].label)
-    fig.colorbar(mesh, ax=ax, label=colorbar_label)
+    fig.colorbar(mesh, ax=ax, label=colorbar_label, extend=extend)
+    return mesh
 
 
 def draw_scatter_2d(
@@ -1054,6 +1095,9 @@ def draw_kde_1d_overlay(
             style.get("kde_bandwidth", "scott"), style.get("kde_custom_factor", 1.0)
         )
         draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth, density=density)
+        # KDE is drawn after reference and fit overlays, so refresh the legend
+        # only after the KDE artist and its label exist.
+        ax.legend()
     except Exception as exc:
         return str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
     return None
@@ -1128,6 +1172,7 @@ def render_static_plot(
     weight_branch: str | None = None,
     color: np.ndarray | None = None,
     color_label: str | None = None,
+    colorbar_label: str | None = None,
     reference_x: float | None = None,
     reference_label: str | None = None,
     colorbar_extend: str = "neither",
@@ -1193,7 +1238,9 @@ def render_static_plot(
             ax,
             histogram_2d,
             log_scale=bool(style["log_z"]),
-            colorbar_label="entries" if weights is None else f"sum weights ({weight_branch})",
+            colorbar_label=colorbar_label
+            or ("entries" if weights is None else f"sum weights ({weight_branch})"),
+            style=style,
         )
         if style.get("show_contours", False):
             warning = draw_histogram_contours(ax, histogram_2d, style)
@@ -1233,7 +1280,7 @@ def render_static_plot(
                 color,
                 x_label,
                 y_label,
-                color_label,
+                colorbar_label or color_label,
                 style,
                 colorbar_extend=colorbar_extend,
             )

@@ -292,6 +292,48 @@ def test_exported_2d_histogram_with_contours_and_kde_matches_pipeline(root_path)
         plt.close(generated_figure)
 
 
+def test_exported_2d_histogram_reproduces_colour_settings(root_path) -> None:
+    request = _request(
+        root_path,
+        plot_type="2D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 5,
+            "bins_y": 5,
+            "log_x": False,
+            "log_y": False,
+            "log_z": False,
+            "colorscale": "Magma",
+            "reverse_colorscale": True,
+            "color_min_text": "",
+            "color_max_text": "2",
+            "equal_aspect": False,
+            "grid": False,
+        },
+        labels={
+            "title": "",
+            "custom_x": "",
+            "custom_y": "",
+            "custom_z": "",
+            "custom_colorbar": "muon count",
+        },
+    )
+
+    _, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        for figure in (canonical_figure, generated_figure):
+            mesh = figure.axes[0].collections[0]
+            assert mesh.cmap.name == "magma_r"
+            assert mesh.norm.vmax == 2.0
+            assert figure.axes[1].get_ylabel() == "muon count"
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)
+
+
 def test_exported_coloured_scatter_matches_canonical_pipeline(root_path) -> None:
     request = _request(
         root_path,

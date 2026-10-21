@@ -133,8 +133,10 @@ def nth_per_event(arr: Any, index: int) -> np.ndarray:
         selected = ak.pad_none(arr, index + 1, axis=1)[:, index]
         return np.asarray(ak.to_numpy(ak.fill_none(selected, np.nan))).astype(float)
     except Exception:
-        flat = to_numpy_flat(arr)
-        return safe_float_array(flat)
+        scalar_values = safe_float_array(to_numpy_flat(arr))
+        if index == 0:
+            return scalar_values
+        return np.full(len(scalar_values), np.nan, dtype=float)
 
 
 def reduce_per_event(arr: Any, mode: str) -> np.ndarray:

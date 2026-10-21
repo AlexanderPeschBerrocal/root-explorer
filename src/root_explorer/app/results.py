@@ -117,13 +117,13 @@ def show_cached_plot_result(
                 if mode == "fold"
                 else "excluding underflow/overflow"
             )
-            kind = (
+            density_kind = (
                 "Signed unit-integral density"
                 if normalisation.signed_weights
                 else "Unit-area density"
             )
             st.caption(
-                f"{kind} over {interval} ({domain}); "
+                f"{density_kind} over {interval} ({domain}); "
                 f"normalisation sum of weights: {normalisation.denominator:.6g}. "
                 "Original yields and sample statistics are unchanged."
             )

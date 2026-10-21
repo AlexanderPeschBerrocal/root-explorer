@@ -15,12 +15,12 @@ def render_event_selection(context: DataContext) -> int:
     """Render event index and ranking controls, returning the selected event."""
 
     st.subheader("Event inspection", anchor=False)
-    if "event_index" not in st.session_state:
-        st.session_state["event_index"] = 0
+    if not context.entry_start <= st.session_state.get("event_index", -1) < context.entry_stop:
+        st.session_state["event_index"] = context.entry_start
     event_index = st.number_input(
         "event index",
-        min_value=0,
-        max_value=max(context.n_entries - 1, 0),
+        min_value=context.entry_start,
+        max_value=context.entry_stop - 1,
         value=int(st.session_state["event_index"]),
         step=1,
     )
@@ -69,7 +69,12 @@ def render_event_selection(context: DataContext) -> int:
                 st.session_state["rank_df"] = metric_dataframe(
                     events, values, descending, int(max_rank_rows)
                 )
-                st.session_state["rank_label"] = f"{metric_mode}({metric_branch})"
+                metric_input = (
+                    f"|{metric_branch}|"
+                    if metric_abs and metric_mode != "multiplicity"
+                    else metric_branch
+                )
+                st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
             except Exception as exc:
                 st.error(f"Ranking failed: {exc}")
         if "rank_df" in st.session_state:

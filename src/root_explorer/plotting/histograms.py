@@ -7,14 +7,11 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import colormaps
-from matplotlib.colors import LogNorm
 
 from ..analysis.fitting import FitConfig
 from ..io.histograms import PersistedHistogram, read_histogram
 from .plots import (
     InvalidAxisScaleError,
-    InvalidColorScaleError,
     apply_axis_limits,
     apply_log_histogram_y_axis,
     create_static_figure,
@@ -73,7 +70,7 @@ def render_histogram_data(
             if mode not in {"Step", "Error bars", "Step + error bars", "Filled"}:
                 raise ValueError(f"Unknown histogram drawing mode: {mode}")
             if mode in {"Step", "Step + error bars", "Filled"}:
-                ax.stairs(display_values, edges, fill=(mode == "Filled"))
+                ax.stairs(display_values, edges, fill=(mode == "Filled"), color="tab:blue")
             if mode in {"Error bars", "Step + error bars"}:
                 errors = histogram_errors(data)
                 centers = (edges[:-1] + edges[1:]) / 2
@@ -82,6 +79,7 @@ def render_histogram_data(
                     values[occupied],
                     yerr=None if errors is None else errors[occupied],
                     fmt="o",
+                    color="tab:blue",
                     markersize=4,
                     capsize=2,
                     linestyle="none",
@@ -95,40 +93,17 @@ def render_histogram_data(
             ax.set_xlabel(labels.get("custom_x") or data.x_label)
             ax.set_ylabel(labels.get("custom_y") or data.y_label)
         elif h.ndim == 2:
-            values = np.asarray(h.values(), dtype=float)
-            occupied = visible_profile_occupancy(data)
-            log_z = bool(style.get("log_z", False))
-            positive_bins = np.isfinite(values) & occupied & (values > 0)
-            if log_z and not np.any(positive_bins):
-                raise InvalidColorScaleError("Log colour scale requires positive bin contents.")
-            # Delegate mesh creation and colourbar layout to the shared renderer.
+            # Unoccupied profile cells are hidden; zero-valued means with
+            # positive occupancy remain visible.
             draw_histogram_2d(
                 fig,
                 ax,
                 h,
-                log_scale=log_z,
+                log_scale=bool(style.get("log_z", False)),
                 colorbar_label=labels.get("custom_z") or data.colorbar_label,
+                style=style,
+                hidden_bins=~visible_profile_occupancy(data),
             )
-            cmap = str(style.get("cmap", "viridis"))
-            mesh = ax.collections[0]
-            mesh.set_cmap(colormaps[cmap])
-            if data.is_profile or log_z:
-                # pcolormesh expects y-major bin order. Mask only for plotting;
-                # zero-valued means with positive occupancy remain visible.
-                invalid = ~np.isfinite(values) | ~occupied
-                if log_z:
-                    invalid |= values <= 0
-                display_values = np.ma.array(values.T, mask=invalid.T).ravel()
-                mesh.set_array(display_values)
-                if not log_z:
-                    # Recompute the colour range without empty profile cells.
-                    mesh.autoscale()
-            if log_z:
-                positive = values[positive_bins]
-                lo, hi = float(np.min(positive)), float(np.max(positive))
-                if lo == hi:
-                    hi = np.nextafter(hi, np.inf)
-                mesh.set_norm(LogNorm(vmin=lo, vmax=hi))
             if style.get("log_x", False):
                 if np.any(np.asarray(h.axes[0].edges) <= 0):
                     raise InvalidAxisScaleError("Log x-axis requires positive histogram edges.")

@@ -9,9 +9,10 @@ import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, to_rgba
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
+from root_explorer.analysis.fitting import FitResult
 from root_explorer.analysis.histograms import build_histogram_1d, build_histogram_2d
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
@@ -28,6 +29,7 @@ from root_explorer.plotting.plots import (
     describe_array,
     downsample_arrays,
     draw_highest_density_contours,
+    draw_histogram_2d,
     draw_kde_1d,
     draw_kde_2d,
     highest_density_contour_thresholds,
@@ -89,6 +91,34 @@ def test_unweighted_1d_kde_is_scaled_to_entry_counts() -> None:
     represented_entries = np.trapezoid(line.get_ydata(), line.get_xdata()) / np.diff(edges)[0]
     assert represented_entries == pytest.approx(len(values), rel=0.01)
     plt.close(figure)
+
+
+def test_1d_kde_is_shown_in_legend_without_other_overlays() -> None:
+    values = np.linspace(-2.0, 2.0, 100)
+    figure, axes = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {
+                "show_kde": True,
+                "kde_bandwidth": "scott",
+                "log_y": False,
+                "grid": False,
+            },
+            title="KDE legend",
+            histogram_1d=build_histogram_1d(values, 10, label="x"),
+        )
+
+        assert not warnings
+        assert [text.get_text() for text in axes.get_legend().get_texts()] == ["KDE"]
+    finally:
+        plt.close(figure)
 
 
 def test_2d_weighted_kde_creates_contour_lines() -> None:
@@ -650,6 +680,76 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
     plt.close(histogram_2d_figure)
 
 
+def test_2d_histogram_log_color_rejects_no_positive_bins() -> None:
+    figure, axes = plt.subplots()
+    histogram = build_histogram_2d(
+        np.array([], dtype=float),
+        np.array([], dtype=float),
+        2,
+        2,
+        x_range=(0.0, 1.0),
+        y_range=(0.0, 1.0),
+        x_label="x",
+        y_label="y",
+    )
+
+    with pytest.raises(InvalidColorScaleError, match="positive bin contents"):
+        render_static_plot(
+            figure,
+            axes,
+            "2D histogram",
+            np.array([], dtype=float),
+            np.array([], dtype=float),
+            "x",
+            "y",
+            {"bins_x": 2, "bins_y": 2, "log_z": True, "grid": False},
+            title="empty log color histogram",
+            histogram_2d=histogram,
+        )
+    plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    "coordinates",
+    [np.array([0.25]), np.array([0.25, 0.75])],
+    ids=["one-positive-bin", "equal-positive-bins"],
+)
+def test_2d_histogram_log_color_remains_logarithmic_for_equal_bins(
+    coordinates: np.ndarray,
+) -> None:
+    figure, axes = plt.subplots()
+    histogram = build_histogram_2d(
+        coordinates,
+        coordinates,
+        2,
+        2,
+        x_range=(0.0, 1.0),
+        y_range=(0.0, 1.0),
+        x_label="x",
+        y_label="y",
+    )
+
+    render_static_plot(
+        figure,
+        axes,
+        "2D histogram",
+        coordinates,
+        coordinates,
+        "x",
+        "y",
+        {"bins_x": 2, "bins_y": 2, "log_z": True, "grid": False},
+        title="equal-bin log color histogram",
+        histogram_2d=histogram,
+    )
+
+    norm = axes.collections[0].norm
+    assert isinstance(norm, LogNorm)
+    assert 0 < norm.vmin <= 1.0
+    assert norm.vmax > norm.vmin
+    assert norm.vmax >= 1.0
+    plt.close(figure)
+
+
 @pytest.mark.parametrize(
     ("reverse", "expected_name"),
     [(False, "Greys"), (True, "Greys_r")],
@@ -699,7 +799,80 @@ def test_1d_reference_line_is_drawn_at_requested_value() -> None:
     )
     assert axes.lines[-1].get_xdata()[0] == pytest.approx(2.0)
     assert axes.lines[-1].get_label() == "threshold = 2"
+    assert to_rgba(axes.lines[-1].get_color()) == to_rgba("tab:green")
     plt.close(figure)
+
+
+def test_1d_histogram_overlays_use_distinct_semantic_colors() -> None:
+    from root_explorer.analysis.histograms import summarise_histogram_flow
+
+    values = np.array([-2.0, 0.0, 1.5, 2.0, 2.5, 4.0, 8.0, 12.0])
+    histogram = build_histogram_1d(values, 4, value_range=(1.0, 10.0), label="x")
+    flow_summary = summarise_histogram_flow(histogram, values, weighted=False)
+    fit_result = FitResult(
+        model="Gaussian",
+        success=True,
+        parameters={"A": 3.0, "mu": 3.0, "sigma": 1.0},
+        uncertainties={"A": None, "mu": None, "sigma": None},
+        statistic=0.0,
+        ndof=1,
+        bins_used=4,
+        bins_excluded=0,
+        objective="Ordinary least squares",
+        fit_range=(1.0, 10.0),
+        message="Fit converged.",
+    )
+    figure, axes = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {
+                "show_kde": True,
+                "kde_bandwidth": "scott",
+                "log_y": False,
+                "grid": False,
+            },
+            title="semantic colors",
+            histogram_1d=histogram,
+            reference_x=3.0,
+            reference_label="threshold = 3",
+            fit_result=fit_result,
+            histogram_flow_summary=flow_summary,
+            histogram_flow_mode="separate",
+        )
+
+        assert not warnings
+        reference = next(line for line in axes.lines if line.get_label() == "threshold = 3")
+        kde = next(line for line in axes.lines if line.get_label() == "KDE")
+        fit = next(patch for patch in axes.patches if patch.get_label() == "Gaussian fit")
+        flow = [patch for patch in axes.patches if patch.get_hatch() == "//"]
+        assert len(flow) == 2
+        colors = {
+            "reference": to_rgba(reference.get_color()),
+            "fit": to_rgba(fit.get_edgecolor()),
+            "kde": to_rgba(kde.get_color()),
+            "flow": to_rgba(flow[0].get_facecolor()),
+        }
+        assert colors == {
+            "reference": to_rgba("tab:green"),
+            "fit": to_rgba("tab:red"),
+            "kde": to_rgba("tab:orange"),
+            "flow": to_rgba("tab:purple"),
+        }
+        assert len(set(colors.values())) == len(colors)
+        assert [text.get_text() for text in axes.get_legend().get_texts()] == [
+            "threshold = 3",
+            "Gaussian fit",
+            "KDE",
+        ]
+    finally:
+        plt.close(figure)
 
 
 def test_scatter_color_limits_and_log_normalization() -> None:
@@ -917,3 +1090,138 @@ def test_histogram_log_x_accepts_nonpositive_flow_values(mode) -> None:
         assert shown.values().sum() == (len(values) if mode == "fold" else 3)
     finally:
         plt.close(fig)
+
+
+def _colour_test_histogram():
+    # Bin contents: (0, 0) = 3, (0, 1) = 2, (1, 0) = 1, (1, 1) = 5.
+    return build_histogram_2d(
+        np.array([0.5, 0.5, 0.5, 0.5, 1.5, 1.5]),
+        np.array([0.5, 0.5, 0.5, 1.5, 0.5, 1.5]),
+        2,
+        2,
+        weights=np.array([1.0, 1.0, 1.0, 2.0, 1.0, 5.0]),
+        x_label="x",
+        y_label="y",
+    )
+
+
+def test_2d_histogram_colour_map_limits_and_label() -> None:
+    fig, ax = plt.subplots()
+    try:
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=False,
+            colorbar_label="custom",
+            style={
+                "colorscale": "Greys",
+                "reverse_colorscale": True,
+                "color_min_text": "1.5",
+                "color_max_text": "2",
+            },
+        )
+        assert mesh.cmap.name == "Greys_r"
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.5, 2.0)
+        assert fig.axes[1].get_ylabel() == "custom"
+        assert mesh.colorbar.extend == "both"
+    finally:
+        plt.close(fig)
+
+
+def test_2d_histogram_partial_colour_limit_keeps_automatic_other_side() -> None:
+    fig, ax = plt.subplots()
+    try:
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=True,
+            colorbar_label="entries",
+            style={"color_max_text": "2"},
+        )
+        assert isinstance(mesh.norm, LogNorm)
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.0, 2.0)
+        assert mesh.colorbar.extend == "max"
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("log_scale", "style", "message"),
+    [
+        (False, {"color_min_text": "abc"}, "finite number"),
+        (False, {"color_min_text": "3", "color_max_text": "1"}, "smaller than color max"),
+        (False, {"color_min_text": "10"}, "automatic range"),
+        (True, {"color_min_text": "0"}, "positive color min"),
+    ],
+)
+def test_2d_histogram_rejects_invalid_colour_limits(log_scale, style, message) -> None:
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(InvalidColorScaleError, match=message):
+            draw_histogram_2d(
+                fig,
+                ax,
+                _colour_test_histogram(),
+                log_scale=log_scale,
+                colorbar_label="entries",
+                style=style,
+            )
+    finally:
+        plt.close(fig)
+
+
+def test_hidden_2d_bins_are_blank_and_excluded_from_automatic_range() -> None:
+    fig, ax = plt.subplots()
+    try:
+        hidden = np.array([[False, False], [False, True]])  # hide the bin with content 5
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=False,
+            colorbar_label="entries",
+            hidden_bins=hidden,
+        )
+        np.testing.assert_array_equal(np.ma.getmaskarray(mesh.get_array()).reshape(2, 2), hidden.T)
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.0, 3.0)
+    finally:
+        plt.close(fig)
+
+
+def test_static_plot_colourbar_label_override_for_histogram_and_scatter() -> None:
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D histogram",
+        np.array([0.5, 1.5]),
+        np.array([0.5, 1.5]),
+        "x",
+        "y",
+        {"log_z": False, "grid": False},
+        title="histogram",
+        histogram_2d=_colour_test_histogram(),
+        colorbar_label="custom histogram label",
+    )
+    assert fig.axes[1].get_ylabel() == "custom histogram label"
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D scatter",
+        np.array([1.0, 2.0]),
+        np.array([3.0, 4.0]),
+        "x",
+        "y",
+        {"marker_size_2d": 3.0, "opacity_2d": 0.5, "grid": False},
+        title="scatter",
+        color=np.array([0.0, 1.0]),
+        color_label="pt",
+        colorbar_label="custom scatter label",
+    )
+    assert fig.axes[1].get_ylabel() == "custom scatter label"
+    plt.close(fig)
