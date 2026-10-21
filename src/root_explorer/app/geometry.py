@@ -17,6 +17,7 @@ from ..geometry.overlay import (
     geometry_summary_dataframe,
     load_geometry_scene,
 )
+from .controls import slider_or_number_input
 from .results import store_uploaded_file
 from .state import GeometryState
 
@@ -59,7 +60,9 @@ def render_geometry_sidebar() -> GeometryState:
         DEFAULT_DISPLAY_GEOMETRY_VERTICES,
         50_000,
     )
-    opacity = st.slider("geometry opacity scale", 0.02, 1.0, 0.30, step=0.02)
+    opacity = slider_or_number_input(
+        "geometry opacity scale", 0.02, 1.0, 0.30, step=0.02, key="geometry_opacity"
+    )
     scale = st.number_input(
         "geometry coordinate scale",
         value=1.0,

@@ -6,7 +6,7 @@ import streamlit as st
 
 from ..analysis.ranking import compute_event_metric, metric_dataframe
 from ..io.root import choose_default
-from .controls import field_option_labels
+from .controls import field_option_labels, slider_or_number_input
 from .state import DataContext
 from .tables import render_dataframe
 
@@ -53,7 +53,7 @@ def render_event_selection(context: DataContext) -> int:
             f"({context.entry_stop - context.entry_start} events)."
         )
         descending = st.checkbox("largest first", value=True)
-        max_rank_rows = st.slider("rows", 5, 200, 10)
+        max_rank_rows = slider_or_number_input("rows", 5, 200, 10, key="rank_rows")
         if st.button("Compute ranking", key="rank_compute"):
             try:
                 events, values = compute_event_metric(

@@ -17,7 +17,7 @@ from ..plotting.plots import (
     draw_fit_overlay,
     validate_plot_labels,
 )
-from .controls import color_scale_controls, fit_controls
+from .controls import color_scale_controls, fit_controls, slider_or_number_input
 from .results import (
     close_plot_result,
     discard_plot_result,
@@ -57,8 +57,10 @@ def render_histogram_controls(
         st.caption(f"Visible sum of bin contents: {float(np.sum(h.values())):g}")
     st.markdown("#### Histogram configuration", anchors=False)
     style: dict[str, object] = {
-        "fig_width": st.slider("Figure width", 4.0, 16.0, 8.0, key="hist_fig_width"),
-        "fig_height": st.slider("Figure height", 3.0, 12.0, 6.0, key="hist_fig_height"),
+        "fig_width": slider_or_number_input("Figure width", 4.0, 16.0, 8.0, key="hist_fig_width"),
+        "fig_height": slider_or_number_input(
+            "Figure height", 3.0, 12.0, 6.0, key="hist_fig_height"
+        ),
         "display_dpi": 200,
     }
     if h.ndim == 1:
