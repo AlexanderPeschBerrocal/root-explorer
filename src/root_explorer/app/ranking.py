@@ -69,7 +69,12 @@ def render_event_selection(context: DataContext) -> int:
                 st.session_state["rank_df"] = metric_dataframe(
                     events, values, descending, int(max_rank_rows)
                 )
-                st.session_state["rank_label"] = f"{metric_mode}({metric_branch})"
+                metric_input = (
+                    f"|{metric_branch}|"
+                    if metric_abs and metric_mode != "multiplicity"
+                    else metric_branch
+                )
+                st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
             except Exception as exc:
                 st.error(f"Ranking failed: {exc}")
         if "rank_df" in st.session_state:

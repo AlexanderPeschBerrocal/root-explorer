@@ -465,6 +465,7 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     at.button(key="rank_compute").click().run()
     assert not at.exception
     assert not at.session_state["rank_df"].empty
+    assert at.session_state["rank_label"] == f"multiplicity({at.session_state['metric_branch']})"
     assert len(at.dataframe) > initial_dataframes
 
     at.selectbox(key="event_plot_type").select("3D scatter interactive").run()
@@ -481,6 +482,18 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
         "**Make event plot** button again or **press Shift + P**" in caption.value
         for caption in at.caption
     )
+
+
+def test_ranking_label_includes_absolute_value_transformation(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="metric_branch").select("Muon_pt")
+    at.selectbox(key="metric_mode").select("sum").run()
+    next(widget for widget in at.checkbox if widget.label == "use absolute values").check().run()
+    at.button(key="rank_compute").click().run()
+
+    assert not at.exception
+    assert at.session_state["rank_label"] == "sum(|Muon_pt|)"
+    assert any("Metric: **sum(|Muon_pt|)**" in markdown.value for markdown in at.markdown)
 
 
 @pytest.mark.parametrize(
