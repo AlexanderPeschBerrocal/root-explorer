@@ -16,7 +16,7 @@ from ..plotting.plots import (
     InvalidColorScaleError,
     draw_fit_overlay,
 )
-from .controls import fit_controls
+from .controls import color_scale_controls, fit_controls
 from .results import (
     close_plot_result,
     discard_plot_result,
@@ -66,12 +66,9 @@ def render_histogram_controls(
             "Drawing mode", modes, index=1 if data.is_profile else 0, key=f"hist_mode_{object_path}"
         )
     else:
-        style["cmap"] = st.selectbox(
-            "Colour map",
-            ("viridis", "plasma", "inferno", "magma", "cividis", "Greys", "coolwarm"),
-            key="hist_cmap",
+        style.update(
+            color_scale_controls("hist", log_style_key="log_z", log_widget_key="hist_log_z")
         )
-        style["log_z"] = st.checkbox("Log colour scale", key="hist_log_z")
     style["log_x"] = st.checkbox("Log x-axis", key="hist_log_x")
     style["log_y"] = st.checkbox("Log y-axis", key="hist_log_y")
     style["grid"] = st.checkbox("Grid", key="hist_grid")

@@ -469,6 +469,7 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     assert len(at.dataframe) > initial_dataframes
 
     at.selectbox(key="event_plot_type").select("3D scatter interactive").run()
+    assert not at.checkbox(key="event_color_points").value
     at.selectbox(key="event_x_branch").select("Muon_px")
     at.selectbox(key="event_y_branch").select("Muon_py")
     at.selectbox(key="event_z_branch").select("Muon_pz").run()
@@ -509,6 +510,7 @@ def test_3d_scatter_rejects_invalid_color_limits(
 ) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    at.checkbox(key="plot_color_points").check().run()
     at.text_input(key="plot_color_min_3d").input(color_min)
     at.text_input(key="plot_color_max_3d").input(color_max).run()
     at.button(key="plot_make").click().run()
@@ -521,14 +523,24 @@ def test_3d_scatter_rejects_invalid_color_limits(
 def test_3d_scatter_applies_valid_color_limits(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    assert not at.checkbox(key="plot_color_points").value
+    assert not any(widget.key == "plot_custom_colorbar" for widget in at.text_input)
+    at.checkbox(key="plot_color_points").check().run()
     at.text_input(key="plot_color_min_3d").input("2.5")
     at.text_input(key="plot_color_max_3d").input("50").run()
+    at.text_input(key="plot_custom_colorbar").input("muon pT").run()
     at.button(key="plot_make").click().run()
 
     assert not at.exception
-    marker = at.session_state["plot_result"]["figure"].data[0].marker
+    result = at.session_state["plot_result"]
+    marker = result["figure"].data[0].marker
     assert marker.cmin == pytest.approx(2.5)
     assert marker.cmax == pytest.approx(50.0)
+    assert marker.colorbar.title.text == "muon pT"
+    clipping = result["color_clipping_result"]
+    assert (clipping.color_min, clipping.color_max) == (2.5, 50.0)
+    assert clipping.below_count + clipping.above_count > 0
+    assert any(caption.value.startswith("Color clipping:") for caption in at.caption)
 
 
 def test_ranking_selection_updates_event_index(root_path) -> None:
@@ -603,7 +615,36 @@ def test_2d_scatter_offers_log_color_scale(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.selectbox(key="plot_type").select("2D scatter").run()
     at.checkbox(key="plot_color_points").check().run()
-    assert at.checkbox(key="plot_log_color_2d").label == "Log color scale"
+    assert at.checkbox(key="plot_log_color_2d").label == "Log colour scale"
+
+
+def test_colour_controls_are_shared_by_2d_histogram_and_scatter(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("2D histogram").run()
+    assert at.selectbox(key="plot_colorscale_hist2d").label == "Colour map"
+    assert at.checkbox(key="plot_reverse_colorscale_hist2d").label == "Reverse colour map"
+    assert at.checkbox(key="plot_log_z").label == "Log colour scale"
+    assert at.text_input(key="plot_color_min_hist2d").label == "Colour minimum"
+    assert at.text_input(key="plot_color_max_hist2d").label == "Colour maximum"
+    assert at.text_input(key="plot_custom_colorbar").label == "Colour-bar label override"
+
+    at.selectbox(key="plot_colorscale_hist2d").select("Greys").run()
+    at.checkbox(key="plot_reverse_colorscale_hist2d").check().run()
+    at.text_input(key="plot_color_max_hist2d").input("1").run()
+    at.text_input(key="plot_custom_colorbar").input("muons").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    figure = at.session_state["plot_result"]["figure"]
+    assert figure.axes[0].collections[0].cmap.name == "Greys_r"
+    assert figure.axes[0].collections[0].norm.vmax == 1.0
+    assert figure.axes[1].get_ylabel() == "muons"
+
+    # The scatter colour bar label is only offered once points are coloured.
+    at.selectbox(key="plot_type").select("2D scatter").run()
+    assert not any(widget.key == "plot_custom_colorbar" for widget in at.text_input)
+    at.checkbox(key="plot_color_points").check().run()
+    assert at.selectbox(key="plot_colorscale_2d").label == "Colour map"
+    assert at.text_input(key="plot_custom_colorbar").label == "Colour-bar label override"
 
 
 @pytest.mark.parametrize(
@@ -634,7 +675,10 @@ def test_histogram_open_action_from_browser(target, classname, dimension) -> Non
     if dimension == 1:
         assert at.selectbox(key=f"hist_mode_{target}").value == "Step"
     else:
-        assert at.selectbox(key="hist_cmap").value == "viridis"
+        assert at.selectbox(key="hist_colorscale").value == "Viridis"
+        assert at.checkbox(key="hist_reverse_colorscale").value is False
+        assert at.text_input(key="hist_color_min").value == ""
+        assert at.text_input(key="hist_color_max").value == ""
 
 
 def test_histogram_open_action_object_only_file(object_only_root_path) -> None:
@@ -682,7 +726,7 @@ def test_profile_open_action_from_browser(target, classname, dimension) -> None:
         assert at.selectbox(key=f"hist_mode_{target}").value == "Error bars"
         assert result["figure"].axes[0].containers
     else:
-        assert at.selectbox(key="hist_cmap").value == "viridis"
+        assert at.selectbox(key="hist_colorscale").value == "Viridis"
         assert len(result["figure"].axes) == 2  # Main plot and colour bar.
 
 

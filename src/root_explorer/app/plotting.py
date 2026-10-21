@@ -221,7 +221,7 @@ def _render_plot_controls(
     if supports_point_color(plot_type):
         color_enabled = st.checkbox(
             "Color points",
-            value=plot_type == "3D scatter interactive",
+            value=False,
             key=f"{prefix}_color_points",
         )
         if color_enabled:
@@ -276,7 +276,12 @@ def _render_plot_controls(
         default_equal_aspect=False,
     )
     style = {**analysis_style, **presentation_style}
-    labels = label_controls(prefix, plot_type)
+    labels = label_controls(
+        prefix,
+        plot_type,
+        has_colorbar=plot_type == "2D histogram"
+        or (supports_point_color(plot_type) and color_enabled),
+    )
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",
@@ -534,8 +539,8 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         if y is None:
             raise ValueError("2D scatter requires a y variable.")
         correlation_result = calculate_correlations(x, y)
-        if color is not None:
-            color_clipping_result = calculate_color_clipping(color, request.style, weights)
+    if supports_point_color(request.plot_type) and color is not None:
+        color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     x_label = request.labels["custom_x"] or axis_labels[0]
@@ -566,7 +571,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             y_axis_label,
             z_axis_label,
             color=color,
-            color_label=color_label,
+            color_label=request.labels.get("custom_colorbar") or color_label,
             title=title,
             marker_size=request.style["marker_size_3d"],
             opacity=request.style["opacity_3d"],
@@ -587,6 +592,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,
+            "color_clipping_result": color_clipping_result,
             "save_name": save_name,
             "save_button_label": "Save HTML",
         }

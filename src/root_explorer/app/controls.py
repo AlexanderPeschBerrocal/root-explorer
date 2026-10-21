@@ -350,6 +350,44 @@ PLOT_TYPES = ["1D histogram", "2D histogram", "2D scatter", "3D scatter interact
 COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Greys", "coolwarm"]
 
 
+def color_scale_controls(
+    prefix: str,
+    suffix: str = "",
+    *,
+    log_style_key: str | None = None,
+    log_widget_key: str | None = None,
+) -> dict[str, Any]:
+    """Render the colour map, optional log scale and colour-limit controls.
+
+    Shared by 2D histograms, persisted 2D histograms and coloured scatter plots
+    so that equivalent colour settings look and behave identically.
+    """
+
+    style: dict[str, Any] = {}
+    style["colorscale"] = st.selectbox(
+        "Colour map", COLOR_SCALES, key=f"{prefix}_colorscale{suffix}"
+    )
+    style["reverse_colorscale"] = st.checkbox(
+        "Reverse colour map", key=f"{prefix}_reverse_colorscale{suffix}"
+    )
+    if log_style_key is not None:
+        style[log_style_key] = st.checkbox(
+            "Log colour scale",
+            value=False,
+            key=log_widget_key or f"{prefix}_{log_style_key}{suffix}",
+        )
+    min_column, max_column = st.columns(2)
+    with min_column:
+        style["color_min_text"] = st.text_input(
+            "Colour minimum", value="", key=f"{prefix}_color_min{suffix}", placeholder="Automatic"
+        )
+    with max_column:
+        style["color_max_text"] = st.text_input(
+            "Colour maximum", value="", key=f"{prefix}_color_max{suffix}", placeholder="Automatic"
+        )
+    return style
+
+
 def needs_y_variable(plot_type: str) -> bool:
     return plot_type in {"2D histogram", "2D scatter", "3D scatter interactive"}
 
@@ -765,7 +803,11 @@ def plot_style_controls(
         style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D histogram":
-        style["log_z"] = st.checkbox("Log color scale", value=False, key=f"{prefix}_log_z")
+        style.update(
+            color_scale_controls(
+                prefix, "_hist2d", log_style_key="log_z", log_widget_key=f"{prefix}_log_z"
+            )
+        )
         style["equal_aspect"] = st.checkbox(
             "Equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )
@@ -787,27 +829,7 @@ def plot_style_controls(
             key=f"{prefix}_max_points_2d",
         )
         if color_enabled:
-            style["colorscale"] = st.selectbox(
-                "Color scale", COLOR_SCALES, key=f"{prefix}_colorscale_2d"
-            )
-            style["reverse_colorscale"] = st.checkbox(
-                "Reverse color scale", key=f"{prefix}_reverse_colorscale_2d"
-            )
-            style["log_color"] = st.checkbox(
-                "Log color scale", value=False, key=f"{prefix}_log_color_2d"
-            )
-            style["color_min_text"] = st.text_input(
-                "Color minimum",
-                value="",
-                key=f"{prefix}_color_min_2d",
-                placeholder="Automatic",
-            )
-            style["color_max_text"] = st.text_input(
-                "Color maximum",
-                value="",
-                key=f"{prefix}_color_max_2d",
-                placeholder="Automatic",
-            )
+            style.update(color_scale_controls(prefix, "_2d", log_style_key="log_color"))
         style["equal_aspect"] = st.checkbox(
             "Equal aspect", value=default_equal_aspect, key=f"{prefix}_equal_aspect"
         )
@@ -832,38 +854,28 @@ def plot_style_controls(
             "Aspect mode", ["data", "cube", "auto"], key=f"{prefix}_aspectmode"
         )
         if color_enabled:
-            style["colorscale"] = st.selectbox(
-                "Color scale", COLOR_SCALES, key=f"{prefix}_colorscale_3d"
-            )
-            style["reverse_colorscale"] = st.checkbox(
-                "Reverse color scale", key=f"{prefix}_reverse_colorscale_3d"
-            )
-            style["color_min_text"] = st.text_input(
-                "Color minimum",
-                value="",
-                key=f"{prefix}_color_min_3d",
-                placeholder="Automatic",
-            )
-            style["color_max_text"] = st.text_input(
-                "Color maximum",
-                value="",
-                key=f"{prefix}_color_max_3d",
-                placeholder="Automatic",
-            )
+            style.update(color_scale_controls(prefix, "_3d"))
 
     return style
 
 
-def label_controls(prefix: str, plot_type: str, *, default_title: str = "") -> dict[str, Any]:
+def label_controls(
+    prefix: str, plot_type: str, *, default_title: str = "", has_colorbar: bool = False
+) -> dict[str, Any]:
     controls = {
         "title": st.text_input("Title", value=default_title, key=f"{prefix}_title"),
         "custom_x": st.text_input("X-axis label override", value="", key=f"{prefix}_custom_x"),
         "custom_y": st.text_input("Y-axis label override", value="", key=f"{prefix}_custom_y"),
         "custom_z": "",
+        "custom_colorbar": "",
     }
     if needs_z_variable(plot_type):
         controls["custom_z"] = st.text_input(
             "Z-axis label override", value="", key=f"{prefix}_custom_z"
+        )
+    if has_colorbar and plot_type in {"2D histogram", "2D scatter", "3D scatter interactive"}:
+        controls["custom_colorbar"] = st.text_input(
+            "Colour-bar label override", value="", key=f"{prefix}_custom_colorbar"
         )
     return controls
 

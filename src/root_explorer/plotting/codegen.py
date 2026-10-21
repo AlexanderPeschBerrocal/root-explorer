@@ -562,7 +562,10 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 "draw_histogram_2d(",
                 "    figure, axes, histogram_2d,",
                 "    log_scale=PLOT.style['log_z'],",
-                "    colorbar_label=('entries' if weights is None else f'sum weights ({PLOT.weight_branch})'),",
+                "    colorbar_label=PLOT.labels.get('custom_colorbar') or (",
+                "        'entries' if weights is None else f'sum weights ({PLOT.weight_branch})'",
+                "    ),",
+                "    style=PLOT.style,",
                 ")",
                 "xedges = histogram_2d.axes[0].edges",
                 "yedges = histogram_2d.axes[1].edges",
@@ -595,7 +598,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 f"{renderer}(",
-                "    figure, axes, x, y, color, x_label, y_label, color_label, PLOT.style,",
+                "    figure, axes, x, y, color, x_label, y_label,",
+                "    PLOT.labels.get('custom_colorbar') or color_label, PLOT.style,",
                 "    colorbar_extend=colorbar_extend,",
                 ")",
             ]

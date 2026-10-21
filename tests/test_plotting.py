@@ -29,6 +29,7 @@ from root_explorer.plotting.plots import (
     describe_array,
     downsample_arrays,
     draw_highest_density_contours,
+    draw_histogram_2d,
     draw_kde_1d,
     draw_kde_2d,
     highest_density_contour_thresholds,
@@ -1089,3 +1090,138 @@ def test_histogram_log_x_accepts_nonpositive_flow_values(mode) -> None:
         assert shown.values().sum() == (len(values) if mode == "fold" else 3)
     finally:
         plt.close(fig)
+
+
+def _colour_test_histogram():
+    # Bin contents: (0, 0) = 3, (0, 1) = 2, (1, 0) = 1, (1, 1) = 5.
+    return build_histogram_2d(
+        np.array([0.5, 0.5, 0.5, 0.5, 1.5, 1.5]),
+        np.array([0.5, 0.5, 0.5, 1.5, 0.5, 1.5]),
+        2,
+        2,
+        weights=np.array([1.0, 1.0, 1.0, 2.0, 1.0, 5.0]),
+        x_label="x",
+        y_label="y",
+    )
+
+
+def test_2d_histogram_colour_map_limits_and_label() -> None:
+    fig, ax = plt.subplots()
+    try:
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=False,
+            colorbar_label="custom",
+            style={
+                "colorscale": "Greys",
+                "reverse_colorscale": True,
+                "color_min_text": "1.5",
+                "color_max_text": "2",
+            },
+        )
+        assert mesh.cmap.name == "Greys_r"
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.5, 2.0)
+        assert fig.axes[1].get_ylabel() == "custom"
+        assert mesh.colorbar.extend == "both"
+    finally:
+        plt.close(fig)
+
+
+def test_2d_histogram_partial_colour_limit_keeps_automatic_other_side() -> None:
+    fig, ax = plt.subplots()
+    try:
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=True,
+            colorbar_label="entries",
+            style={"color_max_text": "2"},
+        )
+        assert isinstance(mesh.norm, LogNorm)
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.0, 2.0)
+        assert mesh.colorbar.extend == "max"
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("log_scale", "style", "message"),
+    [
+        (False, {"color_min_text": "abc"}, "finite number"),
+        (False, {"color_min_text": "3", "color_max_text": "1"}, "smaller than color max"),
+        (False, {"color_min_text": "10"}, "automatic range"),
+        (True, {"color_min_text": "0"}, "positive color min"),
+    ],
+)
+def test_2d_histogram_rejects_invalid_colour_limits(log_scale, style, message) -> None:
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(InvalidColorScaleError, match=message):
+            draw_histogram_2d(
+                fig,
+                ax,
+                _colour_test_histogram(),
+                log_scale=log_scale,
+                colorbar_label="entries",
+                style=style,
+            )
+    finally:
+        plt.close(fig)
+
+
+def test_hidden_2d_bins_are_blank_and_excluded_from_automatic_range() -> None:
+    fig, ax = plt.subplots()
+    try:
+        hidden = np.array([[False, False], [False, True]])  # hide the bin with content 5
+        mesh = draw_histogram_2d(
+            fig,
+            ax,
+            _colour_test_histogram(),
+            log_scale=False,
+            colorbar_label="entries",
+            hidden_bins=hidden,
+        )
+        np.testing.assert_array_equal(np.ma.getmaskarray(mesh.get_array()).reshape(2, 2), hidden.T)
+        assert (mesh.norm.vmin, mesh.norm.vmax) == (1.0, 3.0)
+    finally:
+        plt.close(fig)
+
+
+def test_static_plot_colourbar_label_override_for_histogram_and_scatter() -> None:
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D histogram",
+        np.array([0.5, 1.5]),
+        np.array([0.5, 1.5]),
+        "x",
+        "y",
+        {"log_z": False, "grid": False},
+        title="histogram",
+        histogram_2d=_colour_test_histogram(),
+        colorbar_label="custom histogram label",
+    )
+    assert fig.axes[1].get_ylabel() == "custom histogram label"
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    render_static_plot(
+        fig,
+        ax,
+        "2D scatter",
+        np.array([1.0, 2.0]),
+        np.array([3.0, 4.0]),
+        "x",
+        "y",
+        {"marker_size_2d": 3.0, "opacity_2d": 0.5, "grid": False},
+        title="scatter",
+        color=np.array([0.0, 1.0]),
+        color_label="pt",
+        colorbar_label="custom scatter label",
+    )
+    assert fig.axes[1].get_ylabel() == "custom scatter label"
+    plt.close(fig)

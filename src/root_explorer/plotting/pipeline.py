@@ -377,6 +377,7 @@ def render_prepared_static_plot(
             weight_branch=spec.weight_branch,
             color=color,
             color_label=prepared.color_label,
+            colorbar_label=spec.labels.get("custom_colorbar") or None,
             reference_x=prepared.reference_x,
             reference_label=prepared.reference_label,
             fit_result=fit_result,
