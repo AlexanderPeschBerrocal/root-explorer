@@ -15,6 +15,7 @@ from ..plotting.plots import (
     InvalidAxisScaleError,
     InvalidColorScaleError,
     draw_fit_overlay,
+    validate_plot_labels,
 )
 from .controls import color_scale_controls, fit_controls
 from .results import (
@@ -107,6 +108,7 @@ def render_histogram_controls(
     if "root_histogram_result" not in st.session_state or make_plot:
         figure = None
         try:
+            validate_plot_labels(labels)
             spec = HistogramPlotSpec(root_path, object_path, style, labels, fit_config=fit_config)
             fit_result = fit_histogram_1d(h, fit_config) if fit_config is not None else None
             figure = render_histogram_data(data, spec.style, spec.labels)

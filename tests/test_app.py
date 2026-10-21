@@ -26,6 +26,54 @@ def test_help_tab_starts_with_documentation_link(root_path) -> None:
     assert "[full documentation](https://root-explorer.readthedocs.io/)" in first
 
 
+def test_plotter_reports_invalid_math_labels_and_renders_valid_ones(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.text_input(key="plot_custom_x").input(r"$\pt$").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert any("contains invalid math" in warning.value for warning in at.warning)
+    assert "plot_result" not in at.session_state
+
+    at.text_input(key="plot_custom_x").input("$p_T$ [GeV]").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert not any("invalid math" in warning.value for warning in at.warning)
+    assert at.session_state["plot_result"]["figure"].axes[0].get_xlabel() == "$p_T$ [GeV]"
+
+
+def test_3d_scatter_skips_math_label_validation(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    at.text_input(key="plot_custom_x").input(r"$\pt$").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert at.session_state["plot_result"]["kind"] == "plotly"
+
+
+@pytest.mark.parametrize(
+    ("option", "result_key", "make_key", "label_name"),
+    [
+        ("histogram_1d (TH1D)", "root_histogram_result", "hist_make_plot", "X label"),
+        ("plain_graph (TGraph)", "root_graph_result", "graph_make_plot", "X label"),
+    ],
+)
+def test_persisted_viewers_report_invalid_math_labels(
+    option: str, result_key: str, make_key: str, label_name: str
+) -> None:
+    at = _load_root_file(make_app_test(), PROJECT_ROOT / "tests" / "data" / "test_objects.root")
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    selector.select(option).run()
+    at.button(key="root_object_open").click().run()
+    assert result_key in at.session_state
+
+    label = next(widget for widget in at.text_input if widget.label == label_name)
+    label.input("$p_{T$").run()
+    at.button(key=make_key).click().run()
+    assert not at.exception
+    assert any("missing closing }" in warning.value for warning in at.warning)
+    assert result_key not in at.session_state
+
+
 def test_app_starts_without_input() -> None:
     at = make_app_test().run()
 

@@ -29,6 +29,21 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 
 The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result.
 
+## Titles and labels
+
+The plot title and axis labels can be overridden in the label settings below the plot controls. Labels of static plots support mathematical notation through Matplotlib's built-in [mathtext](https://matplotlib.org/stable/users/explain/text/mathtext.html), so no LaTeX installation is required. Write the mathematical part between dollar signs:
+
+| Label text | Displayed as |
+| --- | --- |
+| `$p_T$ [GeV]` | $p_T$ [GeV] |
+| `$\eta$` | $\eta$ |
+| `$\Delta R(\mu, j)$` | $\Delta R(\mu, j)$ |
+| `$\frac{1}{N}\,\mathrm{d}N/\mathrm{d}p_T$` | $\frac{1}{N}\,\mathrm{d}N/\mathrm{d}p_T$ |
+
+The same syntax works for the colour-bar label and for labels in the persisted histogram and graph viewers. A label containing invalid math, for example an unknown command such as `$\pt$` or an unclosed brace, is reported when you click **Make plot**, and no plot is generated until it is corrected. Downloaded figures and generated plot code use the same labels.
+
+Interactive 3D scatter plots currently display labels literally, without rendering math.
+
 ## Interpretation
 
 **Selected entry range, cuts, finite-value filtering, weights, flow-bin handling and normalisation** can change the statistical meaning of the displayed histogram. A histogram density, weighted yield, and simple count distribution are not interchangeable. For precise definitions of weighted yields, statistical uncertainties, density normalisation and fit objectives, see [Histogram statistics, normalisation and fitting](histograms-and-fits.md).
