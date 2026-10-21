@@ -72,7 +72,7 @@ def evaluate_nth_variable(
     label = f"{branch}[{spec.index}]"
     if event_index is None:
         return nth_per_event(arr, spec.index), label
-    values = event_to_numpy(arr)
+    values = np.asarray(event_to_numpy(arr)).reshape(-1)
     value = values[spec.index] if len(values) > spec.index else np.nan
     return np.asarray([value], dtype=float), label
 
