@@ -27,6 +27,8 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 3. Configure any applicable cuts, weights, bin settings and plot style.
 4. Click **Make plot** to generate the output.
 
+Settings such as the number of bins, figure size, marker size and opacity are sliders by default. To enter an exact value, click the keyboard button next to a slider; it turns into a number input with the same limits, and the button next to it switches back. The value is kept when switching, and each setting remembers its mode for the session.
+
 The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result.
 
 ## Titles and labels

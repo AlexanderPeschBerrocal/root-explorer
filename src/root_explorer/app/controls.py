@@ -17,6 +17,65 @@ DEFAULT_STATIC_EXPORT_DPI = 300
 STATIC_EXPORT_DPI_OPTIONS = (150, 300, 600)
 
 
+def slider_or_number_input(
+    label: str,
+    min_value: Any,
+    max_value: Any,
+    value: Any,
+    *,
+    key: str,
+    step: Any = None,
+    help: str | None = None,
+) -> Any:
+    """Render a slider that a compact button can switch to a number input.
+
+    The slider is the default. Switching copies the current value to the other
+    widget, so the setting is preserved in both directions, and the chosen mode
+    is remembered for the session. Both widgets use the same bounds and step.
+    The slider keeps ``key``; the number input uses ``f"{key}_input"``.
+    """
+
+    mode_key = f"{key}_mode"
+    input_key = f"{key}_input"
+    typed = st.session_state.get(mode_key) == "number"
+
+    def toggle_mode() -> None:
+        # Runs before the next script run, while the visible widget still holds its value.
+        if st.session_state.get(mode_key) == "number":
+            st.session_state[key] = st.session_state[input_key]
+            st.session_state[mode_key] = "slider"
+        else:
+            st.session_state[input_key] = st.session_state.get(key, value)
+            st.session_state[mode_key] = "number"
+
+    widget_column, button_column = st.columns([1, 0.1], vertical_alignment="bottom", gap="small")
+    with widget_column:
+        widget_key = input_key if typed else key
+        # Pass the default only on first creation to avoid Streamlit's warning about
+        # setting a widget value both as a default and through session state.
+        initial = {} if widget_key in st.session_state else {"value": value}
+        widget = st.number_input if typed else st.slider
+        result = widget(
+            label,
+            min_value=min_value,
+            max_value=max_value,
+            step=step,
+            key=widget_key,
+            help=help,
+            **initial,
+        )
+    with button_column:
+        st.button(
+            "",
+            icon=":material/linear_scale:" if typed else ":material/keyboard:",
+            key=f"{key}_toggle",
+            help="Use a slider" if typed else "Type a value",
+            on_click=toggle_mode,
+            type="tertiary",
+        )
+    return result
+
+
 def field_structure_label(field: FieldInfo) -> str:
     """Return the compact structural badge text for one source field."""
 
@@ -666,7 +725,7 @@ def histogram_analysis_controls(
                 }[value],
                 key=f"{prefix}_hist_flow_mode",
             )
-        style["bins_x"] = st.slider("Bins", 5, 500, default_bins, key=f"{prefix}_bins")
+        style["bins_x"] = slider_or_number_input("Bins", 5, 500, default_bins, key=f"{prefix}_bins")
         separate_flow = (
             style["manual_histogram_limits"]
             and style["hist_flow_mode"] == "separate"
@@ -693,8 +752,12 @@ def histogram_analysis_controls(
                 "because they have no finite bin widths. Choose Ignore or Fold."
             )
     else:
-        style["bins_x"] = st.slider("X bins", 5, 500, default_bins, key=f"{prefix}_bins_x")
-        style["bins_y"] = st.slider("Y bins", 5, 500, default_bins, key=f"{prefix}_bins_y")
+        style["bins_x"] = slider_or_number_input(
+            "X bins", 5, 500, default_bins, key=f"{prefix}_bins_x"
+        )
+        style["bins_y"] = slider_or_number_input(
+            "Y bins", 5, 500, default_bins, key=f"{prefix}_bins_y"
+        )
 
     style["show_kde"] = st.checkbox("Show KDE", value=False, key=f"{prefix}_show_kde")
     style["kde_bandwidth"] = "scott"
@@ -759,7 +822,7 @@ def plot_style_controls(
     style: dict[str, Any] = {}
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:
-        style["fig_width"] = st.slider(
+        style["fig_width"] = slider_or_number_input(
             "Figure width",
             4.0,
             16.0,
@@ -767,7 +830,9 @@ def plot_style_controls(
             key=f"{prefix}_fig_width",
             help=f"Static previews are rendered at {DEFAULT_STATIC_DISPLAY_DPI} DPI.",
         )
-        style["fig_height"] = st.slider("Figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height")
+        style["fig_height"] = slider_or_number_input(
+            "Figure height", 3.0, 12.0, 6.0, key=f"{prefix}_fig_height"
+        )
         style["display_dpi"] = DEFAULT_STATIC_DISPLAY_DPI
         style["log_x"] = st.checkbox("Log x-axis", value=False, key=f"{prefix}_log_x")
         style["log_y"] = st.checkbox("Log y-axis", value=False, key=f"{prefix}_log_y")
@@ -814,10 +879,10 @@ def plot_style_controls(
         style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "2D scatter":
-        style["marker_size_2d"] = st.slider(
+        style["marker_size_2d"] = slider_or_number_input(
             "Marker size", 0.2, 50.0, default_marker_size_2d, key=f"{prefix}_marker_size_2d"
         )
-        style["opacity_2d"] = st.slider(
+        style["opacity_2d"] = slider_or_number_input(
             "Marker opacity", 0.05, 1.0, default_opacity_2d, key=f"{prefix}_opacity_2d"
         )
         style["max_points"] = st.number_input(
@@ -836,10 +901,10 @@ def plot_style_controls(
         style["grid"] = st.checkbox("Grid", value=True, key=f"{prefix}_grid")
 
     elif plot_type == "3D scatter interactive":
-        style["marker_size_3d"] = st.slider(
+        style["marker_size_3d"] = slider_or_number_input(
             "Marker size", 1.0, 20.0, default_marker_size_3d, key=f"{prefix}_marker_size_3d"
         )
-        style["opacity_3d"] = st.slider(
+        style["opacity_3d"] = slider_or_number_input(
             "Marker opacity", 0.05, 1.0, default_opacity_3d, key=f"{prefix}_opacity_3d"
         )
         style["max_points"] = st.number_input(

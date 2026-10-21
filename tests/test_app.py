@@ -74,6 +74,78 @@ def test_persisted_viewers_report_invalid_math_labels(
     assert result_key not in at.session_state
 
 
+def test_slider_settings_can_switch_to_number_input_and_back(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    assert at.slider(key="plot_bins").value == 100
+    assert not any(widget.key == "plot_bins_input" for widget in at.number_input)
+
+    at.slider(key="plot_bins").set_value(250).run()
+    at.button(key="plot_bins_toggle").click().run()
+    assert not any(widget.key == "plot_bins" for widget in at.slider)
+    number = at.number_input(key="plot_bins_input")
+    assert number.value == 250
+    assert (number.min, number.max) == (5, 500)
+
+    at.number_input(key="plot_bins_input").set_value(123).run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    histogram_bars = at.session_state["plot_result"]["figure"].axes[0].patches
+    assert len(histogram_bars) == 123
+
+    # The chosen mode persists across reruns until the toggle is used again.
+    at.run()
+    assert at.number_input(key="plot_bins_input").value == 123
+    at.button(key="plot_bins_toggle").click().run()
+    assert at.slider(key="plot_bins").value == 123
+    assert not any(widget.key == "plot_bins_input" for widget in at.number_input)
+
+
+def test_typed_and_slider_values_produce_identical_plots(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.slider(key="plot_fig_width").set_value(9.5).run()
+    at.button(key="plot_make").click().run()
+    slider_result = at.session_state["plot_result"]
+    slider_code, slider_size = slider_result["code"], slider_result["figure"].get_size_inches()
+
+    at.button(key="plot_fig_width_toggle").click().run()
+    assert at.number_input(key="plot_fig_width_input").value == pytest.approx(9.5)
+    at.button(key="plot_make").click().run()
+    typed_result = at.session_state["plot_result"]
+    assert typed_result["code"] == slider_code
+    assert list(typed_result["figure"].get_size_inches()) == list(slider_size)
+
+
+@pytest.mark.parametrize("plot_type", ["1D histogram", "2D histogram", "2D scatter"])
+def test_every_plotter_slider_offers_a_number_input_toggle(root_path, plot_type) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select(plot_type).run()
+    at.selectbox(key="event_plot_type").select(plot_type).run()
+    assert at.slider
+    for slider in at.slider:
+        assert slider.key is not None
+        assert at.button(key=f"{slider.key}_toggle").label == ""
+
+
+def test_persisted_viewer_sliders_offer_a_number_input_toggle() -> None:
+    at = _load_root_file(make_app_test(), PROJECT_ROOT / "tests" / "data" / "test_objects.root")
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    selector.select("plain_graph (TGraph)").run()
+    at.button(key="root_object_open").click().run()
+    for key in ("graph_marker_size", "graph_line_width", "graph_fig_width", "graph_fig_height"):
+        assert at.button(key=f"{key}_toggle")
+    at.button(key="graph_line_width_toggle").click().run()
+    assert at.number_input(key="graph_line_width_input").value == pytest.approx(1.5)
+
+
+def test_geometry_opacity_offers_a_number_input_toggle(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.sidebar.checkbox(key="geometry_enabled").check().run()
+    at.sidebar.button(key="geometry_opacity_toggle").click().run()
+    number = at.sidebar.number_input(key="geometry_opacity_input")
+    assert number.value == pytest.approx(0.30)
+    assert (number.min, number.max) == pytest.approx((0.02, 1.0))
+
+
 def test_app_starts_without_input() -> None:
     at = make_app_test().run()
 

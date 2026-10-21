@@ -10,6 +10,7 @@ import streamlit as st
 from ..io.graphs import UnsupportedGraphError, read_graph
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, validate_plot_labels
+from .controls import slider_or_number_input
 from .results import (
     close_plot_result,
     discard_plot_result,
@@ -40,10 +41,18 @@ def _graph_controls(graph, object_id: str) -> tuple[dict[str, Any], dict[str, st
     )
     if graph.xerr_low is not None or graph.yerr_low is not None:
         style["show_errors"] = st.checkbox("Show error bars", value=True, key="graph_show_errors")
-    style["marker_size"] = st.slider("Marker size", 0.5, 20.0, 5.0, key="graph_marker_size")
-    style["line_width"] = st.slider("Line width", 0.5, 10.0, 1.5, key="graph_line_width")
-    style["fig_width"] = st.slider("Figure width", 4.0, 16.0, 8.0, key="graph_fig_width")
-    style["fig_height"] = st.slider("Figure height", 3.0, 12.0, 6.0, key="graph_fig_height")
+    style["marker_size"] = slider_or_number_input(
+        "Marker size", 0.5, 20.0, 5.0, key="graph_marker_size"
+    )
+    style["line_width"] = slider_or_number_input(
+        "Line width", 0.5, 10.0, 1.5, key="graph_line_width"
+    )
+    style["fig_width"] = slider_or_number_input(
+        "Figure width", 4.0, 16.0, 8.0, key="graph_fig_width"
+    )
+    style["fig_height"] = slider_or_number_input(
+        "Figure height", 3.0, 12.0, 6.0, key="graph_fig_height"
+    )
     style["display_dpi"] = 200
     style["log_x"] = st.checkbox("Log x-axis", key="graph_log_x")
     style["log_y"] = st.checkbox("Log y-axis", key="graph_log_y")
