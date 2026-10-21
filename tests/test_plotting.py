@@ -20,6 +20,7 @@ from root_explorer.plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidLabelError,
     InvalidPlotResolutionError,
     KDEError,
     apply_range_cuts,
@@ -43,6 +44,7 @@ from root_explorer.plotting.plots import (
     safe_filename,
     save_matplotlib_figure,
     save_plotly_figure,
+    validate_plot_labels,
     validate_raster_resolution,
 )
 
@@ -1225,3 +1227,38 @@ def test_static_plot_colourbar_label_override_for_histogram_and_scatter() -> Non
     )
     assert fig.axes[1].get_ylabel() == "custom scatter label"
     plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["", "plain text", "$p_T$ [GeV]", r"$\Delta R(\mu, j)$", r"$\eta$ and $\phi$", "cost $5"],
+)
+def test_valid_and_plain_labels_are_accepted(label: str) -> None:
+    validate_plot_labels({"title": label, "custom_x": None})
+
+
+@pytest.mark.parametrize(
+    ("label", "reason"),
+    [
+        (r"$\pt$", r"Unknown symbol: \pt"),
+        ("$p_{T$", "missing closing }"),
+        ("$x^$", "syntax error"),
+    ],
+)
+def test_invalid_math_labels_are_reported_readably(label: str, reason: str) -> None:
+    with pytest.raises(InvalidLabelError) as excinfo:
+        validate_plot_labels({"title": "fine", "custom_x": label})
+    message = str(excinfo.value)
+    assert f"`{label}`" in message
+    assert f"({reason})" in message
+    assert "`$p_T$ [GeV]`" in message
+
+
+def test_valid_math_label_renders_without_error() -> None:
+    fig, ax = plt.subplots()
+    try:
+        ax.set_xlabel(r"$\frac{1}{N}\,\mathrm{d}N/\mathrm{d}p_T$")
+        validate_plot_labels({"custom_x": ax.get_xlabel()})
+        matplotlib_figure_bytes(fig, "png", dpi=72)
+    finally:
+        plt.close(fig)

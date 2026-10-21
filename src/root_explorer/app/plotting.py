@@ -36,6 +36,7 @@ from ..plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidLabelError,
     apply_range_cuts,
     build_plotly_3d,
     calculate_color_clipping,
@@ -44,6 +45,7 @@ from ..plotting.plots import (
     downsample_arrays,
     render_static_plot,
     scatter_color_scale_linear,
+    validate_plot_labels,
 )
 from .controls import (
     PLOT_TYPES,
@@ -327,6 +329,7 @@ def _generate_and_show(
             InvalidAxisScaleError,
             InvalidColorScaleError,
             InvalidHistogramRangeError,
+            InvalidLabelError,
         ) as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))
@@ -361,6 +364,7 @@ def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str |
 def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     """Create a cached result for a static plot through the shared plotting pipeline."""
 
+    validate_plot_labels(request.labels)
     spec = request.to_static_spec()
     prepared = prepare_static_plot(spec)
 

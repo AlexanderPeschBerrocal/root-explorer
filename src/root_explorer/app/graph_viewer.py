@@ -9,7 +9,7 @@ import streamlit as st
 
 from ..io.graphs import UnsupportedGraphError, read_graph
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
-from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError
+from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, validate_plot_labels
 from .results import (
     close_plot_result,
     discard_plot_result,
@@ -97,6 +97,7 @@ def render_graph_controls(
     if "root_graph_result" not in st.session_state or make_plot:
         figure = None
         try:
+            validate_plot_labels(labels)
             spec = GraphPlotSpec(root_path, object_path, style, labels)
             figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code

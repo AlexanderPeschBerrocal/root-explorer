@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,8 +14,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from matplotlib import colormaps
+from matplotlib import cbook, colormaps
 from matplotlib.colors import LogNorm, Normalize, to_hex
+from matplotlib.mathtext import MathTextParser
 from scipy.stats import gaussian_kde
 
 from ..analysis.arrays import align_arrays
@@ -43,6 +45,43 @@ class KDEError(ValueError):
 
 class InvalidPlotResolutionError(ValueError):
     """Raised when a raster export would be invalid or unreasonably large."""
+
+
+class InvalidLabelError(ValueError):
+    """Raised when a user-provided label contains math text that cannot be rendered."""
+
+
+_MATHTEXT_PARSER = MathTextParser("path")
+
+
+def validate_plot_labels(labels: dict[str, Any]) -> None:
+    """Reject labels whose ``$...$`` math text Matplotlib cannot render.
+
+    Matplotlib only parses math text when a figure is drawn, which happens after
+    plot generation. Parsing up front turns an invalid expression such as
+    ``$\\pt$`` into a concise message instead of a traceback during display.
+    Labels without math text are accepted unchanged.
+    """
+
+    for text in labels.values():
+        if not isinstance(text, str) or not cbook.is_math_text(text):
+            continue
+        try:
+            _MATHTEXT_PARSER.parse(text, dpi=72)
+        except ValueError as exc:
+            reason = str(exc).strip().splitlines()[-1]
+            reason = re.sub(r"^\w+Exception: ", "", reason)
+            reason = re.sub(r",?\s*found .*$|\s*\(at char .*$", "", reason).strip()
+            if "end_group" in reason:
+                reason = "missing closing }"
+            elif not reason or len(reason) > 60:
+                # pyparsing can report the whole expected grammar; keep the message readable.
+                reason = "syntax error"
+            # Backticks keep Streamlit from rendering the label and examples as math.
+            raise InvalidLabelError(
+                f"The label `{text}` contains invalid math ({reason}). Write math between "
+                "`$...$` using valid TeX syntax, for example `$p_T$ [GeV]`."
+            ) from exc
 
 
 KDE_MAX_POINTS = 5_000
