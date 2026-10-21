@@ -880,7 +880,7 @@ def draw_histogram_1d(
                 height,
                 width=bar_width,
                 align="edge",
-                color="tab:orange",
+                color="tab:purple",
                 hatch="//",
                 edgecolor="black",
                 linewidth=1,
@@ -898,7 +898,7 @@ def draw_histogram_1d(
     if reference_x is not None:
         ax.axvline(
             reference_x,
-            color="tab:red",
+            color="tab:green",
             linestyle="--",
             linewidth=1.5,
             label=reference_label or f"x = {reference_x:g}",

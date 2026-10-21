@@ -73,7 +73,7 @@ def render_histogram_data(
             if mode not in {"Step", "Error bars", "Step + error bars", "Filled"}:
                 raise ValueError(f"Unknown histogram drawing mode: {mode}")
             if mode in {"Step", "Step + error bars", "Filled"}:
-                ax.stairs(display_values, edges, fill=(mode == "Filled"))
+                ax.stairs(display_values, edges, fill=(mode == "Filled"), color="tab:blue")
             if mode in {"Error bars", "Step + error bars"}:
                 errors = histogram_errors(data)
                 centers = (edges[:-1] + edges[1:]) / 2
@@ -82,6 +82,7 @@ def render_histogram_data(
                     values[occupied],
                     yerr=None if errors is None else errors[occupied],
                     fmt="o",
+                    color="tab:blue",
                     markersize=4,
                     capsize=2,
                     linestyle="none",

@@ -9,9 +9,10 @@ import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, to_rgba
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
+from root_explorer.analysis.fitting import FitResult
 from root_explorer.analysis.histograms import build_histogram_1d, build_histogram_2d
 from root_explorer.plotting.plots import (
     KDE_MAX_POINTS,
@@ -769,7 +770,75 @@ def test_1d_reference_line_is_drawn_at_requested_value() -> None:
     )
     assert axes.lines[-1].get_xdata()[0] == pytest.approx(2.0)
     assert axes.lines[-1].get_label() == "threshold = 2"
+    assert to_rgba(axes.lines[-1].get_color()) == to_rgba("tab:green")
     plt.close(figure)
+
+
+def test_1d_histogram_overlays_use_distinct_semantic_colors() -> None:
+    from root_explorer.analysis.histograms import summarise_histogram_flow
+
+    values = np.array([-2.0, 0.0, 1.5, 2.0, 2.5, 4.0, 8.0, 12.0])
+    histogram = build_histogram_1d(values, 4, value_range=(1.0, 10.0), label="x")
+    flow_summary = summarise_histogram_flow(histogram, values, weighted=False)
+    fit_result = FitResult(
+        model="Gaussian",
+        success=True,
+        parameters={"A": 3.0, "mu": 3.0, "sigma": 1.0},
+        uncertainties={"A": None, "mu": None, "sigma": None},
+        statistic=0.0,
+        ndof=1,
+        bins_used=4,
+        bins_excluded=0,
+        objective="Ordinary least squares",
+        fit_range=(1.0, 10.0),
+        message="Fit converged.",
+    )
+    figure, axes = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {
+                "show_kde": True,
+                "kde_bandwidth": "scott",
+                "log_y": False,
+                "grid": False,
+            },
+            title="semantic colors",
+            histogram_1d=histogram,
+            reference_x=3.0,
+            reference_label="threshold = 3",
+            fit_result=fit_result,
+            histogram_flow_summary=flow_summary,
+            histogram_flow_mode="separate",
+        )
+
+        assert not warnings
+        reference = next(line for line in axes.lines if line.get_label() == "threshold = 3")
+        kde = next(line for line in axes.lines if line.get_label() == "KDE")
+        fit = next(patch for patch in axes.patches if patch.get_label() == "Gaussian fit")
+        flow = [patch for patch in axes.patches if patch.get_hatch() == "//"]
+        assert len(flow) == 2
+        colors = {
+            "reference": to_rgba(reference.get_color()),
+            "fit": to_rgba(fit.get_edgecolor()),
+            "kde": to_rgba(kde.get_color()),
+            "flow": to_rgba(flow[0].get_facecolor()),
+        }
+        assert colors == {
+            "reference": to_rgba("tab:green"),
+            "fit": to_rgba("tab:red"),
+            "kde": to_rgba("tab:orange"),
+            "flow": to_rgba("tab:purple"),
+        }
+        assert len(set(colors.values())) == len(colors)
+    finally:
+        plt.close(figure)
 
 
 def test_scatter_color_limits_and_log_normalization() -> None:

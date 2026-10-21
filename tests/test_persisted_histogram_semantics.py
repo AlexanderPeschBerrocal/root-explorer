@@ -9,6 +9,7 @@ import sys
 import hist
 import numpy as np
 import uproot
+from matplotlib.colors import to_rgba
 from uproot.writing.identify import to_TAxis, to_TProfile, to_TProfile2D
 
 from root_explorer.io.histograms import read_histogram
@@ -219,6 +220,10 @@ def test_sparse_profile1d_distinguishes_empty_bins_from_measured_zero(tmp_path):
             # Path. No vertex may remain in the empty first bin (x < 1).
             assert len(vertices) > 0
             assert np.min(vertices[:, 0]) >= 1.0
+            if mode == "Step + error bars":
+                step_color = to_rgba(fig.axes[0].patches[0].get_edgecolor())
+                marker_color = to_rgba(fig.axes[0].lines[0].get_color())
+                assert step_color == marker_color == to_rgba("tab:blue")
         finally:
             plt.close(fig)
     np.testing.assert_array_equal(data.histogram.values(), [0.0, 0.0, 3.0])
