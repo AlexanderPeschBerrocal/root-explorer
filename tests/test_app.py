@@ -496,6 +496,34 @@ def test_ranking_selection_updates_event_index(root_path) -> None:
     assert at.session_state["event_index"] == selected
 
 
+def test_event_inspection_is_constrained_to_the_selected_entry_range(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+
+    next(widget for widget in at.number_input if widget.label == "entry start").set_value(5).run()
+    next(widget for widget in at.number_input if widget.label == "entry stop").set_value(10).run()
+
+    event_index = next(widget for widget in at.number_input if widget.label == "event index")
+    assert not at.exception
+    assert event_index.min == 5
+    assert event_index.max == 9
+    assert event_index.value == 5
+    assert at.session_state["event_index"] == 5
+
+
+def test_changing_entry_range_resets_event_index_to_the_new_start(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    event_index = next(widget for widget in at.number_input if widget.label == "event index")
+    event_index.set_value(3).run()
+
+    next(widget for widget in at.number_input if widget.label == "entry start").set_value(5).run()
+
+    event_index = next(widget for widget in at.number_input if widget.label == "event index")
+    assert not at.exception
+    assert event_index.min == 5
+    assert event_index.value == 5
+    assert at.session_state["event_index"] == 5
+
+
 def test_app_loads_geometry_path(tiny_gdml_path, root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.checkbox(key="geometry_enabled").check().run()
