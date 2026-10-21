@@ -614,18 +614,20 @@ def draw_hist2d_linear(ax: Any, histogram: hist.Hist):
 
 
 def draw_hist2d_log(ax: Any, histogram: hist.Hist):
-    """Draw visible contents with the existing logarithmic-colour fallback."""
+    """Draw visible contents with a genuinely logarithmic colour scale."""
     values = np.asarray(histogram.values(), dtype=float)
     positive = values[np.isfinite(values) & (values > 0)]
-    norm = None
-    if len(positive) > 1 and np.nanmax(positive) > np.nanmin(positive):
-        norm = LogNorm(vmin=float(np.nanmin(positive)), vmax=float(np.nanmax(positive)))
+    if positive.size == 0:
+        raise InvalidColorScaleError("Log colour scale requires positive bin contents.")
+    lo, hi = float(np.min(positive)), float(np.max(positive))
+    if lo == hi:
+        hi = np.nextafter(hi, np.inf)
     return ax.pcolormesh(
         histogram.axes[0].edges,
         histogram.axes[1].edges,
         values.T,
         shading="auto",
-        norm=norm,
+        norm=LogNorm(vmin=lo, vmax=hi),
     )
 
 

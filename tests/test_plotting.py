@@ -650,6 +650,76 @@ def test_histogram_log_y_requires_a_positive_bin_and_log_z_is_independent() -> N
     plt.close(histogram_2d_figure)
 
 
+def test_2d_histogram_log_color_rejects_no_positive_bins() -> None:
+    figure, axes = plt.subplots()
+    histogram = build_histogram_2d(
+        np.array([], dtype=float),
+        np.array([], dtype=float),
+        2,
+        2,
+        x_range=(0.0, 1.0),
+        y_range=(0.0, 1.0),
+        x_label="x",
+        y_label="y",
+    )
+
+    with pytest.raises(InvalidColorScaleError, match="positive bin contents"):
+        render_static_plot(
+            figure,
+            axes,
+            "2D histogram",
+            np.array([], dtype=float),
+            np.array([], dtype=float),
+            "x",
+            "y",
+            {"bins_x": 2, "bins_y": 2, "log_z": True, "grid": False},
+            title="empty log color histogram",
+            histogram_2d=histogram,
+        )
+    plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    "coordinates",
+    [np.array([0.25]), np.array([0.25, 0.75])],
+    ids=["one-positive-bin", "equal-positive-bins"],
+)
+def test_2d_histogram_log_color_remains_logarithmic_for_equal_bins(
+    coordinates: np.ndarray,
+) -> None:
+    figure, axes = plt.subplots()
+    histogram = build_histogram_2d(
+        coordinates,
+        coordinates,
+        2,
+        2,
+        x_range=(0.0, 1.0),
+        y_range=(0.0, 1.0),
+        x_label="x",
+        y_label="y",
+    )
+
+    render_static_plot(
+        figure,
+        axes,
+        "2D histogram",
+        coordinates,
+        coordinates,
+        "x",
+        "y",
+        {"bins_x": 2, "bins_y": 2, "log_z": True, "grid": False},
+        title="equal-bin log color histogram",
+        histogram_2d=histogram,
+    )
+
+    norm = axes.collections[0].norm
+    assert isinstance(norm, LogNorm)
+    assert 0 < norm.vmin <= 1.0
+    assert norm.vmax > norm.vmin
+    assert norm.vmax >= 1.0
+    plt.close(figure)
+
+
 @pytest.mark.parametrize(
     ("reverse", "expected_name"),
     [(False, "Greys"), (True, "Greys_r")],
