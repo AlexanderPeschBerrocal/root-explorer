@@ -77,7 +77,7 @@ for normalised flow-folded histograms.
 semantics. Currently, the control applies to event-derived 1D histograms.
 Persisted ROOT `TH1*` objects can contain counts, densities or other
 quantities without reliable semantic metadata, and are not normalised
-automatically. `TProfile*` bin means must not be treated as yields.
+automatically. `TProfile` and `TProfile2D` bin means must not be treated as yields.
 
 ## Built-in histogram fitting
 

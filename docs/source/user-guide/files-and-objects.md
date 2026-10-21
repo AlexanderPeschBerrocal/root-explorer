@@ -3,7 +3,7 @@
 A ROOT file may contain multiple kinds of objects. ROOT Explorer exposes two related but distinct workflows:
 
 - **Event-data exploration:** Select a TTree or RNTuple containing entries/events, choose a read range and plot branches (fields) from those entries.
-- **Persisted-object inspection:** Browse a ROOT file's existing stored histograms, graphs and profiles. These objects are not created afresh from event branches by ROOT Explorer.
+- **Persisted-object inspection:** Browse a ROOT file's stored objects and plot the supported 1D/2D histograms, profiles and graphs. These objects are not created afresh from event branches by ROOT Explorer.
 
 ```{image} ../_static/screenshots/object-browser-light.png
 :alt: ROOT Explorer file-object and branch browser with synthetic data
@@ -27,7 +27,14 @@ Use the tab containing event-container fields to inspect names, types and per-en
 
 Use the **ROOT objects** browser to view objects and their directory paths without immediately loading all their contents. Search/filter the catalogue, select an inspectable object and click **Open selected object**. The fallback **Object to inspect** selector can be used when browser row selection is unavailable.
 
-ROOT Explorer supports dedicated inspection workflows for supported stored histogram and graph classes, including 1D/2D histograms, profiles and TGraphs. Specific capabilities depend on the object's ROOT class and dimensionality: a TProfile contains per-bin means, **not** event-count histogram yields. Histogram-only operations should not be assumed valid for profiles or graphs.
+ROOT Explorer can plot the following stored ROOT classes:
+
+- **1D histograms:** `TH1` classes such as `TH1F`, `TH1D` and `TH1I`.
+- **2D histograms:** `TH2` classes such as `TH2F`, `TH2D` and `TH2I` (`TH2Poly` is not supported).
+- **Profiles:** `TProfile` and `TProfile2D`.
+- **Graphs:** `TGraph`, `TGraphErrors` and `TGraphAsymmErrors`.
+
+Other classes are listed in the browser with their ROOT class name but cannot be plotted. Specific capabilities depend on the object's ROOT class and dimensionality: a TProfile contains per-bin means, **not** event-count histogram yields. Histogram-only operations should not be assumed valid for profiles or graphs.
 
 A ROOT file that contains **no TTree or RNTuple** can still be opened in the ROOT-object browser. Objects may reside in nested ROOT directories, and ROOT object cycles can be shown if needed.
 
