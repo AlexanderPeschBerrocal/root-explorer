@@ -92,6 +92,34 @@ def test_unweighted_1d_kde_is_scaled_to_entry_counts() -> None:
     plt.close(figure)
 
 
+def test_1d_kde_is_shown_in_legend_without_other_overlays() -> None:
+    values = np.linspace(-2.0, 2.0, 100)
+    figure, axes = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            "1D histogram",
+            values,
+            None,
+            "x",
+            "entries",
+            {
+                "show_kde": True,
+                "kde_bandwidth": "scott",
+                "log_y": False,
+                "grid": False,
+            },
+            title="KDE legend",
+            histogram_1d=build_histogram_1d(values, 10, label="x"),
+        )
+
+        assert not warnings
+        assert [text.get_text() for text in axes.get_legend().get_texts()] == ["KDE"]
+    finally:
+        plt.close(figure)
+
+
 def test_2d_weighted_kde_creates_contour_lines() -> None:
     rng = np.random.default_rng(29)
     x = rng.normal(size=500)
@@ -837,6 +865,11 @@ def test_1d_histogram_overlays_use_distinct_semantic_colors() -> None:
             "flow": to_rgba("tab:purple"),
         }
         assert len(set(colors.values())) == len(colors)
+        assert [text.get_text() for text in axes.get_legend().get_texts()] == [
+            "threshold = 3",
+            "Gaussian fit",
+            "KDE",
+        ]
     finally:
         plt.close(figure)
 

@@ -1056,6 +1056,9 @@ def draw_kde_1d_overlay(
             style.get("kde_bandwidth", "scott"), style.get("kde_custom_factor", 1.0)
         )
         draw_kde_1d(ax, x, histogram_edges, weights=weights, bandwidth=bandwidth, density=density)
+        # KDE is drawn after reference and fit overlays, so refresh the legend
+        # only after the KDE artist and its label exist.
+        ax.legend()
     except Exception as exc:
         return str(exc) if isinstance(exc, KDEError) else f"KDE could not be calculated: {exc}"
     return None
