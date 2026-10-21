@@ -7,6 +7,31 @@ tools, including Ruff and pre-commit:
 pip install -e ".[dev,test]"
 ```
 
+## Running the tests
+
+Run the test suite from the repository root:
+
+```bash
+python -m pytest
+```
+
+The tests use small synthetic ROOT files, generated during the test run or
+committed in `tests/data`, and require neither external data nor a CERN ROOT
+installation. Set `MPLBACKEND=Agg` when running on
+a machine without a display, as CI does.
+
+To reproduce the CI test job, including the coverage report, run:
+
+```bash
+MPLBACKEND=Agg python -m pytest -q --cov=root_explorer --cov-report=term-missing
+```
+
+Type checking uses mypy with the file selection configured in `pyproject.toml`:
+
+```bash
+python -m mypy
+```
+
 ## Pre-commit hooks
 
 This repository uses [pre-commit](https://pre-commit.com/) to run the Ruff checks
