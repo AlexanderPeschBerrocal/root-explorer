@@ -347,7 +347,7 @@ def variable_selector(
 
 
 PLOT_TYPES = ["1D histogram", "2D histogram", "2D scatter", "3D scatter interactive"]
-COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Greys", "coolwarm"]
+COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Greys", "Coolwarm"]
 
 
 def color_scale_controls(
