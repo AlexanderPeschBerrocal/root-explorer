@@ -871,6 +871,11 @@ def test_normalisation_control_and_output_in_streamlit(root_path) -> None:
     assert result["code"] is not None
     assert "normalise_histogram_1d" in result["code"]
 
+    assert at.checkbox(key="plot_save_png").value
+    at.checkbox(key="plot_save_pdf").check().run()
+    labels = {button.label for button in at.get("download_button")}
+    assert {"Download PNG", "Download PDF"} <= labels
+
 
 def test_separate_flow_disables_and_clears_density_checkbox(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
