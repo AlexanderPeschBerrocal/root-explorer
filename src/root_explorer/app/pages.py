@@ -7,6 +7,7 @@ import hashlib
 import pandas as pd
 import streamlit as st
 
+from ..config import DOCS_URL
 from ..io.root import filter_root_objects
 from ..models import RootObjectInfo
 from .controls import field_structure_label
@@ -261,6 +262,7 @@ def render_help_tab(context: DataContext) -> None:
     """Render the user-facing quick guide for the selected container type."""
 
     item_name = context.data_item_name
+    st.markdown(f"For detailed guides and explanations, see the [full documentation]({DOCS_URL}).")
     st.subheader("How to use this app", anchor=False)
     st.markdown(
         f"""

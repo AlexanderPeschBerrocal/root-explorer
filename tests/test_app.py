@@ -19,6 +19,13 @@ def make_app_test() -> AppTest:
     return AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=10)
 
 
+def test_help_tab_starts_with_documentation_link(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    help_tab = next(tab for tab in at.tabs if tab.label == "Help")
+    first = help_tab.markdown[0].value
+    assert "[full documentation](https://root-explorer.readthedocs.io/)" in first
+
+
 def test_app_starts_without_input() -> None:
     at = make_app_test().run()
 
