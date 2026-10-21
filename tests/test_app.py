@@ -483,6 +483,41 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("color_min", "color_max", "message"),
+    [
+        ("not-a-number", "", "color min must be a finite number"),
+        ("nan", "", "color min must be a finite number"),
+        ("10", "2", "color min must be smaller than color max"),
+    ],
+)
+def test_3d_scatter_rejects_invalid_color_limits(
+    root_path, color_min: str, color_max: str, message: str
+) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    at.text_input(key="plot_color_min_3d").input(color_min)
+    at.text_input(key="plot_color_max_3d").input(color_max).run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    assert any(message in warning.value for warning in at.warning)
+    assert "plot_result" not in at.session_state
+
+
+def test_3d_scatter_applies_valid_color_limits(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    at.text_input(key="plot_color_min_3d").input("2.5")
+    at.text_input(key="plot_color_max_3d").input("50").run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    marker = at.session_state["plot_result"]["figure"].data[0].marker
+    assert marker.cmin == pytest.approx(2.5)
+    assert marker.cmax == pytest.approx(50.0)
+
+
 def test_ranking_selection_updates_event_index(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     at.button(key="rank_compute").click().run()

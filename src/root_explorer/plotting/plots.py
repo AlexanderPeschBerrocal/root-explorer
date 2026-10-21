@@ -429,7 +429,7 @@ def apply_range_cut(
 
 
 def _scatter_color_limits(style: dict[str, Any]) -> tuple[float | None, float | None]:
-    """Parse and validate explicit 2D-scatter colour limits."""
+    """Parse and validate explicit scatter colour limits."""
 
     cmin_text = style.get("color_min_text", "")
     cmax_text = style.get("color_max_text", "")
@@ -478,7 +478,7 @@ def calculate_color_clipping(
 
 
 def scatter_color_scale_linear(style: dict[str, Any]) -> tuple[float | None, float | None]:
-    """Resolve explicit limits for a linear 2D-scatter colour scale."""
+    """Resolve explicit limits for a linear scatter colour scale."""
 
     return _scatter_color_limits(style)
 

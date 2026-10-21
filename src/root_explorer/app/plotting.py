@@ -42,8 +42,8 @@ from ..plotting.plots import (
     calculate_correlations,
     describe_array,
     downsample_arrays,
-    parse_optional_float,
     render_static_plot,
+    scatter_color_scale_linear,
 )
 from .controls import (
     PLOT_TYPES,
@@ -555,6 +555,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     preview = _preview_dataframe(x, y, z, weights, color) if request.preview else None
 
     if request.plot_type == "3D scatter interactive":
+        color_min, color_max = (
+            scatter_color_scale_linear(request.style) if color is not None else (None, None)
+        )
         figure = build_plotly_3d(
             x,
             y,
@@ -570,8 +573,8 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             colorscale=request.style.get("colorscale", "Viridis"),
             reversescale=request.style.get("reverse_colorscale", False),
             aspectmode=request.style["aspectmode"],
-            color_min=parse_optional_float(request.style.get("color_min_text", "")),
-            color_max=parse_optional_float(request.style.get("color_max_text", "")),
+            color_min=color_min,
+            color_max=color_max,
         )
         return {
             "kind": "plotly",
