@@ -76,10 +76,25 @@ cd root-explorer
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-streamlit run streamlit_app.py
+root-explorer
 ```
 
 On Windows, use the activation command appropriate to your shell. Streamlit normally serves the application at `http://localhost:8501`. A local source installation can read files using their normal filesystem paths.
+
+### The `root-explorer` command
+
+Installing the package provides a `root-explorer` command, which starts the application from any directory. Pass a ROOT file to open it directly; relative paths are resolved against the directory in which you run the command, and `root://` or `http(s)://` URLs are passed unchanged:
+
+```bash
+root-explorer                         # start without a file
+root-explorer path/to/file.root       # open a file on start-up
+root-explorer file.root --port 8600   # use another port
+root-explorer file.root --no-browser  # do not open a browser window
+```
+
+`python -m root_explorer` is equivalent. Further options are passed to Streamlit, for example `--server.address=0.0.0.0`; run `root-explorer --help` for an overview. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
+
+After changing the package version in a source checkout, reinstall it with `python -m pip install -e .` so that the command and the version shown in the app are up to date.
 
 For development and testing dependencies, install `python -m pip install -e ".[dev,test]"` and consult [Contributing](contributing.md).
 
