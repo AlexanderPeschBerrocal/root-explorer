@@ -53,6 +53,9 @@ screenshots = [
     "playwright>=1.55,<2",
 ]
 
+[project.scripts]
+root-explorer = "root_explorer.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/AlexanderPeschBerrocal/root-explorer"
 Issues = "https://github.com/AlexanderPeschBerrocal/root-explorer/issues"
