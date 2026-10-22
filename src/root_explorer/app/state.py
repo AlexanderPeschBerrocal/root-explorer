@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from ..models import FieldInfo, RootObjectInfo
 
@@ -36,13 +36,24 @@ class DataContext:
         return "fields" if self.data_item_name == "field" else "branches"
 
 
+EventDataStatus = Literal[
+    "available", "no_event_containers", "empty_container", "unreadable_container"
+]
+
+
 @dataclass(frozen=True)
 class RootFileContext:
-    """Selected ROOT file metadata plus optional event-data context."""
+    """Selected ROOT file metadata plus optional event-data context.
+
+    ``data`` is ``None`` whenever the file offers no usable event data; the
+    catalogue remains available so the ROOT object browser can still be shown.
+    ``event_data_status`` records why event data is unavailable.
+    """
 
     root_path: str
     catalogue: tuple[RootObjectInfo, ...]
     data: DataContext | None
+    event_data_status: EventDataStatus = "available"
 
 
 @dataclass(frozen=True)
