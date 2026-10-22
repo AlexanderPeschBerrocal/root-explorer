@@ -325,7 +325,13 @@ def _generate_and_show(
 ) -> None:
     if make_plot:
         try:
-            store_plot_result(result_key, _build_plot_result(request))
+            if request.plot_type in STATIC_PLOT_TYPES:
+                # Static plots report their individual steps themselves.
+                result = _build_plot_result(request)
+            else:
+                with st.spinner("Reading data and building the 3D plot…", show_time=True):
+                    result = _build_plot_result(request)
+            store_plot_result(result_key, result)
         except ArrayShapeMismatchError as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))
@@ -390,7 +396,9 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
 
     validate_plot_labels(request.labels)
     spec = request.to_static_spec()
-    prepared = prepare_static_plot(spec)
+    # Spinners appear only after a short delay, so fast steps do not flicker.
+    with st.spinner("Reading and selecting data…", show_time=True):
+        prepared = prepare_static_plot(spec)
 
     summary_rows = [describe_array(prepared.x_label, prepared.x)]
     if prepared.y is not None:
@@ -425,14 +433,16 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         if request.preview
         else None
     )
-    fit_result = (
-        fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
-        if request.fit_config is not None and prepared.histogram_1d is not None
-        else None
-    )
+    fit_result = None
+    if request.fit_config is not None and prepared.histogram_1d is not None:
+        with st.spinner("Fitting histogram…"):
+            fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
     figure = None
     try:
-        figure, plot_warnings = render_prepared_static_plot(spec, prepared, fit_result=fit_result)
+        with st.spinner("Rendering plot…"):
+            figure, plot_warnings = render_prepared_static_plot(
+                spec, prepared, fit_result=fit_result
+            )
         if prepared.normalisation_result is not None and prepared.normalisation_result.error:
             plot_warnings.append(prepared.normalisation_result.error)
         elif prepared.normalisation_result is not None and prepared.normalisation_result.warning:

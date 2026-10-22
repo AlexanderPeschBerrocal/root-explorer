@@ -42,7 +42,7 @@ def load_geometry_scene(
     )
 
 
-@st.cache_data(show_spinner=True, max_entries=8)
+@st.cache_data(show_spinner="Loading GDML geometry…", max_entries=8)
 def _cached_geometry_scene(
     path: str,
     version: SourceVersion,
