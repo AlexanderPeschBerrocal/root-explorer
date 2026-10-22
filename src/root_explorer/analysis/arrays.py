@@ -157,7 +157,7 @@ def excluded_values_note(excluded: int) -> str:
 
     noun = "value was" if excluded == 1 else "values were"
     return (
-        f"{excluded:,} {noun} excluded because a plotted variable, weight or colour "
+        f"{excluded:,} {noun} excluded because a plotted variable, weight, colour or cut value "
         "was missing or not finite."
     )
 

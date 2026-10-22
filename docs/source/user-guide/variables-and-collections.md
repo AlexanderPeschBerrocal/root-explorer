@@ -75,8 +75,12 @@ value is never paired with a value from a different event or object:
   present. If `A` is missing in one event and `B` in another, neither event
   contributes a value.
 - When plotting, an event or object is excluded if any plotted variable, weight,
-  colour or cut value is missing. The number of excluded values is shown below
-  the summary table, and a clear message appears if no values remain.
+  colour or cut value is missing or non-finite. The number of excluded
+  observations is counted before range cuts, once per event or object even if
+  several inputs are invalid. It is shown below the summary table; ordinary
+  range-cut failures are not included in that count. A clear message appears if
+  no values remain. Exported Python scripts apply the same selection and reject
+  empty selections with the same explanation.
 - Per-event reductions skip missing values inside a collection, so the mean of
   `[1, missing]` is 1. A missing whole collection gives a missing result, which
   is excluded, whereas an empty collection keeps its documented value, for

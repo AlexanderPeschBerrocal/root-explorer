@@ -11,7 +11,6 @@ import numpy as np
 
 from ..analysis.arrays import (
     array_length,
-    filter_finite_counted,
     histogram_weights_for_values,
     require_values,
     validate_variable_event_shapes,
@@ -38,11 +37,11 @@ from ..analysis.variables import evaluate_variable
 from ..models import VariableSpec
 from .plots import (
     ColorClippingResult,
-    apply_range_cuts,
     calculate_color_clipping,
     create_static_figure,
     downsample_arrays,
     render_static_plot,
+    select_plot_values,
 )
 
 STATIC_PLOT_TYPES = frozenset({"1D histogram", "2D histogram", "2D scatter"})
@@ -197,7 +196,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         )
         cuts.append((cut_values, bounds[0], bounds[1]))
 
-    arrays, excluded_count = filter_finite_counted(apply_range_cuts(arrays, cuts))
+    arrays, excluded_count = select_plot_values(arrays, cuts)
     x, y, weights, color = _unpack_prepared_arrays(
         arrays,
         has_y=spec.y_spec is not None,

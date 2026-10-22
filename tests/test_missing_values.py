@@ -6,6 +6,7 @@ Tests assert which event or object each value comes from, not only array lengths
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import awkward as ak
@@ -13,13 +14,15 @@ import numpy as np
 import pytest
 import uproot
 from streamlit.testing.v1 import AppTest
-from test_codegen import _execute_export, _request
+from test_codegen import _execute_export, _executed_generated_module, _request
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError, EmptySelectionError
 from root_explorer.analysis.ranking import compute_event_metric
 from root_explorer.analysis.variables import evaluate_variable
 from root_explorer.models import VariableSpec
+from root_explorer.plotting.codegen import generate_static_plot_code
 from root_explorer.plotting.pipeline import StaticPlotSpec, prepare_static_plot
+from root_explorer.plotting.plots import select_plot_values
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 N_EVENTS = 5
@@ -247,7 +250,7 @@ def test_app_reports_excluded_values_and_empty_selections(optional_path) -> None
     at.button(key="plot_make").click().run()
     assert not at.exception
     assert any(
-        "1 value was excluded because a plotted variable, weight or colour was missing"
+        "1 value was excluded because a plotted variable, weight, colour or cut value was missing"
         in caption.value
         for caption in at.caption
     )
@@ -260,6 +263,85 @@ def test_app_reports_excluded_values_and_empty_selections(optional_path) -> None
     assert not at.exception
     assert any("No values remain to plot" in warning.value for warning in at.warning)
     assert "plot_result" not in at.session_state
+
+
+def test_selection_counts_invalid_inputs_once_and_keeps_range_failures_separate() -> None:
+    x = np.array([0.0, 1.0, np.nan, 3.0, 4.0, 5.0, 6.0])
+    weights = np.array([1.0, 1.0, 1.0, 1.0, np.inf, 1.0, 1.0])
+    first_cut = np.array([np.nan, 2.0, np.nan, 2.0, 2.0, -1.0, 2.0])
+    second_cut = np.array([2.0, np.inf, 2.0, 2.0, 2.0, 2.0, 2.0])
+
+    selected, excluded = select_plot_values(
+        [x, weights], [(first_cut, 0.0, None), (second_cut, None, None)]
+    )
+
+    # Positions 0, 1, 2 and 4 are invalid; position 2 is counted only once.
+    # Position 5 fails an ordinary bound and must not increase the invalid count.
+    assert excluded == 4
+    assert selected[0].tolist() == [3.0, 6.0]
+    assert selected[1].tolist() == [1.0, 1.0]
+
+
+@pytest.mark.parametrize("plot_type", ["1D histogram", "3D scatter interactive"])
+def test_app_counts_missing_cut_values(optional_path, plot_type) -> None:
+    at = AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=20).run()
+    at.text_input(key="root_path").input(str(optional_path)).run()
+    at.selectbox(key="plot_type").select(plot_type).run()
+    at.selectbox(key="x_branch").select("evt")
+    if plot_type == "3D scatter interactive":
+        at.selectbox(key="y_branch").select("evt")
+        at.selectbox(key="z_branch").select("evt")
+    at.run()
+    at.number_input(key="plot_n_cuts").set_value(1).run()
+    at.selectbox(key="plot_cut_0_branch").select("b").run()
+    at.text_input(key="plot_cut_0_min").input("0").run()
+    at.button(key="plot_make").click().run()
+
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert result["summary"].iloc[0]["n"] == 4
+    assert result["exclusion_note"].startswith("1 value was excluded")
+    assert any(result["exclusion_note"] == caption.value for caption in at.caption)
+
+
+@pytest.mark.parametrize("plot_type", ["1D histogram", "2D histogram", "2D scatter"])
+@pytest.mark.parametrize("empty_reason", ["missing_axis", "missing_cut", "range_cut"])
+def test_export_rejects_empty_selections_like_the_app(
+    optional_path, plot_type, empty_reason
+) -> None:
+    request = _request(
+        optional_path,
+        plot_type=plot_type,
+        x_spec=_branch("b") if empty_reason == "missing_axis" else _branch("evt"),
+        y_spec=None if plot_type == "1D histogram" else _branch("evt"),
+        cut_specs=[_branch("b")] if empty_reason != "missing_axis" else [],
+        cut_bounds=[(0.0, None)] if empty_reason != "missing_axis" else [],
+        style={"fig_width": 6.0, "fig_height": 4.0, "bins_x": 5, "bins_y": 5},
+    )
+    # Export a usable selection first, then edit the script's range or cut bounds.
+    source = generate_static_plot_code(request)
+    spec = request.to_static_spec()
+    if empty_reason == "range_cut":
+        # Only finite cut values, all outside the requested range.
+        spec = replace(spec, entry_start=1, entry_stop=N_EVENTS, cut_bounds=((100.0, None),))
+    else:
+        # Event 0 has b missing, either as an axis or as a cut value.
+        spec = replace(spec, entry_start=0, entry_stop=1)
+    with pytest.raises(EmptySelectionError) as app_error:
+        prepare_static_plot(spec)
+
+    with _executed_generated_module(source) as module:
+        module.PLOT = replace(
+            module.PLOT,
+            entry_start=spec.entry_start,
+            entry_stop=spec.entry_stop,
+            cut_bounds=spec.cut_bounds,
+        )
+        with pytest.raises(module.EmptySelectionError) as export_error:
+            module.main()
+    assert str(export_error.value) == str(app_error.value)
+    if empty_reason != "range_cut":
+        assert "1 value was excluded" in str(export_error.value)
 
 
 def test_3d_scatter_excludes_events_with_missing_x_y_or_z(optional_path) -> None:

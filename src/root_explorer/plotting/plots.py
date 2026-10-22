@@ -19,7 +19,7 @@ from matplotlib.colors import LogNorm, Normalize, to_hex
 from matplotlib.mathtext import MathTextParser
 from scipy.stats import gaussian_kde
 
-from ..analysis.arrays import align_arrays
+from ..analysis.arrays import align_arrays, filter_finite_counted
 from ..analysis.fitting import FitResult, model_bin_integrals
 
 
@@ -453,6 +453,23 @@ def apply_range_cuts(
             mask &= cut_values <= hi
 
     return [v[mask] for v in values]
+
+
+def select_plot_values(
+    arrays: Sequence[np.ndarray],
+    cuts: Sequence[tuple[np.ndarray, float | None, float | None]],
+) -> tuple[list[np.ndarray], int]:
+    """Exclude invalid positions once across all inputs, then apply range cuts.
+
+    Count missing/non-finite observations in the original read range, including
+    cut values. Ordinary range-cut failures are not included in this count.
+    """
+
+    filtered, excluded = filter_finite_counted([*arrays, *(values for values, _, _ in cuts)])
+    filtered_cuts = [
+        (values, lo, hi) for values, (_, lo, hi) in zip(filtered[len(arrays) :], cuts, strict=True)
+    ]
+    return apply_range_cuts(filtered[: len(arrays)], filtered_cuts), excluded
 
 
 def apply_range_cut(

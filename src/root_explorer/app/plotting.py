@@ -16,7 +16,6 @@ from ..analysis.arrays import (
     array_length,
     cut_values_for_values,
     excluded_values_note,
-    filter_finite_counted,
     histogram_weights_for_values,
     require_values,
     validate_variable_event_shapes,
@@ -45,7 +44,6 @@ from ..plotting.plots import (
     InvalidAxisScaleError,
     InvalidColorScaleError,
     InvalidLabelError,
-    apply_range_cuts,
     build_plotly_3d,
     calculate_color_clipping,
     calculate_correlations,
@@ -53,6 +51,7 @@ from ..plotting.plots import (
     downsample_arrays,
     render_static_plot,
     scatter_color_scale_linear,
+    select_plot_values,
     validate_plot_labels,
 )
 from .controls import (
@@ -564,7 +563,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             event_index,
         )
         cuts.append((values, bounds[0], bounds[1]))
-    arrays, excluded_count = filter_finite_counted(apply_range_cuts(arrays, cuts))
+    arrays, excluded_count = select_plot_values(arrays, cuts)
     x, y, z, weights, color = _unpack_arrays(
         arrays,
         has_y=request.y_spec is not None,
