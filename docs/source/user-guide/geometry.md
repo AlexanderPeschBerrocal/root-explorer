@@ -21,6 +21,7 @@ settings. Parsed counts can exceed displayed counts because of filtering and
 drawing limits.
 
 Recognised GDML length units are converted to **millimetres** internally.
+An unrecognised unit is treated as millimetres without a warning.
 Use a geometry scale of **0.1** if the ROOT coordinates are in centimetres,
 or **0.001** for metres. Offsets are applied after scaling and must be in the
 plot coordinates' units. ROOT coordinate units are not detected automatically.
@@ -46,7 +47,10 @@ positions and rotations written inline. Compare with a trusted detector viewer
 before interpreting alignments. GDML fidelity improvements are tracked in
 [issue #116](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/116).
 
-World/container and vacuum volumes are excluded by default. Only the first
+The world volume, container volumes (any volume with daughter placements,
+whatever its material) and volumes made of `Galactic` or `G4_Galactic` are
+excluded by default. Other low-density materials, such as `G4_AIR` or a
+custom vacuum material, are still drawn unless deselected. Only the first
 **30 materials in sorted order** are selected initially; use **materials to
 draw** to include others. Check the material selection and parsed summary when
 expected structures are absent. Opacity and wireframe settings can help reveal

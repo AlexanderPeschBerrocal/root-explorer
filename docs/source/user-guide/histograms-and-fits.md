@@ -31,14 +31,18 @@ If your physics selection changes, regenerate the plot.
 
 ## Histogram range and flow bins
 
-For an event-derived 1D histogram, the optional histogram minimum and maximum
-set the binning range. A blank bound is inferred from the selected sample.
+For an event-derived 1D histogram, enable **Custom histogram range and flow
+handling** to set an optional histogram minimum and maximum for the binning
+range. A blank bound is inferred from the selected sample. The
+**Underflow / overflow** choice and the flow summary apply only while this
+option is enabled and at least one bound is entered; otherwise flow values are
+ignored and no flow summary is shown.
 Values below the minimum are underflow and values above the maximum are overflow;
 the maximum itself belongs to the last nominal bin. Persisted ROOT histograms
 retain their stored bin contents and flow classification.
 
-- **Ignore:** draw and fit only nominal in-range bins.
-- **Fold:** add underflow to the first bin and overflow to the last, including
+- **Ignore (report separately):** draw and fit only nominal in-range bins.
+- **Fold into edge bins:** add underflow to the first bin and overflow to the last, including
   their variances. These adjusted edge bins also participate in fitting.
 - **Show separate bins:** display flow categories alongside nominal bins.
   The extra categories do not represent finite physical intervals and are
@@ -183,7 +187,7 @@ same expression, parameter settings, and restricted expression evaluator.
 ## KDE smoothing and 2D contours
 
 Event-derived 1D and 2D histograms can show a Gaussian kernel density estimate
-(KDE). **Scott** and **Silverman** choose bandwidth automatically; **Custom**
+(KDE). **Scott** and **Silverman** choose bandwidth automatically; **Custom factor**
 sets SciPy's covariance bandwidth factor directly, not a multiplier of Scott's
 choice. A smaller factor produces less smoothing.
 

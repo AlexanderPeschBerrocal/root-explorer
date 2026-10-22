@@ -56,7 +56,7 @@ repeated for a jagged axis.
 | Massive energy from rapidity | $\sqrt{m^2+p_T^2}\cosh(y)$ |
 | Invariant mass from E/px/py/pz | $\sqrt{\max(E^2-p_x^2-p_y^2-p_z^2,0)}$; negative mass squared is clipped to zero |
 | Ratio / difference / sum / product | $a/b$, $a-b$, $a+b$, $ab$; division by zero gives `NaN` |
-| Delta phi | Wrapped $\phi_1-\phi_2$ in $[-\pi,\pi]$ |
+| Delta phi | Wrapped $\phi_1-\phi_2$ in $(-\pi,\pi]$ |
 | Delta eta | $\eta_1-\eta_2$ |
 | Delta R | $\sqrt{(\Delta\eta)^2+(\Delta\phi)^2}$ using wrapped delta phi |
 

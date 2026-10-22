@@ -17,10 +17,12 @@ output resolution. The app can offer separate **Download PNG** and
 directory. For interactive Plotly 3D plots, export HTML.
 
 PNG exports offer 150, 300 (default) or 600 DPI. The preview uses its own
-resolution, so it need not match the exported PNG. PNG exports estimated to
-exceed **40 million pixels** are disabled; reduce figure size or DPI. PDF
-retains vector drawing where applicable and does not use PNG's raster DPI
-setting.
+resolution, so it need not match the exported PNG. If a PNG export is
+estimated to exceed **40 million pixels**, **Download PNG** is disabled, and so
+is **Save** while PNG is a selected format (no format is saved, including PDF);
+reduce figure size or DPI. PDF keeps text and vector drawing
+resolution-independent; the DPI setting only affects rasterised content inside
+the PDF.
 
 The HTML contains the figure data but loads Plotly JavaScript from a CDN.
 It therefore needs network access to that CDN; it is not a fully self-contained
