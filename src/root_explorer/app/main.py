@@ -6,7 +6,7 @@ from importlib.resources import files
 
 import streamlit as st
 
-from .. import __version__
+from .. import installed_version
 from ..config import APP_TITLE
 from .geometry import render_geometry_sidebar, render_geometry_tab
 from .input import clear_data_results, invalidate_data_results, render_data_input
@@ -18,10 +18,18 @@ APP_ICON = files("root_explorer").joinpath("assets/root-explorer-app-icon-transp
 
 GITHUB_URL = "https://github.com/AlexanderPeschBerrocal/root-explorer"
 
-ABOUT_TEXT = f"""
+
+def about_text() -> str:
+    """Return the About menu text with the currently installed version.
+
+    The version is read on every run rather than once at import, so a reinstalled
+    package is reflected after the next rerun without restarting Streamlit.
+    """
+
+    return f"""
 **{APP_TITLE}**
 
-**Version:** `{__version__}`
+**Version:** `{installed_version()}`
 
 [View the project on GitHub]({GITHUB_URL})
 """
@@ -34,7 +42,7 @@ def main() -> None:
         page_title=APP_TITLE,
         page_icon=APP_ICON.read_bytes(),
         layout="wide",
-        menu_items={"About": ABOUT_TEXT},
+        menu_items={"About": about_text()},
     )
     st.title(APP_TITLE, anchor=False)
     st.caption(

@@ -69,6 +69,13 @@ jobs:
           docker logs root-explorer-ci
           exit 1
 
+      - name: Check application version
+        run: |
+          expected=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          actual=$(docker exec root-explorer-ci python -c "import root_explorer; print(root_explorer.__version__)")
+          echo "pyproject.toml: ${expected}, container: ${actual}"
+          test "${expected}" = "${actual}"
+
       - name: Stop container
         if: always()
         run: docker rm --force root-explorer-ci || true
