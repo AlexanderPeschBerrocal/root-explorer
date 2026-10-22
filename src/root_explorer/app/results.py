@@ -91,6 +91,12 @@ def show_cached_plot_result(
             sample_caption += " Histogram limits and flow settings do not change the sample."
         st.caption(sample_caption)
 
+    weighted_summary = result.get("weighted_summary")
+    if weighted_summary is not None:
+        render_dataframe(weighted_summary)
+        for note in result.get("summary_notes", []):
+            st.caption(note)
+
     fig = result["figure"]
     kind = result["kind"]
 

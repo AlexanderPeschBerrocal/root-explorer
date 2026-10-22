@@ -4,6 +4,7 @@ import gc
 import weakref
 from pathlib import Path
 
+import awkward as ak
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -144,6 +145,62 @@ def test_geometry_opacity_offers_a_number_input_toggle(root_path) -> None:
     number = at.sidebar.number_input(key="geometry_opacity_input")
     assert number.value == pytest.approx(0.30)
     assert (number.min, number.max) == pytest.approx((0.02, 1.0))
+
+
+WEIGHTED_COLUMNS = ["sum of weights", "N_eff", "weighted mean", "weighted std"]
+
+
+def test_weighted_summary_for_object_values_with_event_weights(tmp_path) -> None:
+    from conftest import _generate_test_root
+
+    path = _generate_test_root(tmp_path / "weighted.root", n_events=400, seed=7)
+    at = _load_root_file(make_app_test(), path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.button(key="plot_make").click().run()
+    unweighted = at.session_state["plot_result"]
+    assert unweighted["weighted_summary"] is None
+    assert unweighted["summary_notes"] == []
+
+    at.checkbox(key="plot_use_weights").check().run()
+    at.selectbox(key="plot_weight_branch").select("genWeight").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    assert list(result["weighted_summary"].columns) == ["variable", *WEIGHTED_COLUMNS]
+    assert not set(WEIGHTED_COLUMNS) & set(result["summary"].columns)
+    row = result["weighted_summary"].iloc[0]
+
+    events = uproot.open(path)["Events"]
+    muon_pt = events["Muon_pt"].array()
+    values = np.asarray(ak.flatten(muon_pt), dtype=float)
+    weights = np.repeat(events["genWeight"].array(library="np"), ak.num(muon_pt)).astype(float)
+    mean = np.average(values, weights=weights)
+    assert row["sum of weights"] == pytest.approx(weights.sum(), rel=1e-6)
+    assert row["N_eff"] == pytest.approx(weights.sum() ** 2 / np.sum(weights**2), rel=1e-6)
+    assert row["weighted mean"] == pytest.approx(mean, rel=1e-6)
+    assert row["weighted std"] == pytest.approx(
+        np.sqrt(np.average((values - mean) ** 2, weights=weights)), rel=1e-6
+    )
+    # The unweighted summary is unchanged.
+    assert result["summary"].iloc[0]["mean"] == pytest.approx(values.mean(), rel=1e-6)
+    assert "use the weights from `genWeight`" in result["summary_notes"][0]
+    assert any("weights are negative" in note for note in result["summary_notes"])
+    assert any("use the weights from" in caption.value for caption in at.caption)
+
+
+def test_weighted_summary_reports_non_positive_sum_of_weights(root_path) -> None:
+    # The 12-event fixture has a negative total genWeight for Muon_pt.
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="x_branch").select("Muon_pt").run()
+    at.checkbox(key="plot_use_weights").check().run()
+    at.selectbox(key="plot_weight_branch").select("genWeight").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    result = at.session_state["plot_result"]
+    row = result["weighted_summary"].iloc[0]
+    assert row["sum of weights"] <= 0
+    assert np.isnan(row["weighted mean"]) and np.isnan(row["weighted std"])
+    assert any("sum of weights is not positive" in note for note in result["summary_notes"])
 
 
 def test_app_starts_without_input() -> None:

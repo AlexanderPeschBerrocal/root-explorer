@@ -24,10 +24,27 @@ Negative generator weights allow negative bin sums. The resulting yield
 need not be a probability distribution; never apply ordinary Poisson
 count formulas indiscriminately to weighted histograms.
 
-Statistics describing the selected sample are **unweighted**, even when the
-histogram uses weights. They are calculated after cuts and finite-value filtering
-and are not redefined by histogram range, zoom, or flow display settings.
-If your physics selection changes, regenerate the plot.
+The summary table above the plot describes the selected sample after cuts and
+finite-value filtering; it is not redefined by histogram range, zoom, or flow
+display settings. Its `n`, `min`, `median`, `mean`, `std` and `max` columns are
+**unweighted**. When a weight branch is selected (weights are available for 1D
+and 2D histograms in the Plotter and in Event inspection), a second table below it
+shows weighted statistics of the plotted values:
+
+- **sum of weights** $\sum_i w_i$;
+- **N_eff**, the effective number of entries $(\sum_i w_i)^2 / \sum_i w_i^2$,
+  which equals the number of entries for uniform weights and decreases as the
+  weights become more uneven;
+- **weighted mean** $\sum_i w_i x_i / \sum_i w_i$;
+- **weighted std** $\sqrt{\sum_i w_i (x_i - \bar{x}_w)^2 / \sum_i w_i}$, the
+  same population convention as ROOT uses for weighted histograms.
+
+For object-level values with an event-level weight, each object carries the
+weight of its event. Negative weights are reported in a caption. The weighted
+mean and standard deviation are shown as unavailable when the sum of weights is
+not positive, and the weighted standard deviation is unavailable when negative
+weights make the weighted variance negative. If your physics selection changes,
+regenerate the plot.
 
 ## Histogram range and flow bins
 

@@ -21,7 +21,11 @@ from ..analysis.arrays import (
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
 from ..analysis.histograms import InvalidHistogramRangeError
-from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
+from ..analysis.statistics import (
+    calculate_quantile_result,
+    calculate_threshold_result,
+    describe_weighted_array,
+)
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
 from ..models import VariableSpec
@@ -361,6 +365,24 @@ def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str |
         return None
 
 
+def _weighted_summary_notes(weight_branch: str | None, weights: np.ndarray) -> list[str]:
+    """Explain which summary columns are weighted and when they are unavailable."""
+
+    notes = [
+        f"Weighted statistics use the weights from `{weight_branch}`; "
+        "N_eff = (Σw)² / Σw². The summary table above is unweighted."
+    ]
+    negative = int(np.count_nonzero(weights < 0))
+    if negative:
+        notes.append(f"{negative:,} of {len(weights):,} weights are negative.")
+    if float(np.sum(weights)) <= 0:
+        notes.append(
+            "The weighted mean and standard deviation are unavailable because the sum of "
+            "weights is not positive."
+        )
+    return notes
+
+
 def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     """Create a cached result for a static plot through the shared plotting pipeline."""
 
@@ -371,6 +393,22 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
     summary_rows = [describe_array(prepared.x_label, prepared.x)]
     if prepared.y is not None:
         summary_rows.append(describe_array(prepared.y_label, prepared.y))
+    weighted_summary = None
+    summary_notes: list[str] = []
+    if prepared.weights is not None:
+        # Weights are aligned with the plotted x/y values, so each row describes
+        # the weighted distribution that is actually histogrammed.
+        weighted_summary = pd.DataFrame(
+            [
+                {"variable": row["variable"], **describe_weighted_array(values, prepared.weights)}
+                for row, values in zip(
+                    summary_rows,
+                    [prepared.x] + ([prepared.y] if prepared.y is not None else []),
+                    strict=True,
+                )
+            ]
+        )
+        summary_notes = _weighted_summary_notes(request.weight_branch, prepared.weights)
     if prepared.color is not None:
         summary_rows.append(describe_array(prepared.color_label or "color", prepared.color))
     summary = pd.DataFrame(summary_rows)
@@ -408,6 +446,8 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "figure": figure,
             "code": _safe_generate_plot_code(request, plot_warnings),
             "summary": summary,
+            "weighted_summary": weighted_summary,
+            "summary_notes": summary_notes,
             "preview": preview,
             "threshold_result": prepared.threshold_result,
             "quantile_result": prepared.quantile_result,

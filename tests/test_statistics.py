@@ -4,7 +4,11 @@ import numpy as np
 import pytest
 
 from root_explorer.analysis.arrays import ArrayShapeMismatchError
-from root_explorer.analysis.statistics import calculate_quantile_result, calculate_threshold_result
+from root_explorer.analysis.statistics import (
+    calculate_quantile_result,
+    calculate_threshold_result,
+    describe_weighted_array,
+)
 
 
 def test_unweighted_threshold_uses_complementary_boundary_convention() -> None:
@@ -86,3 +90,57 @@ def test_signed_weighted_quantile_is_explicitly_unavailable() -> None:
     result = calculate_quantile_result(np.array([1.0, 2.0, 3.0]), 50.0, np.array([1.0, -0.5, 1.0]))
     assert result.value is None
     assert result.has_negative_weights
+
+
+def test_weighted_summary_matches_direct_calculation() -> None:
+    values = np.array([1.0, 2.0, 3.0, 4.0])
+    weights = np.array([1.0, 1.0, 2.0, 0.5])
+    summary = describe_weighted_array(values, weights)
+    mean = np.average(values, weights=weights)
+    assert summary["sum of weights"] == pytest.approx(4.5)
+    assert summary["N_eff"] == pytest.approx(4.5**2 / np.sum(weights**2))
+    assert summary["weighted mean"] == pytest.approx(mean)
+    assert summary["weighted std"] == pytest.approx(
+        np.sqrt(np.average((values - mean) ** 2, weights=weights))
+    )
+    assert "weighted median" not in summary
+
+
+def test_uniform_weights_reproduce_unweighted_statistics() -> None:
+    values = np.array([3.0, 1.0, 4.0, 1.0, 5.0])
+    summary = describe_weighted_array(values, np.full(len(values), 2.5))
+    assert summary["weighted mean"] == pytest.approx(np.mean(values))
+    assert summary["weighted std"] == pytest.approx(np.std(values))
+    assert summary["N_eff"] == pytest.approx(len(values))
+
+
+def test_negative_weights_with_positive_sum_keep_weighted_mean() -> None:
+    summary = describe_weighted_array(np.array([1.0, 2.0, 3.0]), np.array([1.0, -0.5, 1.0]))
+    assert summary["sum of weights"] == pytest.approx(1.5)
+    assert summary["weighted mean"] == pytest.approx((1.0 - 1.0 + 3.0) / 1.5)
+
+
+@pytest.mark.parametrize(
+    ("values", "weights", "undefined"),
+    [
+        ([1.0, 2.0], [-1.0, 0.5], ("weighted mean", "weighted std")),  # sum of weights < 0
+        ([1.0, 2.0], [1.0, -1.0], ("weighted mean", "weighted std")),  # sum of weights = 0
+        ([0.0, 10.0], [2.0, -1.0], ("weighted std",)),  # negative weighted variance
+    ],
+)
+def test_undefined_weighted_quantities_are_nan(values, weights, undefined) -> None:
+    summary = describe_weighted_array(np.array(values), np.array(weights))
+    for key in undefined:
+        assert np.isnan(summary[key])
+    assert np.isfinite(summary["sum of weights"])
+
+
+def test_empty_weighted_summary() -> None:
+    summary = describe_weighted_array(np.array([]), np.array([]))
+    assert summary["sum of weights"] == 0.0
+    assert all(np.isnan(summary[key]) for key in ("N_eff", "weighted mean", "weighted std"))
+
+
+def test_weighted_summary_rejects_misaligned_inputs() -> None:
+    with pytest.raises(ArrayShapeMismatchError):
+        describe_weighted_array(np.array([1.0, 2.0]), np.array([1.0]))
