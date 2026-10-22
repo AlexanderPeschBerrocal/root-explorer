@@ -20,6 +20,7 @@ def test_compute_event_metric_for_jagged_branches(
     monkeypatch, mode: str, threshold: float | None, abs_value: bool, expected: list[float]
 ) -> None:
     monkeypatch.setattr(ranking, "read_field", lambda *args: ak.Array([[1.0, -2.0], [], [3.0]]))
+    monkeypatch.setattr(ranking, "source_version", lambda path: ("local", path, 0, 0))
 
     events, values = ranking.compute_event_metric(
         "fixture.root", "Events", "Muon_pt", mode, 7, 10, threshold, abs_value

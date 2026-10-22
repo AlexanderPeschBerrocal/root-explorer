@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
 from ..io.graphs import UnsupportedGraphError, read_graph
+from ..io.source import SourceVersion, source_version
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, validate_plot_labels
 from .controls import slider_or_number_input
@@ -20,17 +20,9 @@ from .results import (
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
-def _cached_graph(root_path: str, object_path: str, file_version: int | None):
-    """Cache selected payloads while invalidating local files after changes."""
+def _cached_graph(root_path: str, object_path: str, version: SourceVersion):
+    """Load one graph; ``version`` invalidates the cache when the file changes."""
     return read_graph(root_path, object_path)
-
-
-def _file_version(root_path: str) -> int | None:
-    path = Path(root_path)
-    try:
-        return path.stat().st_mtime_ns
-    except OSError:
-        return None
 
 
 def _graph_controls(graph, object_id: str) -> tuple[dict[str, Any], dict[str, str]]:
@@ -87,7 +79,7 @@ def render_graph_controls(
     st.subheader(f"Graph: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
-        graph = _cached_graph(root_path, object_path, _file_version(root_path))
+        graph = _cached_graph(root_path, object_path, source_version(root_path))
     except (UnsupportedGraphError, ValueError, OSError) as exc:
         st.warning(str(exc))
         return

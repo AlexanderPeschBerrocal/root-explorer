@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import streamlit as st
 
 from ..analysis.fitting import fit_histogram_1d
 from ..io.histograms import UnsupportedHistogramError, read_histogram
+from ..io.source import SourceVersion, source_version
 from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
 from ..plotting.plots import (
     InvalidAxisLimitError,
@@ -27,15 +26,9 @@ from .results import (
 
 
 @st.cache_data(show_spinner=False, max_entries=16)
-def _cached_histogram(root_path: str, object_path: str, version: int | None):
+def _cached_histogram(root_path: str, object_path: str, version: SourceVersion):
+    """Load one histogram; ``version`` invalidates the cache when the file changes."""
     return read_histogram(root_path, object_path)
-
-
-def _file_version(root_path: str) -> int | None:
-    try:
-        return Path(root_path).stat().st_mtime_ns
-    except OSError:
-        return None
 
 
 def render_histogram_controls(
@@ -45,7 +38,7 @@ def render_histogram_controls(
     st.subheader(f"Histogram: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
-        data = _cached_histogram(root_path, object_path, _file_version(root_path))
+        data = _cached_histogram(root_path, object_path, source_version(root_path))
     except (UnsupportedHistogramError, OSError, ValueError) as exc:
         st.warning(str(exc))
         return

@@ -65,9 +65,9 @@ Disable unnecessary world/container volumes. A truncated or simplified
 mesh may omit structural detail; it should not be used as authoritative
 detector geometry for quantitative reconstruction.
 
-If you replace a GDML file at the same server path, cached geometry can remain
-stale. Use a new filename or restart the application server; see
-[Known correctness limitations](../performance.md#known-correctness-limitations).
+If you replace a GDML file at the same server path, the geometry is parsed
+again automatically on the next interaction; see
+[Caching and changed files](../performance.md#caching-and-changed-files).
 
 The current local application accepts Path and Upload; future restricted
 deployment profiles are specified in

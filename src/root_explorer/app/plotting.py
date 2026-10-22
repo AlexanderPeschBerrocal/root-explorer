@@ -28,6 +28,7 @@ from ..analysis.statistics import (
 )
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
+from ..io.source import SourceUnavailableError
 from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
 from ..plotting.pipeline import (
@@ -334,6 +335,7 @@ def _generate_and_show(
             InvalidColorScaleError,
             InvalidHistogramRangeError,
             InvalidLabelError,
+            SourceUnavailableError,
         ) as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))

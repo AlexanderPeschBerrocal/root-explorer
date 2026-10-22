@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ..io.source import SourceVersion
 from ..models import FieldInfo, RootObjectInfo
 
 
@@ -20,10 +21,19 @@ class DataContext:
     field_info: list[FieldInfo]
     fields: list[str]
     container_kind: str = "TTree"
+    source_version: SourceVersion | None = None
 
     @property
-    def cache_key(self) -> tuple[str, str, int, int]:
-        return (self.root_path, self.event_container_name, self.entry_start, self.entry_stop)
+    def cache_key(self) -> tuple[Any, ...]:
+        # Including the source version discards retained plot and ranking results
+        # when the selected file is replaced at the same path.
+        return (
+            self.root_path,
+            self.event_container_name,
+            self.entry_start,
+            self.entry_stop,
+            self.source_version,
+        )
 
     @property
     def data_item_name(self) -> str:

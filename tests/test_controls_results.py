@@ -157,7 +157,8 @@ def test_collection_summary_and_uploaded_file_storage() -> None:
     assert Path(stored).read_bytes() == b"test root bytes"
 
 
-def test_data_context_cache_key_uses_the_selected_range() -> None:
+def test_data_context_cache_key_uses_the_selected_range_and_source_version() -> None:
+    version = ("local", "/data/events.root", 123, 456)
     context = DataContext(
         root_path="events.root",
         event_container_name="Events",
@@ -166,9 +167,14 @@ def test_data_context_cache_key_uses_the_selected_range() -> None:
         entry_stop=50,
         field_info=[],
         fields=[],
+        source_version=version,
     )
 
-    assert context.cache_key == ("events.root", "Events", 10, 50)
+    assert context.cache_key == ("events.root", "Events", 10, 50, version)
+    replaced = DataContext(
+        **{**context.__dict__, "source_version": ("local", "/data/events.root", 124, 456)}
+    )
+    assert replaced.cache_key != context.cache_key
 
 
 def test_color_clipping_summary_handles_counts_and_optional_weights() -> None:

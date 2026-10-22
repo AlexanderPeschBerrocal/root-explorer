@@ -8,12 +8,39 @@ import pandas as pd
 import streamlit as st
 
 from ..io.root import read_field
+from ..io.source import SourceVersion, source_version
 from .arrays import multiplicity_per_event, safe_float_array, to_numpy_flat
 
 
-@st.cache_data(show_spinner=True, max_entries=32)
 def compute_event_metric(
     path: str,
+    tree_name: str,
+    branch: str,
+    mode: str,
+    entry_start: int,
+    entry_stop: int,
+    threshold: float | None,
+    abs_value: bool,
+):
+    # The ranking cache sits above read_field(), so it needs its own source version:
+    # a cache hit here must not mask a replaced file.
+    return _cached_event_metric(
+        path,
+        source_version(path),
+        tree_name,
+        branch,
+        mode,
+        entry_start,
+        entry_stop,
+        threshold,
+        abs_value,
+    )
+
+
+@st.cache_data(show_spinner=True, max_entries=32)
+def _cached_event_metric(
+    path: str,
+    version: SourceVersion,
     tree_name: str,
     branch: str,
     mode: str,

@@ -15,6 +15,25 @@ server resources.
   Treat any scatter sample as a visualisation, not necessarily the full dataset.
 - For GDML, reduce parsed and drawn vertices and omit unneeded volumes.
 
+## Caching and changed files
+
+ROOT Explorer caches file catalogues, field metadata, read data, event rankings
+and parsed GDML geometry so that repeated interactions stay fast. Cache entries
+for **local files** are tied to the file's path, modification time and size.
+If a ROOT or GDML file is regenerated or replaced at the same path, the next
+interaction reads it again automatically, and plots and rankings created from
+the previous version are discarded; no restart is needed. If a file disappears
+while you are working with it, ROOT Explorer reports that it is no longer
+available instead of showing previously cached data.
+
+**Remote files** (`root://`, `http://`, `https://`) cannot be checked in the same
+way. Their data stays cached until you click **Reload source** below the file
+path, which reads the file again for all users of the application.
+
+On filesystems with coarse timestamps, a file rewritten within the same
+timestamp interval with exactly the same size may, rarely, not be detected.
+Use a new filename if you rewrite files in very quick succession.
+
 ## Known correctness limitations
 
 The current implementation has the following known limitations. These are
@@ -23,7 +42,6 @@ tracked bugs, not intended analysis conventions.
 | Situation | Effect | Workaround / tracking |
 | --- | --- | --- |
 | Source fields contain optional/missing values | Flattening can drop missing values independently, misalign combined variables or shift ranked entry indices without a warning | Preprocess inputs while preserving event/object correspondence, using a common validity mask across related fields; do not drop missing values independently. [#137](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/137) |
-| A ROOT or GDML file is replaced at the same server path | Cached metadata, event data, rankings or geometry can remain stale | Use a new, versioned filename or restart the application server. A browser refresh alone is insufficient. [#117](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/117) |
 | GDML uses referenced transforms or unsupported constructs | Geometry may be misplaced, simplified or omitted; not every omission produces a warning | Check the [GDML support table](user-guide/geometry.md#supported-gdml-subset) and compare with a trusted viewer. [#116](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/116) |
 
 ## Local and hosted constraints
