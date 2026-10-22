@@ -9,7 +9,7 @@ import streamlit as st
 from .. import __version__
 from ..config import APP_TITLE
 from .geometry import render_geometry_sidebar, render_geometry_tab
-from .input import invalidate_data_results, render_data_input
+from .input import clear_data_results, invalidate_data_results, render_data_input
 from .pages import render_contents_tab, render_help_tab, render_root_objects_browser
 from .plotting import render_event_plot_tab, render_plot_tab
 from .ranking import render_event_selection
@@ -46,6 +46,8 @@ def main() -> None:
 
     context = file_context.data
     if context is None:
+        # Results from a previously selected container must not reappear later.
+        clear_data_results()
         root_objects_tab, geometry_tab = st.tabs(
             ["ROOT objects", "Geometry"], key="object_only_tabs", on_change="rerun"
         )

@@ -16,15 +16,17 @@ from ..io.root import (
     numeric_fields,
     parse_cli_rootfile,
 )
+from ..models import RootObjectInfo
 from .results import discard_plot_result, store_uploaded_file
-from .state import DataContext, RootFileContext
+from .state import DataContext, EventDataStatus, RootFileContext
 
 
 def render_data_input() -> RootFileContext:
     """Render sidebar ROOT input controls and return the selected data context.
 
-    This function deliberately uses ``st.stop`` for invalid or incomplete input,
-    matching the former single-file application flow.
+    A missing or unreadable file stops the run with ``st.stop``. Once the file's
+    catalogue is available, the run continues even if the selected event container
+    is empty or unreadable, so the ROOT object browser and geometry remain usable.
     """
 
     cli_path = parse_cli_rootfile()
@@ -64,7 +66,12 @@ def render_data_input() -> RootFileContext:
             "No TTrees or RNTuples containing event data were found. "
             "The ROOT object browser remains available."
         )
-        return RootFileContext(root_path=root_path, catalogue=catalogue, data=None)
+        return RootFileContext(
+            root_path=root_path,
+            catalogue=catalogue,
+            data=None,
+            event_data_status="no_event_containers",
+        )
 
     available_containers = [info.path for info in available_container_infos]
     event_container_name = st.selectbox("Event container", available_containers, index=0)
@@ -72,11 +79,15 @@ def render_data_input() -> RootFileContext:
         info for info in available_container_infos if info.path == event_container_name
     )
     container_kind = event_container_kind_from_info(selected_container)
-    n_entries = get_entry_count(root_path, event_container_name)
+    try:
+        n_entries = get_entry_count(root_path, event_container_name)
+    except Exception as exc:
+        return _without_event_data(
+            root_path, catalogue, "unreadable_container", container_kind, exc
+        )
     st.write(f"Entries/events: **{n_entries:,}**")
     if n_entries <= 0:
-        st.warning("This event container has no entries to inspect.")
-        st.stop()
+        return _without_event_data(root_path, catalogue, "empty_container", container_kind)
 
     st.subheader("Read range", anchor=False)
     entry_start = st.number_input(
@@ -93,7 +104,12 @@ def render_data_input() -> RootFileContext:
         st.warning("entry stop must be larger than entry start.")
         st.stop()
 
-    field_info = get_field_info(root_path, event_container_name)
+    try:
+        field_info = get_field_info(root_path, event_container_name)
+    except Exception as exc:
+        return _without_event_data(
+            root_path, catalogue, "unreadable_container", container_kind, exc
+        )
     data_context = DataContext(
         root_path=root_path,
         event_container_name=event_container_name,
@@ -107,14 +123,44 @@ def render_data_input() -> RootFileContext:
     return RootFileContext(root_path=root_path, catalogue=catalogue, data=data_context)
 
 
+def _without_event_data(
+    root_path: str,
+    catalogue: tuple[RootObjectInfo, ...],
+    status: EventDataStatus,
+    container_kind: str,
+    error: Exception | None = None,
+) -> RootFileContext:
+    """Report an unusable event container while keeping the rest of the file available."""
+
+    if status == "empty_container":
+        st.warning(
+            f"The selected {container_kind} has no entries to plot or inspect. "
+            "You can still browse the other ROOT objects in this file."
+        )
+    else:
+        st.error(
+            f"Could not read the selected {container_kind}: {error}. "
+            "You can still browse the other ROOT objects in this file."
+        )
+    return RootFileContext(
+        root_path=root_path, catalogue=catalogue, data=None, event_data_status=status
+    )
+
+
+def clear_data_results() -> None:
+    """Discard plot, event-plot and ranking results that belong to event data."""
+
+    for key in ["plot_result", "event_plot_result"]:
+        discard_plot_result(key)
+    for key in ["rank_df", "rank_label", "event_index", "data_context"]:
+        st.session_state.pop(key, None)
+
+
 def invalidate_data_results(context: DataContext) -> None:
     """Clear result state whenever the selected data range changes."""
 
     if st.session_state.get("data_context") == context.cache_key:
         return
-    for key in ["plot_result", "event_plot_result"]:
-        discard_plot_result(key)
-    for key in ["rank_df", "rank_label"]:
-        st.session_state.pop(key, None)
+    clear_data_results()
     st.session_state["event_index"] = context.entry_start
     st.session_state["data_context"] = context.cache_key
