@@ -84,7 +84,24 @@ managed with [bump-my-version](https://callowayproject.github.io/bump-my-version
 which updates the package version, creates the release commit, and creates its
 annotated Git tag. The `[project].version` value in `pyproject.toml` is the
 single authoritative version literal; `root_explorer.__version__` is derived
-from the installed distribution metadata.
+from the installed distribution metadata. The application must be installed to
+run; there is no separate version literal for running from the source tree.
+
+Installing the project copies the version into the distribution metadata. An
+editable installation keeps the metadata of its last installation, so after
+changing the version, for example with `bump-my-version`, reinstall it:
+
+```bash
+python -m pip install -e .
+```
+
+The **About** menu reads the installed version on every rerun, so a running app
+shows the new version after the reinstall without a restart. `root-explorer
+--version` and `root_explorer.__version__` in an already running process update
+after a restart. If the installed and declared versions disagree, `tests/test_version.py`
+fails with a reminder to reinstall. CI performs the same comparison of
+`pyproject.toml`, the installed wheel and `root_explorer.__version__`, and checks
+the version inside the Docker image.
 
 Releases must be created from a clean, up-to-date `main` branch. Before creating
 a release, inspect the configured version and preview the change without modifying
