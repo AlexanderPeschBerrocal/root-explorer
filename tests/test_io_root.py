@@ -50,6 +50,8 @@ class _FakeFile:
 def test_get_field_info_keeps_field_names_as_strings(monkeypatch) -> None:
     tree = _FakeTree(["run", "Muon_pt", "Muon_eta"])
     monkeypatch.setattr(root_io.uproot, "open", lambda path: _FakeFile(tree))
+    # The fake path does not exist; give it a fixed source version.
+    monkeypatch.setattr(root_io, "source_version", lambda path: ("local", path, 0, 0))
 
     info = root_io.get_field_info("fake.root", "Events")
 
@@ -72,6 +74,8 @@ def test_get_field_info_exposes_useful_source_documentation(monkeypatch) -> None
         },
     )
     monkeypatch.setattr(root_io.uproot, "open", lambda path: _FakeFile(tree))
+    # The fake path does not exist; give it a fixed source version.
+    monkeypatch.setattr(root_io, "source_version", lambda path: ("local", path, 0, 0))
 
     info = {field.name: field for field in root_io.get_field_info("fake.root", "Events")}
 

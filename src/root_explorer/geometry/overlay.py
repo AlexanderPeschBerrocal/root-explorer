@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from ..io.source import SourceVersion, source_version
 from .gdml import SceneBuilder, material_color
 
 GEOMETRY_QUALITY_LEVELS = ["fast", "medium", "high"]
@@ -20,7 +21,6 @@ DEFAULT_MAX_GEOMETRY_VERTICES = 1_500_000
 DEFAULT_DISPLAY_GEOMETRY_VERTICES = 750_000
 
 
-@st.cache_data(show_spinner=True, max_entries=8)
 def load_geometry_scene(
     path: str,
     quality: str,
@@ -29,6 +29,31 @@ def load_geometry_scene(
     max_objects: int,
     max_vertices: int,
 ) -> dict[str, Any]:
+    """Parse a GDML file into a scene, rebuilding it when the file changes."""
+
+    return _cached_geometry_scene(
+        path,
+        source_version(path),
+        quality,
+        include_containers,
+        include_world,
+        max_objects,
+        max_vertices,
+    )
+
+
+@st.cache_data(show_spinner=True, max_entries=8)
+def _cached_geometry_scene(
+    path: str,
+    version: SourceVersion,
+    quality: str,
+    include_containers: bool,
+    include_world: bool,
+    max_objects: int,
+    max_vertices: int,
+) -> dict[str, Any]:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
+
     suffix = Path(path).suffix.casefold()
     if suffix != ".gdml":
         raise ValueError(

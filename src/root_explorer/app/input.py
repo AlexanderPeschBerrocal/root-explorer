@@ -16,6 +16,12 @@ from ..io.root import (
     numeric_fields,
     parse_cli_rootfile,
 )
+from ..io.source import (
+    SourceUnavailableError,
+    is_remote_source,
+    reload_source,
+    source_version,
+)
 from ..models import RootObjectInfo
 from .results import discard_plot_result, store_uploaded_file
 from .state import DataContext, EventDataStatus, RootFileContext
@@ -53,6 +59,22 @@ def render_data_input() -> RootFileContext:
     ):
         st.error(f"File does not exist: {root_path}")
         st.stop()
+
+    try:
+        version = source_version(root_path)
+    except SourceUnavailableError as exc:
+        st.error(str(exc))
+        st.stop()
+    if is_remote_source(root_path) and st.button(
+        "Reload source",
+        key="reload_remote_source",
+        help=(
+            "Remote files are cached until they are reloaded. "
+            "Read this file again to pick up changes."
+        ),
+    ):
+        reload_source(root_path)
+        version = source_version(root_path)
 
     try:
         catalogue = get_root_catalogue(root_path)
@@ -119,6 +141,7 @@ def render_data_input() -> RootFileContext:
         field_info=field_info,
         fields=numeric_fields(field_info),
         container_kind=container_kind,
+        source_version=version,
     )
     return RootFileContext(root_path=root_path, catalogue=catalogue, data=data_context)
 

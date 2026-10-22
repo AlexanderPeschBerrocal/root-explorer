@@ -13,6 +13,7 @@ import streamlit as st
 import uproot
 
 from ..models import FieldInfo, FieldStructure, RootObjectInfo, RootObjectKind
+from .source import SourceVersion, source_version
 
 _ROOT_LEAFLIST_RE = re.compile(r"(?:[^:/]+(?:\[[^\]]+\])*/[BbSsIiFfDdLlOoGgCc](?::|$))+")
 
@@ -71,9 +72,15 @@ def build_root_catalogue(root_file: Any) -> tuple[RootObjectInfo, ...]:
     return tuple(sorted(catalogue, key=_root_object_sort_key))
 
 
-@st.cache_data(show_spinner=False)
 def get_root_catalogue(path: str) -> tuple[RootObjectInfo, ...]:
     """Open a ROOT file and return its metadata-only object catalogue."""
+
+    return _cached_get_root_catalogue(path, source_version(path))
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def _cached_get_root_catalogue(path: str, version: SourceVersion) -> tuple[RootObjectInfo, ...]:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
     with uproot.open(path) as root_file:
         return build_root_catalogue(root_file)
@@ -135,8 +142,20 @@ def parse_cli_rootfile() -> str | None:
     return args.rootfile  # type: ignore[no-any-return]
 
 
-@st.cache_resource(show_spinner=False)
 def open_root_file(path: str) -> Any:
+    """Return a shared Uproot handle for the current version of ``path``."""
+
+    return _cached_open_root_file(path, source_version(path))
+
+
+@st.cache_resource(show_spinner=False, max_entries=8)
+def _cached_open_root_file(path: str, version: SourceVersion) -> Any:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``).
+
+    Every source version opens a new handle, so the number of retained handles is
+    bounded to avoid keeping many superseded files open.
+    """
+
     return uproot.open(path)
 
 
@@ -168,9 +187,15 @@ def walk_event_containers(root_file: Any) -> list[str]:
     return [info.path for info in event_container_infos(build_root_catalogue(root_file))]
 
 
-@st.cache_data(show_spinner=False)
 def get_entry_count(path: str, container_name: str) -> int:
     """Return the number of entries in an event container."""
+
+    return _cached_get_entry_count(path, source_version(path), container_name)
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _cached_get_entry_count(path: str, version: SourceVersion, container_name: str) -> int:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
     return int(uproot.open(path)[container_name].num_entries)
 
@@ -341,9 +366,17 @@ def field_structure_metadata(
     return _fallback_field_structure(field_object, typename)
 
 
-@st.cache_data(show_spinner=False)
 def get_field_info(path: str, container_name: str) -> list[FieldInfo]:
     """Return display metadata for the fields in one event container."""
+
+    return _cached_get_field_info(path, source_version(path), container_name)
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _cached_get_field_info(
+    path: str, version: SourceVersion, container_name: str
+) -> list[FieldInfo]:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
     f = uproot.open(path)
     container = f[container_name]
@@ -398,10 +431,25 @@ def read_field_uncached(
     return arr
 
 
-@st.cache_data(show_spinner=True, max_entries=64)
 def read_field(
     path: str, container_name: str, field_name: str, entry_start: int, entry_stop: int | None
 ) -> ak.Array:
+    return _cached_read_field(
+        path, source_version(path), container_name, field_name, entry_start, entry_stop
+    )
+
+
+@st.cache_data(show_spinner=True, max_entries=64)
+def _cached_read_field(
+    path: str,
+    version: SourceVersion,
+    container_name: str,
+    field_name: str,
+    entry_start: int,
+    entry_stop: int | None,
+) -> ak.Array:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
+
     return read_field_uncached(path, container_name, field_name, entry_start, entry_stop)
 
 
@@ -418,8 +466,18 @@ def read_event_field_uncached(
     return arr[0]
 
 
-@st.cache_data(show_spinner=True, max_entries=128)
 def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
+    return _cached_read_event_field(
+        path, source_version(path), container_name, field_name, event_index
+    )
+
+
+@st.cache_data(show_spinner=True, max_entries=128)
+def _cached_read_event_field(
+    path: str, version: SourceVersion, container_name: str, field_name: str, event_index: int
+) -> Any:
+    """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
+
     return read_event_field_uncached(path, container_name, field_name, event_index)
 
 
