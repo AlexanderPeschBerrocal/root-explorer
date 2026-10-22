@@ -169,3 +169,40 @@ def calculate_quantile_result(
         True,
         total_weight=total_weight,
     )
+
+
+def describe_weighted_array(values: np.ndarray, weights: np.ndarray) -> dict[str, float]:
+    """Return weighted summary statistics for aligned values and weights.
+
+    The weighted standard deviation uses the population convention
+    ``sqrt(sum(w * (x - mean)**2) / sum(w))``, as ROOT does for weighted
+    histograms, so uniform weights reproduce the unweighted mean and standard
+    deviation. Undefined quantities are returned as NaN: the mean and standard
+    deviation require a positive sum of weights, and a negative weighted variance
+    (possible with negative weights) has no standard deviation. A weighted median
+    is deliberately omitted: the step-wise weighted quantile used elsewhere does
+    not interpolate and would contradict the unweighted median for uniform weights.
+    """
+
+    aligned = align_arrays(
+        [np.asarray(values, dtype=float), np.asarray(weights, dtype=float)],
+        names=["values", "weights"],
+        context="weighted summary statistics",
+    )
+    selected_values, selected_weights = aligned
+    sum_w = float(np.sum(selected_weights))
+    sum_w2 = float(np.sum(selected_weights**2))
+    result = {
+        "sum of weights": sum_w,
+        "N_eff": sum_w**2 / sum_w2 if sum_w2 > 0 else np.nan,
+        "weighted mean": np.nan,
+        "weighted std": np.nan,
+    }
+    if len(selected_values) == 0 or sum_w <= 0:
+        return result
+
+    mean = float(np.sum(selected_weights * selected_values) / sum_w)
+    variance = float(np.sum(selected_weights * (selected_values - mean) ** 2) / sum_w)
+    result["weighted mean"] = mean
+    result["weighted std"] = float(np.sqrt(variance)) if variance >= 0 else np.nan
+    return result
