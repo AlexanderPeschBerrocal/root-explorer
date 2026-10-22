@@ -42,9 +42,27 @@ for exploratory investigation, not a substitute for a documented
 physics event selection. A jagged field's ranking measure may be a
 reduction over particles rather than a scalar per-event value.
 
+Available ranking measures are multiplicity, sum, mean, maximum, minimum,
+count above a threshold and count below a threshold. Threshold counts use
+strict `>` and `<` comparisons. The absolute-value option applies before
+calculating the measure (and has no effect on multiplicity).
+
+An empty collection has multiplicity, sum and threshold counts of zero;
+its mean and extrema are non-finite and excluded from ranking. For a scalar
+field, multiplicity is one, threshold counts are zero or one, and other
+measures use the scalar value, optionally made absolute.
+
+Ranking uses the sidebar's read range but **does not apply Plotter cuts or
+histogram weights**. Recompute it after changing the ranking settings.
+Selecting a ranked event does not regenerate an event plot automatically:
+click **Make event plot** after **Use selected event**.
+
 ## Practical considerations
 
 The UI displays entry indices in the selected container. These are not
 necessarily physics event identifiers (`run`/`lumi`/`event`). Keep the
 distinction clear when transferring an interesting event into a real
 analysis. Working with smaller read ranges can reduce computation time.
+Fields with optional/missing source values currently have an
+[alignment limitation](../performance.md#known-correctness-limitations)
+that can also affect ranked entry indices.

@@ -28,8 +28,9 @@ only the light screenshots (or `--theme dark` for dark only).
 
 The separate `Documentation screenshots` GitHub Actions workflow runs on
 relevant pull requests and on `workflow_dispatch`, and uploads the resulting
-PNGs for human review. It has read-only repository permissions: **CI never
-commits or pushes generated images**, including on trusted branches. It does
+PNGs for human review. It has read-only repository permissions: **the screenshot
+generation workflow never commits or pushes generated images**, including on
+trusted branches. It does
 not perform brittle pixel equality checks. To refresh screenshots, run the
 generator, review the resulting images for legibility and privacy, and commit
 the changed PNGs in an ordinary pull request. The Sphinx/Read the Docs build
@@ -38,27 +39,26 @@ never installs Chromium.
 To publish a successful screenshot run **without downloading the ZIP locally**,
 use the separate **Publish reviewed documentation screenshots** workflow in
 GitHub Actions: choose *Run workflow*, enter the numeric run ID from the
-successful **Documentation screenshots** job, and select the review branch
-(currently `docs/74-readthedocs`). The workflow verifies the run's origin,
+successful **Documentation screenshots** job, and enter the existing review
+branch for that run. Replace the form's historical `docs/74-readthedocs` default
+with your current review branch. The workflow verifies the run's origin,
 success status, matching branch and ten images, then commits both sets of
 PNGs *and* updates the Sphinx/MyST image references to use Furo's `only-light`
 and `only-dark` classes atomically on the review branch. It never publishes
 directly to `main`; the images enter `main` through normal PR review and merge.
 
-**Important:** GitHub only exposes the manual Run workflow button after the
-publication workflow file exists on the repository's default branch. Until
-this PR is merged, manually download the reviewed screenshots from a
-successful CI run or generate them locally and commit the PNG files.
-For example, from the repository root on the PR branch, run:
+Alternatively, download the reviewed screenshots from a successful CI run or
+generate them locally and commit the PNG files. From the repository root on
+the review branch, run:
 
 ```bash
 gh run download <successful-run-id> --repo AlexanderPeschBerrocal/root-explorer --name root-explorer-screenshots --dir docs/source/_static/screenshots
 ```
 
-Then review all ten screenshots and commit them. The documentation image
-references must also be updated to display theme-specific variants; the
-publisher workflow handles that automatically, but local publication requires
-equivalent changes to `index.rst` and the four affected MyST guides.
+Then review all ten screenshots and commit them. Existing documentation image
+references already select light and dark variants. When adding or renaming
+screenshots, update those references in `index.rst` and the affected MyST guides
+as well, retaining the `only-light` and `only-dark` classes.
 
 Only publish after visually reviewing the screenshots. If the source run
 predates a change to the capture script or UI, regenerate first.

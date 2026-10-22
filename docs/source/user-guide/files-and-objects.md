@@ -36,7 +36,17 @@ ROOT Explorer can plot the following stored ROOT classes:
 
 Other classes are listed in the browser with their ROOT class name but cannot be plotted. Specific capabilities depend on the object's ROOT class and dimensionality: a TProfile contains per-bin means, **not** event-count histogram yields. Histogram-only operations should not be assumed valid for profiles or graphs.
 
-A ROOT file that contains **no TTree or RNTuple** can still be opened in the ROOT-object browser. Objects may reside in nested ROOT directories, and ROOT object cycles can be shown if needed.
+A ROOT file that contains **no TTree or RNTuple** can still be opened in the
+ROOT-object browser. A file with a selected **zero-entry** event container is
+currently a different case: it stops before displaying the browser. See
+[Known correctness limitations](../performance.md#known-correctness-limitations)
+for workarounds.
+
+Objects may reside in nested ROOT directories. The browser shows the latest
+cycle of each object by default; enable **Show all ROOT cycles** to inspect
+older stored versions too. Selecting a row does not itself open a viewer:
+use **Open selected object**. Opening a supported object generates its initial
+plot; after changing its controls, click **Make plot** to update it.
 
 ## What is loaded?
 

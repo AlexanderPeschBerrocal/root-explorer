@@ -30,6 +30,31 @@ With **Upload**, you select a file in the browser and do not need to mount anyth
 
 **Security:** Path access runs with the server process's permissions. Do not expose the current unrestricted local-style Path workflow to untrusted public users. Restricted hosting profiles are planned but are not currently active; see [Deployment](deployment.md).
 
+### Saving files from Docker
+
+**Download** saves through the browser without an output mount. **Save** writes
+inside the container. The image runs as the unprivileged `appuser` (UID 10001),
+and its `/app` working directory is not writable, so the default relative save
+directory may fail. For temporary output, choose a directory under
+`/home/appuser`; files there disappear when the `--rm` container is removed.
+
+For persistent output, create a host directory and grant the container user
+write access to it using permissions appropriate to your Docker host. Mount it
+as a writable output directory, separate from the read-only input:
+
+```bash
+docker run --rm -p 8501:8501 \
+  --mount type=bind,source="/absolute/path/to/data",target=/data,readonly \
+  --mount type=bind,source="/absolute/path/to/exports",target=/output \
+  ghcr.io/alexanderpeschberrocal/root-explorer:stable
+```
+
+Set the app's save directory to **`/output`**. Both host directories must
+already exist; the export directory must be writable by UID 10001 inside
+the container. Saved files then remain in the host export directory after
+the container stops. See [Exporting plots](user-guide/exporting.md) for formats
+and standalone Python scripts.
+
 ### Alternative: Build the image locally
 
 To build a container from the repository instead of pulling the published image:
