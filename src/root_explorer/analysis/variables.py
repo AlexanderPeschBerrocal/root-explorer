@@ -17,6 +17,7 @@ from .arrays import (
     read_for_scope,
     reduce_per_event,
     safe_float_array,
+    value_is_scalar,
 )
 
 VariableEvaluator = Callable[
@@ -95,6 +96,10 @@ def evaluate_reduced_variable(
     if event_index is None:
         return reduce_per_event(arr, spec.mode), label
 
+    if value_is_scalar(arr):
+        # Reducing an event-level scalar returns the scalar itself; a missing
+        # scalar stays missing instead of becoming nansum([nan]) == 0.
+        return safe_float_array(event_to_numpy(arr)).reshape(1), label
     values = safe_float_array(event_to_numpy(arr))
     if len(values) == 0:
         empty_value = 0.0 if spec.mode == "sum" else np.nan

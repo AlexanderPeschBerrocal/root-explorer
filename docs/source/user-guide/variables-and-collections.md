@@ -65,6 +65,27 @@ Angles are in radians. The invariant-mass mode operates on the supplied
 four-vector components; it does not add two particles' four-vectors for you.
 Variable selectors do not accept arbitrary Python expressions.
 
+## Missing values
+
+RNTuple fields can contain missing (optional) values. ROOT Explorer keeps every
+missing value at its position until all participating values are aligned, so a
+value is never paired with a value from a different event or object:
+
+- A derived variable, such as `A - B`, is only computed where all its inputs are
+  present. If `A` is missing in one event and `B` in another, neither event
+  contributes a value.
+- When plotting, an event or object is excluded if any plotted variable, weight,
+  colour or cut value is missing. The number of excluded values is shown below
+  the summary table, and a clear message appears if no values remain.
+- Per-event reductions skip missing values inside a collection, so the mean of
+  `[1, missing]` is 1. A missing whole collection gives a missing result, which
+  is excluded, whereas an empty collection keeps its documented value, for
+  example a multiplicity and sum of 0.
+- Event rankings keep the original event number for every value; events whose
+  metric is missing are not listed.
+
+Missing values are never replaced by zero.
+
 ## Cuts and weights
 
 Range cuts are combined with logical **AND**, with inclusive lower and upper
@@ -86,8 +107,6 @@ For selector structure badges, turn on **Show branch details in selectors**
 for a TTree, or **Show field details in selectors** for an RNTuple. Inspect
 whether inputs are scalar, fixed-size or jagged before combining them.
 
-Optional/missing source values currently have an alignment limitation; consult
-[Known correctness limitations](../performance.md#known-correctness-limitations)
-before combining or ranking fields containing missing values.
+For fields with optional/missing values, see [Missing values](#missing-values).
 
 Continue with [Plotting](plotting.md).

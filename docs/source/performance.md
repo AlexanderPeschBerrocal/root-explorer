@@ -41,7 +41,6 @@ tracked bugs, not intended analysis conventions.
 
 | Situation | Effect | Workaround / tracking |
 | --- | --- | --- |
-| Source fields contain optional/missing values | Flattening can drop missing values independently, misalign combined variables or shift ranked entry indices without a warning | Preprocess inputs while preserving event/object correspondence, using a common validity mask across related fields; do not drop missing values independently. [#137](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/137) |
 | GDML uses referenced transforms or unsupported constructs | Geometry may be misplaced, simplified or omitted; not every omission produces a warning | Check the [GDML support table](user-guide/geometry.md#supported-gdml-subset) and compare with a trusted viewer. [#116](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/116) |
 
 ## Local and hosted constraints

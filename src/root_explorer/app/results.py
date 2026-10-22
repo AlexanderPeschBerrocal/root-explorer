@@ -90,6 +90,8 @@ def show_cached_plot_result(
         if result.get("plot_type") in {"1D histogram", "2D histogram"}:
             sample_caption += " Histogram limits and flow settings do not change the sample."
         st.caption(sample_caption)
+        if result.get("exclusion_note"):
+            st.caption(result["exclusion_note"])
 
     weighted_summary = result.get("weighted_summary")
     if weighted_summary is not None:

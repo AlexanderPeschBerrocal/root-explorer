@@ -64,32 +64,43 @@ def _cached_event_metric(
 
         if is_jagged:
             if mode == "sum":
-                values = ak.to_numpy(ak.sum(vals, axis=1)).astype(float)
+                reduced = ak.sum(vals, axis=1)
             elif mode == "mean":
-                values = ak.to_numpy(ak.mean(vals, axis=1)).astype(float)
+                reduced = ak.mean(vals, axis=1)
             elif mode == "max":
-                values = ak.to_numpy(ak.max(vals, axis=1, mask_identity=False)).astype(float)
+                reduced = ak.max(vals, axis=1, mask_identity=False)
             elif mode == "min":
-                values = ak.to_numpy(ak.min(vals, axis=1, mask_identity=False)).astype(float)
+                reduced = ak.min(vals, axis=1, mask_identity=False)
             elif mode == "count_above":
-                values = ak.to_numpy(ak.sum(vals > (threshold or 0.0), axis=1)).astype(float)
+                reduced = ak.sum(vals > (threshold or 0.0), axis=1)
             elif mode == "count_below":
-                values = ak.to_numpy(ak.sum(vals < (threshold or 0.0), axis=1)).astype(float)
+                reduced = ak.sum(vals < (threshold or 0.0), axis=1)
             else:
                 raise ValueError(f"Unknown metric: {mode}")
+            # A missing collection gives a missing metric for that event, keeping one
+            # value per event so the event indices below stay correct.
+            values = ak.to_numpy(ak.fill_none(reduced, np.nan)).astype(float)
         else:
+            # One value per event, with missing values kept as NaN at their position.
             flat = safe_float_array(to_numpy_flat(vals))
+            missing = ~np.isfinite(flat)
             if mode in {"sum", "mean", "max", "min"}:
                 values = flat
             elif mode == "count_above":
-                values = (flat > (threshold or 0.0)).astype(float)
+                values = np.where(missing, np.nan, flat > (threshold or 0.0)).astype(float)
             elif mode == "count_below":
-                values = (flat < (threshold or 0.0)).astype(float)
+                values = np.where(missing, np.nan, flat < (threshold or 0.0)).astype(float)
             else:
                 raise ValueError(f"Unknown metric: {mode}")
     values = np.asarray(values, dtype=float)
     values[~np.isfinite(values)] = np.nan
-    return np.arange(entry_start, entry_start + len(values), dtype=int), values
+    events = np.arange(entry_start, entry_start + len(values), dtype=int)
+    if len(values) != len(ak.Array(arr)):
+        raise ValueError(
+            f"The ranking metric for {branch!r} has {len(values)} value(s) for "
+            f"{len(ak.Array(arr))} event(s); event numbers cannot be assigned reliably."
+        )
+    return events, values
 
 
 def metric_dataframe(

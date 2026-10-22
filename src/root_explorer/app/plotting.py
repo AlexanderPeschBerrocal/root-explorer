@@ -12,10 +12,13 @@ import streamlit as st
 
 from ..analysis.arrays import (
     ArrayShapeMismatchError,
-    apply_finite_filter,
+    EmptySelectionError,
     array_length,
     cut_values_for_values,
+    excluded_values_note,
+    filter_finite_counted,
     histogram_weights_for_values,
+    require_values,
     validate_variable_event_shapes,
     variable_values_for_values,
 )
@@ -342,6 +345,7 @@ def _generate_and_show(
             InvalidHistogramRangeError,
             InvalidLabelError,
             SourceUnavailableError,
+            EmptySelectionError,
         ) as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))
@@ -458,6 +462,9 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "figure": figure,
             "code": _safe_generate_plot_code(request, plot_warnings),
             "summary": summary,
+            "exclusion_note": (
+                excluded_values_note(prepared.excluded_count) if prepared.excluded_count else None
+            ),
             "weighted_summary": weighted_summary,
             "summary_notes": summary_notes,
             "preview": preview,
@@ -557,7 +564,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             event_index,
         )
         cuts.append((values, bounds[0], bounds[1]))
-    arrays = apply_finite_filter(apply_range_cuts(arrays, cuts))
+    arrays, excluded_count = filter_finite_counted(apply_range_cuts(arrays, cuts))
     x, y, z, weights, color = _unpack_arrays(
         arrays,
         has_y=request.y_spec is not None,
@@ -565,6 +572,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_weights=request.weight_branch is not None,
         has_color=request.color_spec is not None,
     )
+    require_values(x, excluded_count)
     threshold_result = None
     quantile_result = None
     reference_x = None
@@ -644,6 +652,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
                 figure, request.geometry.scene, request.geometry.options
             ),
             "summary": summary,
+            "exclusion_note": excluded_values_note(excluded_count) if excluded_count else None,
             "preview": preview,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
