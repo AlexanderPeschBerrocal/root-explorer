@@ -439,7 +439,7 @@ def read_field(
     )
 
 
-@st.cache_data(show_spinner=True, max_entries=64)
+@st.cache_data(show_spinner=False, max_entries=64)
 def _cached_read_field(
     path: str,
     version: SourceVersion,
@@ -472,7 +472,7 @@ def read_event_field(path: str, container_name: str, field_name: str, event_inde
     )
 
 
-@st.cache_data(show_spinner=True, max_entries=128)
+@st.cache_data(show_spinner=False, max_entries=128)
 def _cached_read_event_field(
     path: str, version: SourceVersion, container_name: str, field_name: str, event_index: int
 ) -> Any:

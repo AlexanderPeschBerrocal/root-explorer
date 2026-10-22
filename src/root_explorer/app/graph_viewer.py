@@ -19,7 +19,7 @@ from .results import (
 )
 
 
-@st.cache_data(show_spinner=False, max_entries=16)
+@st.cache_data(show_spinner="Reading graph…", max_entries=16)
 def _cached_graph(root_path: str, object_path: str, version: SourceVersion):
     """Load one graph; ``version`` invalidates the cache when the file changes."""
     return read_graph(root_path, object_path)
@@ -100,7 +100,8 @@ def render_graph_controls(
         try:
             validate_plot_labels(labels)
             spec = GraphPlotSpec(root_path, object_path, style, labels)
-            figure = render_graph_data(graph, spec.style, spec.labels)
+            with st.spinner("Rendering plot…"):
+                figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code
 
             store_plot_result(

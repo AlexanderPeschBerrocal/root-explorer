@@ -37,7 +37,7 @@ def compute_event_metric(
     )
 
 
-@st.cache_data(show_spinner=True, max_entries=32)
+@st.cache_data(show_spinner="Computing event ranking…", max_entries=32)
 def _cached_event_metric(
     path: str,
     version: SourceVersion,

@@ -77,7 +77,8 @@ def render_data_input() -> RootFileContext:
         version = source_version(root_path)
 
     try:
-        catalogue = get_root_catalogue(root_path)
+        with st.spinner("Reading the ROOT file catalogue…"):
+            catalogue = get_root_catalogue(root_path)
     except Exception as exc:
         st.error(f"Could not open ROOT file: {exc}")
         st.stop()
@@ -127,7 +128,9 @@ def render_data_input() -> RootFileContext:
         st.stop()
 
     try:
-        field_info = get_field_info(root_path, event_container_name)
+        item_plural = "fields" if container_kind == "RNTuple" else "branches"
+        with st.spinner(f"Reading {item_plural} of the selected {container_kind}…"):
+            field_info = get_field_info(root_path, event_container_name)
     except Exception as exc:
         return _without_event_data(
             root_path, catalogue, "unreadable_container", container_kind, exc

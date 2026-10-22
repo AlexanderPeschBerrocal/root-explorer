@@ -25,7 +25,7 @@ from .results import (
 )
 
 
-@st.cache_data(show_spinner=False, max_entries=16)
+@st.cache_data(show_spinner="Reading histogram…", max_entries=16)
 def _cached_histogram(root_path: str, object_path: str, version: SourceVersion):
     """Load one histogram; ``version`` invalidates the cache when the file changes."""
     return read_histogram(root_path, object_path)
@@ -105,11 +105,15 @@ def render_histogram_controls(
         try:
             validate_plot_labels(labels)
             spec = HistogramPlotSpec(root_path, object_path, style, labels, fit_config=fit_config)
-            fit_result = fit_histogram_1d(h, fit_config) if fit_config is not None else None
-            figure = render_histogram_data(data, spec.style, spec.labels)
-            if fit_result is not None and fit_result.success:
-                draw_fit_overlay(figure.axes[0], h, fit_result)
-                figure.tight_layout()
+            fit_result = None
+            if fit_config is not None:
+                with st.spinner("Fitting histogram…"):
+                    fit_result = fit_histogram_1d(h, fit_config)
+            with st.spinner("Rendering plot…"):
+                figure = render_histogram_data(data, spec.style, spec.labels)
+                if fit_result is not None and fit_result.success:
+                    draw_fit_overlay(figure.axes[0], h, fit_result)
+                    figure.tight_layout()
             from ..plotting.histogram_codegen import generate_histogram_plot_code
 
             warnings = []
