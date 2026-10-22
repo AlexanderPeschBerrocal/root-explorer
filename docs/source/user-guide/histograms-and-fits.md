@@ -24,9 +24,48 @@ Negative generator weights allow negative bin sums. The resulting yield
 need not be a probability distribution; never apply ordinary Poisson
 count formulas indiscriminately to weighted histograms.
 
-Statistics describing the selected sample are calculated after selection
+Statistics describing the selected sample are **unweighted**, even when the
+histogram uses weights. They are calculated after cuts and finite-value filtering
 and are not redefined by histogram range, zoom, or flow display settings.
 If your physics selection changes, regenerate the plot.
+
+## Histogram range and flow bins
+
+For an event-derived 1D histogram, the optional histogram minimum and maximum
+set the binning range. A blank bound is inferred from the selected sample.
+Values below the minimum are underflow and values above the maximum are overflow;
+the maximum itself belongs to the last nominal bin. Persisted ROOT histograms
+retain their stored bin contents and flow classification.
+
+- **Ignore:** draw and fit only nominal in-range bins.
+- **Fold:** add underflow to the first bin and overflow to the last, including
+  their variances. These adjusted edge bins also participate in fitting.
+- **Show separate bins:** display flow categories alongside nominal bins.
+  The extra categories do not represent finite physical intervals and are
+  excluded from fitting.
+
+The flow summary reports the original out-of-range yields even when they are
+ignored or folded in the plot. Axis limits only change the view; they neither
+rebin nor filter the sample.
+
+## Thresholds and quantiles
+
+For event-derived 1D histograms, enable **Calculate threshold / quantile**.
+The calculation uses the full finite sample after cuts, including observations
+outside the histogram range. Changing flow handling, density mode or axis zoom
+does not change the result.
+
+A threshold divides observations into **x ≤ threshold** and **x > threshold**.
+The table reports counts and, when weights are selected, weighted sums and
+fractions. Signed-weight fractions can lie outside [0, 1]; a zero or numerically
+unstable total weight makes weighted fractions undefined.
+
+Unweighted quantiles use NumPy's linearly interpolated sample quantile.
+Weighted quantiles use the inverse empirical cumulative distribution: the first
+sorted value whose cumulative weight reaches the requested fraction, without
+interpolation. For example, the median of `[0, 10]` is 5 unweighted, but 0 with
+equal positive weights. Weighted quantiles are unavailable if any selected
+weight is negative or the total weight is zero. Empty samples have no quantile.
 
 ## Unit-area density normalisation
 
@@ -70,8 +109,9 @@ Histogram fits continue to operate on the original flow-adjusted bin yields;
 their displayed predictions are divided by `S * bin_width[i]` in density mode.
 Fit parameters and goodness-of-fit statistics therefore do not change when
 the density display is toggled. KDE overlays use density units when enabled;
-the smooth KDE may have tails outside the histogram range. KDE is unavailable
-for normalised flow-folded histograms.
+their visible area need not be one because the underlying smooth distribution
+can extend beyond the displayed range. KDE is unavailable for normalised
+flow-folded histograms.
 
 **Download plot code** reproduces the chosen density, flow, fit and KDE
 semantics. Currently, the control applies to event-derived 1D histograms.
@@ -81,7 +121,7 @@ automatically. `TProfile` and `TProfile2D` bin means must not be treated as yiel
 
 ## Built-in histogram fitting
 
-For a 1D histogram, enable **Histogram fit** and choose Gaussian,
+For a 1D histogram, select **Enable fit** in the histogram fit controls and choose Gaussian,
 Exponential, single-sided Crystal Ball, or double-sided Crystal Ball.
 This is available for histograms built from TTree/RNTuple branches and
 persisted `TH1*` ROOT objects. Fitting of `TProfile` bin means is
@@ -91,14 +131,18 @@ ROOT Explorer uses **binned least squares**, not a Poisson likelihood.
 Ordinary least squares assigns equal importance to every selected bin.
 You may explicitly enable **Use stored bin variances** to minimise the
 sum of squared residuals divided by each bin's variance (`sum(w²)`).
-Bins with missing, non-finite, or non-positive variances are excluded and
-reported; they do not affect starting parameter estimates. No Poisson
-uncertainties are inferred from unweighted counts.
+Bins with non-finite or non-positive variances are excluded and reported;
+they do not affect starting parameter estimates. If the histogram has no stored
+variances at all, variance-weighted fitting fails with a warning: disable
+**Use stored bin variances** to use ordinary least squares. In particular,
+unweighted event histograms do not store variances for this fit mode. No Poisson
+uncertainties are inferred from their counts.
 
 Predictions are **integrals of the fit model over the original bins**
 rather than evaluations at bin centres. The custom fit interval selects
-whole bins whose centres fall inside it. Underflow and overflow do not
-contribute. Parameter guesses and physically meaningful default bounds
+whole bins whose centres fall inside it. With **Fold**, flow yields contribute
+through the adjusted edge bins; with **Ignore** or **Show separate bins**, they
+do not contribute. Parameter guesses and physically meaningful default bounds
 are provided automatically; both can be overridden. Fit failures display
 a warning without removing the histogram.
 
@@ -135,6 +179,34 @@ bin integrals. Extremely narrow peaks or rapidly oscillating expressions within
 one bin can exceed the numerical accuracy of the quadrature. Fit failures leave
 the underlying histogram visible. Exported standalone plot code includes the
 same expression, parameter settings, and restricted expression evaluator.
+
+## KDE smoothing and 2D contours
+
+Event-derived 1D and 2D histograms can show a Gaussian kernel density estimate
+(KDE). **Scott** and **Silverman** choose bandwidth automatically; **Custom**
+sets SciPy's covariance bandwidth factor directly, not a multiplier of Scott's
+choice. A smaller factor produces less smoothing.
+
+KDE uses at most **5,000 observations**, selected by deterministic sampling
+when necessary, while the histogram uses the full selected sample. Selected
+weights are retained for KDE, but negative weights or a zero total weight
+prevent it. Too few observations, constant coordinates or a singular covariance
+can also prevent KDE; the histogram remains available with a warning.
+
+For a 1D histogram, KDE uses observations inside the histogram range, even when
+flow yields are folded. It is scaled to yield per bin in count mode and to
+density in unit-area mode. The curve is drawn over the histogram range without
+renormalising its visible area. Normalised flow-folded histograms cannot show
+KDE. A 2D KDE is drawn as dashed density contours; these are distinct from the
+histogram-content contours below.
+
+For a 2D histogram, **Show contours** accepts percentages such as 68, 95 and 99.
+These enclose histogram content by accumulating bins from highest content to
+lowest. They are **not parameter-confidence regions** or fixed numbers of
+Gaussian standard deviations. They use the full binned sample, not the KDE
+subsample. Negative bin contents prevent this calculation; coarse binning and
+ties can merge requested levels or prevent a contour from being drawn. Adjust
+the binning and check warnings when interpreting the overlay.
 
 ## Standalone plot code
 

@@ -12,6 +12,8 @@ version = ".".join(release.split(".")[:2])
 extensions = ["myst_parser"]
 # Dollar-delimited LaTeX is reliably parsed in the Markdown user guides.
 myst_enable_extensions = ["dollarmath"]
+# Resolve Markdown links to guide sections as well as whole pages.
+myst_heading_anchors = 3
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "furo"
 # Furo offers an automatic light/dark setting and a visible theme switcher.

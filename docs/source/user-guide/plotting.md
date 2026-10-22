@@ -14,7 +14,10 @@ After opening a ROOT file and selecting a TTree or RNTuple, use the **Plotter** 
 
 ## Main plot types
 
-ROOT Explorer supports **1D histograms**, **2D histograms**, and scatter plotting. Interactive three-dimensional scatter plots can be combined with a GDML geometry overlay when a suitable geometry file and coordinates are available. Some options depend on the selected plot type.
+ROOT Explorer supports **1D histograms**, **2D histograms**, **2D scatter**, and
+**3D scatter interactive**. Interactive three-dimensional scatter plots can be
+combined with a GDML geometry overlay when a suitable geometry file and
+coordinates are available. Some options depend on the selected plot type.
 
 A 1D histogram counts observations in bins (or accumulates weights if weighting is selected). The x-axis represents the selected variable. For jagged particle values, the plotted population may be **objects** rather than **events**; see [Variables and collections](variables-and-collections.md).
 
@@ -23,7 +26,7 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 ## Make a plot
 
 1. Choose the plot type.
-2. Select the x variable (and the y variable if required), choosing a direct branch or a supported derived/reduced mode.
+2. Select the x variable, plus y and z where required, choosing direct branches or supported derived/reduced modes.
 3. Configure any applicable cuts, weights, bin settings and plot style.
 4. Click **Make plot** to generate the output.
 
@@ -46,9 +49,54 @@ The same syntax works for the colour-bar label and for labels in the persisted h
 
 Interactive 3D scatter plots currently display labels literally, without rendering math.
 
+## Sample summaries and correlations
+
+The summary's count, minimum, median, mean, standard deviation and maximum
+describe the finite sample after cuts. They are **unweighted**, including for
+weighted histograms. Histogram ranges, flow settings and axis zoom do not
+change them.
+
+2D scatter plots report **Pearson** correlation (linear association) and
+**Spearman** correlation (association of ranks, with ties assigned average
+ranks). Both use the full paired, finite sample after cuts, before scatter
+downsampling, and are unweighted. Too few observations or constant coordinates
+make a coefficient undefined. A correlation alone does not establish a physical
+relationship or capture every nonlinear dependence.
+
+Scatter plots apply the configured point cap using deterministic sampling
+(the default cap is 100,000). The data preview shows at most 500 plotted
+observations. Neither the cloud nor its preview necessarily contains every
+observation represented in the summary and correlation calculations.
+
+## Axis limits, colours and logarithmic scales
+
+Axis limits change the displayed window; they do not act as cuts. For scatter
+colouring, an event-level scalar can be repeated for its objects, while an
+object-level colour field must match the plotted collection. Non-finite colours
+exclude their observations. Colour limits clip the colour mapping rather than
+remove points: values outside the limits use the end colours.
+
+Static plots offer logarithmic scales where applicable. For scatter and
+event-derived 2D histograms, logarithmic coordinate axes require positive
+plotted coordinate values; zooming to positive limits does not repair
+non-positive inputs. A 1D histogram instead requires positive nominal bin edges
+on a logarithmic x-axis, so out-of-range flow values do not invalidate a
+positive histogram range. A logarithmic histogram yield axis needs
+positive bin contents to display and cannot faithfully show zero or negative
+yields. Logarithmic 2D histogram colours mask non-positive bins; logarithmic
+scatter colours require all plotted colour values to be positive. Check the
+linear view when using signed weights. The interactive 3D plot does not offer
+the static plots' logarithmic-axis controls.
+
 ## Interpretation
 
 **Selected entry range, cuts, finite-value filtering, weights, flow-bin handling and normalisation** can change the statistical meaning of the displayed histogram. A histogram density, weighted yield, and simple count distribution are not interchangeable. For precise definitions of weighted yields, statistical uncertainties, density normalisation and fit objectives, see [Histogram statistics, normalisation and fitting](histograms-and-fits.md).
+
+For threshold/quantile calculations, KDE bandwidth and sampling, and the
+distinction between histogram-content contours and confidence regions, see
+the histogram guide above. Check
+[known correctness limitations](../performance.md#known-correctness-limitations)
+when using missing source values or replacing a file at an existing path.
 
 Static plots can be downloaded and selected plotting configurations can be exported as standalone Python code. Retain a reproducible script for final physics results.
 
