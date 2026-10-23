@@ -8,6 +8,7 @@ from typing import Any
 import hist
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
 
 from ..analysis.arrays import (
     array_length,
@@ -269,7 +270,8 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         flow_mode = "ignore"
 
     normalisation_result = None
-    if histogram_1d is not None and spec.style.get("normalise_unit_area", False):
+    # The displayed histogram exists exactly when a 1D histogram was built.
+    if display_histogram_1d is not None and spec.style.get("normalise_unit_area", False):
         if flow_mode == "separate" and histogram_range is not None:
             normalisation_result = HistogramNormalisationResult(
                 None,
@@ -350,7 +352,7 @@ def render_prepared_static_plot(
     prepared: PreparedStaticPlot,
     *,
     fit_result: FitResult | None = None,
-):
+) -> tuple[Figure, list[str]]:
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
     x, y, color = prepared.render_arrays(spec.plot_type)

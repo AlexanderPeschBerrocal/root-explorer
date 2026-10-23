@@ -8,6 +8,7 @@ import streamlit as st
 
 from ..io.graphs import UnsupportedGraphError, read_graph
 from ..io.source import SourceVersion, source_version
+from ..models import GraphData
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, validate_plot_labels
 from .controls import slider_or_number_input
@@ -20,12 +21,12 @@ from .results import (
 
 
 @st.cache_data(show_spinner="Reading graph…", max_entries=16)
-def _cached_graph(root_path: str, object_path: str, version: SourceVersion):
+def _cached_graph(root_path: str, object_path: str, version: SourceVersion) -> GraphData:
     """Load one graph; ``version`` invalidates the cache when the file changes."""
     return read_graph(root_path, object_path)
 
 
-def _graph_controls(graph, object_id: str) -> tuple[dict[str, Any], dict[str, str]]:
+def _graph_controls(graph: GraphData, object_id: str) -> tuple[dict[str, Any], dict[str, str]]:
     st.subheader("Graph configuration", anchor=False)
     style: dict[str, Any] = {}
     style["graph_mode"] = st.selectbox(

@@ -32,6 +32,11 @@ Type checking uses mypy with the file selection configured in `pyproject.toml`:
 python -m mypy
 ```
 
+The check covers the complete `src/root_explorer` package. The `dev` extra
+installs the `pandas-stubs` and `scipy-stubs` type stubs. Plotly provides no type
+information and is excluded by a narrow per-module override; prefer precise
+annotations or explicit narrowing over `# type: ignore` comments.
+
 ## Pre-commit hooks
 
 This repository uses [pre-commit](https://pre-commit.com/) to run the Ruff checks

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import hist
 import numpy as np
@@ -40,16 +41,16 @@ class PersistedHistogram:
         return self.kind == "MEAN"
 
 
-def _axis_title(obj: object, member: str, fallback: str) -> str:
+def _axis_title(obj: Any, member: str, fallback: str) -> str:
     """Prefer the stored ROOT axis title over semicolon-delimited title text."""
     try:
-        title = str(obj.member(member).member("fTitle") or "").strip()  # type: ignore[attr-defined]
+        title = str(obj.member(member).member("fTitle") or "").strip()
     except (AttributeError, KeyError, ValueError):
         title = ""
     return title or fallback
 
 
-def _profile2d_fallback(obj: object) -> hist.Hist:
+def _profile2d_fallback(obj: Any) -> hist.Hist:
     """Adapt a ROOT TProfile2D while Uproot's to_boost is unimplemented.
 
     This preserves the bin means and their ROOT-standard uncertainty on the
@@ -58,9 +59,9 @@ def _profile2d_fallback(obj: object) -> hist.Hist:
     """
     axes = [
         hist.axis.Variable(
-            np.asarray(obj.axis(i).edges(), dtype=float),  # type: ignore[attr-defined]
+            np.asarray(obj.axis(i).edges(), dtype=float),
             name=("x", "y")[i],
-            label=str(obj.axis(i).member("fTitle") or ""),  # type: ignore[attr-defined]
+            label=str(obj.axis(i).member("fTitle") or ""),
             underflow=True,
             overflow=True,
         )
@@ -68,12 +69,12 @@ def _profile2d_fallback(obj: object) -> hist.Hist:
     ]
     result = hist.Hist(*axes, storage=hist.storage.Weight())
     view = result.view(flow=True)
-    view.value[...] = np.asarray(obj.values(flow=True), dtype=float)  # type: ignore[attr-defined]
-    view.variance[...] = np.asarray(obj.variances(flow=True), dtype=float)  # type: ignore[attr-defined]
+    view.value[...] = np.asarray(obj.values(flow=True), dtype=float)
+    view.variance[...] = np.asarray(obj.variances(flow=True), dtype=float)
     return result
 
 
-def histogram_from_object(obj: object) -> PersistedHistogram:
+def histogram_from_object(obj: Any) -> PersistedHistogram:
     """Adapt a deserialised Uproot histogram without rebinning its contents."""
     classname = str(getattr(obj, "classname", type(obj).__name__))
     if not classname.startswith(("TH1", "TH2", "TProfile")) or classname.startswith(
@@ -88,7 +89,7 @@ def histogram_from_object(obj: object) -> PersistedHistogram:
 
     try:
         try:
-            histogram = obj.to_hist()  # type: ignore[attr-defined]
+            histogram = obj.to_hist()
         except NotImplementedError:
             if classname != "TProfile2D":
                 raise

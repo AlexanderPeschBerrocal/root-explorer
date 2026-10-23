@@ -17,7 +17,7 @@ MAX_FIT_PARAMETERS = 12
 FIT_FUNCTION_NAMES = ("exp", "log", "sqrt", "abs", "sin", "cos", "tan", "sinh", "cosh", "tanh")
 
 
-def _fit_functions() -> dict[str, object]:
+def _fit_functions() -> dict[str, np.ufunc]:
     """Keep the whitelist explicit and reconstructible in standalone exports."""
     return {
         "exp": np.exp,
@@ -107,7 +107,7 @@ def _evaluate_expression_node(
 ) -> np.ndarray | float:
     if isinstance(node, ast.Expression):
         return _evaluate_expression_node(node.body, x, parameters)
-    if isinstance(node, ast.Constant):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
         return float(node.value)
     if isinstance(node, ast.Name):
         if node.id == "x":
@@ -133,9 +133,10 @@ def _evaluate_expression_node(
             return np.divide(left, right)
         if isinstance(node.op, ast.Pow):
             return np.power(left, right)
-    if isinstance(node, ast.Call):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
         argument = _evaluate_expression_node(node.args[0], x, parameters)
-        return _fit_functions()[node.func.id](argument)
+        result: np.ndarray | float = _fit_functions()[node.func.id](argument)
+        return result
     # This should be unreachable: _parsed_expression validated every node.
     raise ValueError("Unsupported expression node.")
 

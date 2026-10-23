@@ -6,15 +6,17 @@ import io
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import hist
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import plotly.graph_objects as go
 from matplotlib import cbook, colormaps
 from matplotlib.colors import LogNorm, Normalize, to_hex
+from matplotlib.figure import Figure
 from matplotlib.mathtext import MathTextParser
 from scipy.stats import gaussian_kde
 
@@ -250,12 +252,16 @@ def downsample_arrays(
     return [a[idx] for a in arrays]
 
 
-def resolve_kde_bandwidth(method: str, custom_factor: object = 1.0) -> str | float:
+def resolve_kde_bandwidth(
+    method: str, custom_factor: float | str = 1.0
+) -> Literal["scott", "silverman"] | float:
     """Return a SciPy KDE bandwidth method after validating UI configuration."""
 
     normalized = str(method).casefold()
-    if normalized in {"scott", "silverman"}:
-        return normalized
+    if normalized == "scott":
+        return "scott"
+    if normalized == "silverman":
+        return "silverman"
     if normalized != "custom":
         raise KDEError(f"Unknown KDE bandwidth method: {method!r}.")
     try:
@@ -322,8 +328,8 @@ def _prepare_kde_sample(
 def _build_kde(
     coordinates: Sequence[np.ndarray],
     weights: np.ndarray | None,
-    bandwidth: str | float,
-):
+    bandwidth: Literal["scott", "silverman"] | float,
+) -> gaussian_kde:
     try:
         dataset = coordinates[0] if len(coordinates) == 1 else np.vstack(coordinates)
         return gaussian_kde(dataset, bw_method=bandwidth, weights=weights)
@@ -332,14 +338,14 @@ def _build_kde(
 
 
 def draw_kde_1d(
-    ax,
+    ax: Any,
     x: np.ndarray,
     histogram_edges: np.ndarray,
     *,
     weights: np.ndarray | None = None,
-    bandwidth: str | float = "scott",
+    bandwidth: Literal["scott", "silverman"] | float = "scott",
     density: bool = False,
-):
+) -> Any:
     """Overlay a KDE in density units or histogram yield units."""
 
     coordinates, sampled_weights, total_weight = _prepare_kde_sample([x], weights)
@@ -353,15 +359,15 @@ def draw_kde_1d(
 
 
 def draw_kde_2d(
-    ax,
+    ax: Any,
     x: np.ndarray,
     y: np.ndarray,
     xedges: np.ndarray,
     yedges: np.ndarray,
     *,
     weights: np.ndarray | None = None,
-    bandwidth: str | float = "scott",
-):
+    bandwidth: Literal["scott", "silverman"] | float = "scott",
+) -> Any:
     """Overlay KDE contour lines on the visible 2D histogram range."""
 
     coordinates, sampled_weights, _ = _prepare_kde_sample([x, y], weights)
@@ -700,12 +706,12 @@ def histogram_2d_color_scale(
 
 
 def draw_highest_density_contours(
-    ax,
+    ax: Any,
     histogram: np.ndarray,
     xedges: np.ndarray,
     yedges: np.ndarray,
     levels: str | Sequence[float],
-):
+) -> Any:
     """Draw and label meaningful highest-density contours on a 2D histogram."""
 
     grouped = highest_density_contour_thresholds(histogram, levels)
@@ -740,7 +746,7 @@ def safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name).strip("_") or "plot"
 
 
-def validate_raster_resolution(fig, dpi: int | float) -> tuple[int, int]:
+def validate_raster_resolution(fig: Any, dpi: int | float) -> tuple[int, int]:
     """Return estimated pixel dimensions or reject an unsafe raster request."""
 
     try:
@@ -768,7 +774,7 @@ def validate_raster_resolution(fig, dpi: int | float) -> tuple[int, int]:
 
 
 def matplotlib_figure_bytes(
-    fig, file_format: str, *, dpi: int | float = DEFAULT_EXPORT_DPI
+    fig: Any, file_format: str, *, dpi: int | float = DEFAULT_EXPORT_DPI
 ) -> bytes:
     """Render a Matplotlib figure for a browser download."""
     if file_format == "png":
@@ -783,37 +789,38 @@ def matplotlib_figure_bytes(
     return buffer.getvalue()
 
 
-def plotly_figure_html(fig) -> bytes:
+def plotly_figure_html(fig: Any) -> bytes:
     """Render a Plotly figure as HTML for a browser download."""
-    return fig.to_html(include_plotlyjs="cdn").encode("utf-8")
+    html: str = fig.to_html(include_plotlyjs="cdn")
+    return html.encode("utf-8")
 
 
 def build_plotly_3d(
-    x,
-    y,
-    z,
-    x_label,
-    y_label,
-    z_label,
+    x: npt.ArrayLike,
+    y: npt.ArrayLike,
+    z: npt.ArrayLike,
+    x_label: str,
+    y_label: str,
+    z_label: str,
     *,
-    color=None,
-    color_label=None,
-    title="",
-    marker_size=2.5,
-    opacity=0.65,
-    colorscale="Viridis",
-    reversescale=False,
-    aspectmode="data",
-    color_min=None,
-    color_max=None,
-):
-    plotly_colorscale = colorscale
+    color: npt.ArrayLike | None = None,
+    color_label: str | None = None,
+    title: str = "",
+    marker_size: float = 2.5,
+    opacity: float = 0.65,
+    colorscale: str = "Viridis",
+    reversescale: bool = False,
+    aspectmode: str = "data",
+    color_min: float | None = None,
+    color_max: float | None = None,
+) -> go.Figure:
+    plotly_colorscale: str | list[list[Any]] = colorscale
     if colorscale.lower() == "coolwarm":
         cmap = colormaps["coolwarm"]
         plotly_colorscale = [
             [position, to_hex(cmap(position))] for position in np.linspace(0.0, 1.0, 11)
         ]
-    marker = {
+    marker: dict[str, Any] = {
         "size": marker_size,
         "opacity": opacity,
         "colorscale": plotly_colorscale,
@@ -864,7 +871,7 @@ def matplotlib_cmap_name(colorscale: str, reverse: bool = False) -> str:
     return f"{name}_r" if reverse else name
 
 
-def create_static_figure(style: dict[str, Any]):
+def create_static_figure(style: dict[str, Any]) -> tuple[Figure, Any]:
     """Create the Matplotlib figure used for a static ROOT Explorer plot."""
 
     return plt.subplots(
@@ -991,7 +998,7 @@ def draw_histogram_2d(
     colorbar_label: str,
     style: dict[str, Any] | None = None,
     hidden_bins: np.ndarray | None = None,
-):
+) -> Any:
     """Render a prepared 2D histogram, without reconstructing its binning.
 
     ``style`` supplies the colour map and optional colour limits. Bins marked in
@@ -1181,8 +1188,8 @@ def finish_static_axes(ax: Any, plot_type: str, title: str, style: dict[str, Any
 
 
 def render_static_plot(
-    fig,
-    ax,
+    fig: Any,
+    ax: Any,
     plot_type: str,
     x: np.ndarray,
     y: np.ndarray | None,
@@ -1206,8 +1213,9 @@ def render_static_plot(
     histogram_flow_mode: str = "ignore",
     fit_histogram_1d: hist.Hist | None = None,
     normalisation_result: Any | None = None,
-):
+) -> list[str]:
     warnings: list[str] = []
+    warning: str | None
     if plot_type == "1D histogram":
         if histogram_1d is None:
             raise ValueError("1D histogram rendering requires a prepared histogram.")
@@ -1221,13 +1229,18 @@ def render_static_plot(
             flow_mode=histogram_flow_mode,
             log_x=bool(style.get("log_x", False)),
         )
-        density_enabled = normalisation_result is not None and normalisation_result.valid
+        density_denominator = (
+            normalisation_result.denominator
+            if normalisation_result is not None and normalisation_result.valid
+            else None
+        )
+        density_enabled = density_denominator is not None
         if fit_result is not None and fit_result.success:
             draw_fit_overlay(
                 ax,
                 fit_histogram_1d if fit_histogram_1d is not None else histogram_1d,
                 fit_result,
-                density_denominator=normalisation_result.denominator if density_enabled else None,
+                density_denominator=density_denominator,
             )
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
         histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
