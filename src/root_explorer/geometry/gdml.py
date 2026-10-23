@@ -28,9 +28,10 @@ LEN_UNITS = {
     "micrometer": 0.001,
     "nm": 1e-6,
 }
+# Like Geant4's GDML reader, angles without a unit are in radians.
 ANGLE_UNITS = {
-    None: math.pi / 180.0,
-    "": math.pi / 180.0,
+    None: 1.0,
+    "": 1.0,
     "deg": math.pi / 180.0,
     "degree": math.pi / 180.0,
     "rad": 1.0,
@@ -82,9 +83,17 @@ def length_value(attrs: dict[str, str], key: str, default: float = 0.0) -> float
 
 
 def angle_value(attrs: dict[str, str], key: str, default_deg: float = 0.0) -> float:
-    return as_float(attrs, key, default_deg) * ANGLE_UNITS.get(
-        attrs.get("aunit") or attrs.get("unit"), math.pi / 180.0
-    )
+    """Return an angle in radians.
+
+    A missing or unparseable attribute, such as an unevaluated expression, uses
+    ``default_deg`` degrees.
+    """
+
+    try:
+        value = float(attrs[key])
+    except (KeyError, TypeError, ValueError):
+        return math.radians(default_deg)
+    return value * ANGLE_UNITS.get(attrs.get("aunit") or attrs.get("unit"), 1.0)
 
 
 def identity() -> Mat4:
@@ -164,14 +173,25 @@ def parse_rotation(el: ET.Element | None) -> Vec3:
     if el is None:
         return (0.0, 0.0, 0.0)
     attrs = el.attrib
-    unit = ANGLE_UNITS.get(attrs.get("unit"), math.pi / 180.0)
+    unit = ANGLE_UNITS.get(attrs.get("unit"), 1.0)
     return (as_float(attrs, "x") * unit, as_float(attrs, "y") * unit, as_float(attrs, "z") * unit)
 
 
 def placement_matrix(physvol: ET.Element) -> Mat4:
+    """Return the transform that places a daughter volume in its mother.
+
+    Like Geant4's GDML reader (G4GDMLReadStructure::PhysvolRead), the placement
+    uses the inverse of the rotation matrix built from the x, y and z angles: a
+    physvol rotation describes the rotation of the daughter's frame, so the
+    volume itself is turned the opposite way. Boolean operands are different and
+    use the rotation as given (see SceneBuilder.solid_mesh).
+    """
+
     pos = parse_position(child_by_tag(physvol, "position"))
-    rot = parse_rotation(child_by_tag(physvol, "rotation"))
-    return matmul(translate(*pos), euler_xyz(*rot))
+    rx, ry, rz = parse_rotation(child_by_tag(physvol, "rotation"))
+    # (Rz Ry Rx)^-1 = Rx(-x) Ry(-y) Rz(-z)
+    inverse = matmul(rotate_x(-rx), matmul(rotate_y(-ry), rotate_z(-rz)))
+    return matmul(translate(*pos), inverse)
 
 
 def add_tri(tris: list[Triangle], a: Vec3, b: Vec3, c: Vec3) -> None:
