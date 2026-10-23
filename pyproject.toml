@@ -40,8 +40,10 @@ dev = [
     "build==1.6.0",
     "bump-my-version==1.5.1",
     "mypy>=1.11",
+    "pandas-stubs",
     "pre-commit>=3.8",
     "ruff==0.16.5",
+    "scipy-stubs",
     "watchdog",
 ]
 docs = [
@@ -72,11 +74,18 @@ root_explorer = ["assets/*.png"]
 
 [tool.mypy]
 python_version = "3.12"
+# Every module outside the Streamlit application layer; app/ follows in a later stage.
 files = [
+    "src/root_explorer/__init__.py",
+    "src/root_explorer/__main__.py",
+    "src/root_explorer/cli.py",
+    "src/root_explorer/config.py",
     "src/root_explorer/models.py",
-    "src/root_explorer/analysis/arrays.py",
-    "src/root_explorer/analysis/variables.py",
-    "src/root_explorer/geometry/gdml.py",
+    "src/root_explorer/streamlit_app.py",
+    "src/root_explorer/analysis",
+    "src/root_explorer/geometry",
+    "src/root_explorer/io",
+    "src/root_explorer/plotting",
 ]
 disallow_untyped_defs = true
 warn_return_any = true
@@ -85,6 +94,11 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = ["awkward.*", "uproot.*"]
+ignore_missing_imports = true
+
+# Plotly ships neither inline types nor maintained stubs.
+[[tool.mypy.overrides]]
+module = ["plotly.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

@@ -245,7 +245,9 @@ def histogram_for_flow_mode(histogram: hist.Hist, mode: str) -> hist.Hist:
     if mode != "fold":
         return histogram
     result = histogram.copy()
-    view = result.view(flow=True)
+    # hist annotates every view as a float array, but a Weight storage returns a
+    # structured WeightedSumView with value and variance fields.
+    view: Any = result.view(flow=True)
     if histogram.storage_type is hist.storage.Weight:
         for source, target in ((0, 1), (-1, -2)):
             view.value[target] += view.value[source]

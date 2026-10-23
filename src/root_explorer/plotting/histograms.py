@@ -36,7 +36,7 @@ def histogram_errors(data: PersistedHistogram) -> np.ndarray | None:
     if variance is None:
         return None
     variances = np.asarray(variance, dtype=float)
-    return np.sqrt(np.clip(variances, 0, None))
+    return np.asarray(np.sqrt(np.clip(variances, 0, None)), dtype=float)
 
 
 def visible_profile_occupancy(data: PersistedHistogram) -> np.ndarray:

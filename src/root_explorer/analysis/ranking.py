@@ -21,7 +21,7 @@ def compute_event_metric(
     entry_stop: int,
     threshold: float | None,
     abs_value: bool,
-):
+) -> tuple[np.ndarray, np.ndarray]:
     # The ranking cache sits above read_field(), so it needs its own source version:
     # a cache hit here must not mask a replaced file.
     return _cached_event_metric(
@@ -48,7 +48,7 @@ def _cached_event_metric(
     entry_stop: int,
     threshold: float | None,
     abs_value: bool,
-):
+) -> tuple[np.ndarray, np.ndarray]:
     arr = read_field(path, tree_name, branch, entry_start, entry_stop)
     if mode == "multiplicity":
         values = multiplicity_per_event(arr)

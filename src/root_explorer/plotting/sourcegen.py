@@ -8,6 +8,7 @@ import importlib
 import inspect
 import math
 import textwrap
+from collections.abc import Callable
 from dataclasses import fields, is_dataclass
 from importlib.util import resolve_name
 from types import ModuleType
@@ -189,7 +190,7 @@ def _vendor_local_internal_imports(
     module: ModuleType,
     *,
     package_prefix: str,
-    visit,
+    visit: Callable[[Any], None],
 ) -> str:
     """Vendor function-local internal imports and remove them from emitted source."""
 

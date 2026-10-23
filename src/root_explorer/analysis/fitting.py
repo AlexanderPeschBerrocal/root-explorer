@@ -60,7 +60,9 @@ class FitResult:
 
 
 def _core_integral(left: np.ndarray, right: np.ndarray) -> np.ndarray:
-    return np.sqrt(np.pi / 2) * (erf(right / np.sqrt(2)) - erf(left / np.sqrt(2)))
+    return np.asarray(
+        np.sqrt(np.pi / 2) * (erf(right / np.sqrt(2)) - erf(left / np.sqrt(2))), dtype=float
+    )
 
 
 def _crystal_ball_integral(
@@ -107,7 +109,7 @@ def _crystal_ball_integral(
             - ((b_right + right_upper) / d_right) ** (1 - n_right)
         )
     )
-    return left_area + core_area + right_area
+    return np.asarray(left_area + core_area + right_area, dtype=float)
 
 
 def model_density(
@@ -166,7 +168,7 @@ def model_bin_integrals(
         half = (edges[1:] - edges[:-1]) / 2
         coords = mid[:, None] + half[:, None] * nodes[None, :]
         values = evaluate_fit_expression(expression, coords, parameters)
-        return half * np.sum(values * weights[None, :], axis=1)
+        return np.asarray(half * np.sum(values * weights[None, :], axis=1), dtype=float)
     if model not in FIT_MODELS:
         raise ValueError(f"Unsupported fit model: {model}")
     left, right = edges[:-1], edges[1:]
@@ -174,8 +176,10 @@ def model_bin_integrals(
     if model == "Exponential":
         k = parameters["k"]
         if abs(k) < 1e-10:
-            return amplitude * (right - left)
-        return amplitude * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k
+            return np.asarray(amplitude * (right - left), dtype=float)
+        return np.asarray(
+            amplitude * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k, dtype=float
+        )
 
     mu, sigma = parameters["mu"], parameters["sigma"]
     t_left, t_right = (left - mu) / sigma, (right - mu) / sigma
@@ -419,7 +423,9 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
                 )
             predictions = integral_left
         result = (predictions - selected_values) / sigma
-        return np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100)
+        return np.asarray(
+            np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100), dtype=float
+        )
 
     try:
         solution = least_squares(
