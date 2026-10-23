@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+    "hypothesis",
     "pytest>=8",
     "pytest-cov",
 ]

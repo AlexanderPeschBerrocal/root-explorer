@@ -17,7 +17,11 @@ python -m pytest
 
 The tests use small synthetic ROOT files, generated during the test run or
 committed in `tests/data`, and require neither external data nor a CERN ROOT
-installation. Set `MPLBACKEND=Agg` when running on
+installation. `tests/test_invariants.py` generates inputs with
+[Hypothesis](https://hypothesis.readthedocs.io/) and compares the results with
+reference calculations written from the documented rules. Its examples are
+derandomised and bounded, so every run checks the same cases; if one fails,
+add the minimal example Hypothesis reports as a regular regression test. Set `MPLBACKEND=Agg` when running on
 a machine without a display, as CI does.
 
 To reproduce the CI test job, including the coverage report, run:
