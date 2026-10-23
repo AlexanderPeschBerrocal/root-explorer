@@ -226,13 +226,22 @@ def test_persisted_graph_viewer_shows_replaced_contents(tmp_path) -> None:
 
     second = write("cycled_graph")
     assert second != first
-    at.button(key="graph_make_plot").click().run()
+    at.run()  # Replacement must refresh the displayed figure without Make plot.
     assert not at.exception
     assert plotted_y(at) == pytest.approx(second)
 
 
-def test_persisted_histogram_viewer_shows_replaced_contents(tmp_path) -> None:
+@pytest.mark.parametrize("remote", [False, True])
+def test_persisted_histogram_viewer_shows_replaced_contents(tmp_path, monkeypatch, remote) -> None:
     path = tmp_path / "objects.root"
+    source = "https://example.org/replaced.root" if remote else str(path)
+    if remote:
+        original_open = uproot.open
+
+        def open_source(file, *args, **kwargs):
+            return original_open(str(path) if file == source else file, *args, **kwargs)
+
+        monkeypatch.setattr(uproot, "open", open_source)
 
     def write(counts: list[float]) -> None:
         with uproot.recreate(path) as root_file:
@@ -241,17 +250,89 @@ def test_persisted_histogram_viewer_shows_replaced_contents(tmp_path) -> None:
 
     write([1.0, 2.0])
     at = AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=10).run()
-    at.text_input(key="root_path").input(str(path)).run()
+    at.text_input(key="root_path").input(source).run()
     next(item for item in at.selectbox if item.label == "Object to inspect").select(
         "histogram (TH1D)"
     ).run()
     at.button(key="root_object_open").click().run()
     assert any("sum of bin contents: 3" in caption.value for caption in at.caption)
+    old_figure = at.session_state["root_histogram_result"]["figure"]
 
     write([10.0, 20.0])
-    at.button(key="hist_make_plot").click().run()
+    if remote:
+        at.button(key="reload_remote_source").click().run()
+    else:
+        at.run()
     assert not at.exception
     assert any("sum of bin contents: 30" in caption.value for caption in at.caption)
+    figure = at.session_state["root_histogram_result"]["figure"]
+    assert figure is not old_figure
+    np.testing.assert_array_equal(figure.axes[0].patches[0].get_data().values, [10.0, 20.0])
+
+
+@pytest.mark.parametrize("replacement", ["removed", "different_class"])
+def test_replacing_an_inspected_object_closes_an_obsolete_viewer(tmp_path, replacement) -> None:
+    path = tmp_path / "objects.root"
+    with uproot.recreate(path) as root_file:
+        root_file["histogram"] = (np.array([1.0, 2.0]), np.array([0.0, 1.0, 2.0]))
+    at = AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=20).run()
+    at.text_input(key="root_path").input(str(path)).run()
+    at.button(key="root_object_open").click().run()
+    assert "root_histogram_result" in at.session_state
+
+    with uproot.recreate(path) as root_file:
+        root_file["histogram" if replacement == "different_class" else "note"] = "replacement"
+    _bump_mtime(path)
+    at.run()
+    assert not at.exception
+    assert "root_histogram_result" not in at.session_state
+    assert "root_inspector_open" not in at.session_state
+
+
+@pytest.mark.parametrize("change", ["replace", "delete"])
+def test_gdml_changes_discard_global_and_event_overlays(tmp_path, tiny_gdml_path, change) -> None:
+    path = tmp_path / "events.root"
+    _write_events(path, np.arange(3.0))
+    at = AppTest.from_file(PROJECT_ROOT / "streamlit_app.py", default_timeout=20).run()
+    at.text_input(key="root_path").input(str(path)).run()
+    at.checkbox(key="geometry_enabled").check().run()
+    at.text_input(key="geometry_path").input(str(tiny_gdml_path)).run()
+    for prefix in ("plot", "event"):
+        at.selectbox(key=f"{prefix}_plot_type" if prefix == "event" else "plot_type").select(
+            "3D scatter interactive"
+        ).run()
+        for axis in "xyz":
+            at.selectbox(
+                key=f"event_{axis}_branch" if prefix == "event" else f"{axis}_branch"
+            ).select("x")
+        at.run()
+        at.button(key=f"{prefix}_make").click().run()
+    assert not at.exception
+
+    def min_mesh_x(key):
+        return min(
+            float(np.min(trace.x))
+            for trace in at.session_state[key]["figure"].data
+            if trace.type == "mesh3d"
+        )
+
+    assert min_mesh_x("plot_result") == pytest.approx(4.0)
+    assert min_mesh_x("event_plot_result") == pytest.approx(4.0)
+    at.run()
+    assert "plot_result" in at.session_state and "event_plot_result" in at.session_state
+    if change == "replace":
+        tiny_gdml_path.write_text(tiny_gdml_path.read_text().replace('x="5"', 'x="8"'))
+        _bump_mtime(tiny_gdml_path)
+    else:
+        tiny_gdml_path.unlink()
+    at.run()
+    assert not at.exception
+    assert "plot_result" not in at.session_state
+    assert "event_plot_result" not in at.session_state
+    if change == "replace":
+        at.button(key="plot_make").click().run()
+        assert not at.exception
+        assert min_mesh_x("plot_result") == pytest.approx(7.0)
 
 
 def test_reload_source_button_is_offered_only_for_remote_paths(tmp_path, monkeypatch) -> None:

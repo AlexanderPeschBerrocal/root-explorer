@@ -72,3 +72,4 @@ class GeometryState:
 
     scene: dict[str, Any] | None
     options: dict[str, Any]
+    source: tuple[str, SourceVersion] | None = None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from importlib.resources import files
 from pathlib import Path
@@ -29,6 +30,7 @@ DEFAULT_STREAMLIT_OPTIONS = (
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="root-explorer",
+        allow_abbrev=False,
         description="Launch ROOT Explorer, optionally with a ROOT file pre-selected.",
         epilog="Further options, for example --server.address=0.0.0.0, are passed to Streamlit.",
     )
@@ -50,7 +52,23 @@ def _parser() -> argparse.ArgumentParser:
 def streamlit_arguments(argv: Sequence[str] | None = None) -> list[str]:
     """Translate launcher arguments into ``streamlit run`` arguments."""
 
-    args, streamlit_options = _parser().parse_known_args(argv)
+    parser = _parser()
+    tokens = iter(sys.argv[1:] if argv is None else argv)
+    normalized = []
+    for token in tokens:
+        if token == "--":
+            normalized.extend([token, *tokens])
+            break
+        # Streamlit's --section.setting options all take a value, including
+        # boolean settings. Bind split values before argparse can mistake them
+        # for the optional ROOT filename. Leave validation to Streamlit.
+        if token.startswith("--") and "." in token and "=" not in token:
+            value = next(tokens, None)
+            if value is None or value.startswith("--"):
+                parser.error(f"argument {token}: expected one argument")
+            token = f"{token}={value}"
+        normalized.append(token)
+    args, streamlit_options = parser.parse_known_args(normalized)
     arguments = ["run", str(APP_SCRIPT), *DEFAULT_STREAMLIT_OPTIONS]
     if args.port is not None:
         arguments.append(f"--server.port={args.port}")

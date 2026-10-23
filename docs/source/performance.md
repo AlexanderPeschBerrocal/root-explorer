@@ -26,6 +26,11 @@ the previous version are discarded; no restart is needed. If a file disappears
 while you are working with it, ROOT Explorer reports that it is no longer
 available instead of showing previously cached data.
 
+An open stored histogram or graph is redrawn from the updated ROOT file. If
+the inspected object was removed or changed class, its viewer closes. After a
+GDML change, existing 3D plots using that file are cleared; click **Make plot**
+or **Make event plot** to generate the updated overlay.
+
 **Remote files** (`root://`, `http://`, `https://`) cannot be checked in the same
 way. Their data stays cached until you click **Reload source** below the file
 path, which reads the file again for all users of the application.

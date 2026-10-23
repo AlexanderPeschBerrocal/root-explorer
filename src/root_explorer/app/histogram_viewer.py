@@ -38,8 +38,10 @@ def render_histogram_controls(
     st.subheader(f"Histogram: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
-        data = _cached_histogram(root_path, object_path, source_version(root_path))
-    except (UnsupportedHistogramError, OSError, ValueError) as exc:
+        version = source_version(root_path)
+        data = _cached_histogram(root_path, object_path, version)
+    except (UnsupportedHistogramError, OSError, ValueError, KeyError) as exc:
+        discard_plot_result("root_histogram_result")
         st.warning(str(exc))
         return
     h = data.histogram
@@ -79,7 +81,7 @@ def render_histogram_controls(
             st.text_input(title, key=f"hist_{key}", placeholder="Automatic") if manual else ""
         )
     st.markdown("#### Labels", anchors=False)
-    identity = str(abs(hash((root_path, object_path))))
+    identity = str(abs(hash((root_path, object_path, version))))
     labels = {
         "title": st.text_input("Title", value=data.title, key=f"hist_title_{identity}"),
         "custom_x": st.text_input("X label", value=data.x_label, key=f"hist_x_{identity}"),
