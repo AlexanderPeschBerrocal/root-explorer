@@ -8,8 +8,8 @@ filesystem accessible to the **server process**, not the browser user.
 
 A Docker deployment can explicitly mount a read-only directory, then use
 the corresponding **container path** in the UI. Browser uploads require
-no filesystem mount. Server-side **Save** similarly targets the server's
-filesystem.
+no filesystem mount. Plots are exported only as browser downloads, so no
+deployment needs a writable output directory.
 
 ## Planned restricted deployments (not yet implemented)
 
@@ -19,13 +19,13 @@ will add validated `local`, `internal`, and `public` runtime profiles
 using the **same versioned Docker image**, with separate process/storage
 instances and security controls:
 
-- `local`: retain the current trusted single-user Path/Upload/Save workflow.
+- `local`: retain the current trusted single-user Path/Upload workflow.
 - `internal`: RWTH-network access with only explicitly approved read-only
   filesystem roots. The question of network access vs authentication, and
   whether a common trusted directory is sufficient, must be resolved
   before offering this to general internal users.
 - `public`: intended to permit browser uploads only; no arbitrary
-  remote URLs, server-side filesystem paths or Save operations.
+  remote URLs or server-side filesystem paths.
 
 **These profile restrictions are proposals, not current safeguards.**
 Do not expose the unrestricted current service on the public internet

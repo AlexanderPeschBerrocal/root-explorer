@@ -971,28 +971,18 @@ def label_controls(
     return controls
 
 
-def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> dict[str, Any]:
-    """Render all export settings beneath an already-generated plot."""
+def export_controls(prefix: str, plot_kind: str, *, default_file_name: str) -> dict[str, Any]:
+    """Render the download settings beneath an already-generated plot."""
 
     st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
-    controls["save_directory"] = st.text_input(
-        "Save directory",
-        value="root_explorer_plots",
-        key=f"{prefix}_save_directory",
-        help=(
-            "Directory on the filesystem of the machine running ROOT Explorer. "
-            "Use the Download buttons instead to save files through your browser."
-        ),
-    )
-    controls["save_name"] = st.text_input(
+    controls["file_name"] = st.text_input(
         "Filename",
-        value=default_save_name,
-        key=f"{prefix}_save_name",
+        value=default_file_name,
+        key=f"{prefix}_file_name",
+        help="Name of the downloaded file; the file extension is added automatically.",
     )
     if plot_kind == "matplotlib":
-        controls["save_png"] = st.checkbox("Save PNG", value=True, key=f"{prefix}_save_png")
-        controls["save_pdf"] = st.checkbox("Save PDF", value=False, key=f"{prefix}_save_pdf")
         controls["export_dpi"] = st.selectbox(
             "Raster export resolution",
             STATIC_EXPORT_DPI_OPTIONS,
@@ -1004,15 +994,4 @@ def export_controls(prefix: str, plot_kind: str, *, default_save_name: str) -> d
                 "inside PDF files. PDF text and vector lines remain resolution-independent."
             ),
         )
-        if not controls["save_png"] and not controls["save_pdf"]:
-            st.warning("Select at least one static export format.")
     return controls
-
-
-def selected_static_formats(export_settings: dict[str, Any]) -> list[str]:
-    formats: list[str] = []
-    if export_settings.get("save_png", True):
-        formats.append("png")
-    if export_settings.get("save_pdf", False):
-        formats.append("pdf")
-    return formats

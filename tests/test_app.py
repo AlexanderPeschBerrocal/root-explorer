@@ -297,14 +297,14 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
 
     at.button(key="plot_make").click().run()
     assert not at.exception
-    at.text_input(key="plot_save_name").input("muon_pt").run()
+    at.text_input(key="plot_file_name").input("muon_pt").run()
     assert not at.exception
     result = at.session_state["plot_result"]
     assert len(at.dataframe) > initial_dataframes
     assert result["kind"] == "matplotlib"
     assert result["summary"].iloc[0]["n"] > 0
     assert result["figure"].dpi == 200
-    assert at.text_input(key="plot_save_name").value == "muon_pt"
+    assert at.text_input(key="plot_file_name").value == "muon_pt"
     assert at.selectbox(key="plot_export_dpi").value == 300
     assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
     assert any(
@@ -312,9 +312,7 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     )
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
-        button
-        for button in at.get("download_button")
-        if button.key == "plot_save_cached_download_code"
+        button for button in at.get("download_button") if button.key == "plot_export_download_code"
     )
     assert code_download.label == "Download plot code"
 
@@ -419,7 +417,7 @@ def test_object_only_root_file_can_render_histogram(object_only_root_path) -> No
     download = next(
         button
         for button in at.get("download_button")
-        if button.key == "histogram_save_download_code"
+        if button.key == "histogram_export_download_code"
     )
     assert download.label == "Download plot code"
 
@@ -1116,8 +1114,6 @@ def test_normalisation_control_and_output_in_streamlit(root_path) -> None:
     assert result["code"] is not None
     assert "normalise_histogram_1d" in result["code"]
 
-    assert at.checkbox(key="plot_save_png").value
-    at.checkbox(key="plot_save_pdf").check().run()
     labels = {button.label for button in at.get("download_button")}
     assert {"Download PNG", "Download PDF"} <= labels
 

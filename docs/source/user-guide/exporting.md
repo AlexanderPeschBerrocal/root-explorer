@@ -1,37 +1,31 @@
 # Exporting plots and reproducible code
 
-ROOT Explorer provides two conceptually distinct mechanisms:
-
-- **Download** transfers a plot through the browser to your local machine.
-- **Save** writes a file on the **machine running the Streamlit server**,
-  which may be a container or remote host rather than your laptop.
+The **Export** section below each plot offers **Download** buttons. A download
+is sent through your browser to your own computer, so it works the same way
+whether ROOT Explorer runs locally, in Docker or on a remote host, and needs no
+writable directory or volume mount.
 
 The export controls apply to the **last generated plot**, not to widget
 changes that have not been followed by **Make plot** (or **Make event plot**).
+The **Filename** field sets the name of the downloaded files; ROOT Explorer adds
+the file extension and replaces characters that are unsafe in filenames.
 
 ## Supported formats
 
-For static Matplotlib plots, select PNG, PDF or both, and a suitable
-output resolution. The app can offer separate **Download PNG** and
-**Download PDF** actions, as well as saving selected formats to a server
-directory. For interactive Plotly 3D plots, export HTML.
+Static Matplotlib plots, including stored histograms and graphs, offer
+**Download PNG** and **Download PDF**. Interactive Plotly 3D plots offer
+**Download HTML**.
 
 PNG exports offer 150, 300 (default) or 600 DPI. The preview uses its own
 resolution, so it need not match the exported PNG. If a PNG export is
-estimated to exceed **40 million pixels**, **Download PNG** is disabled, and so
-is **Save** while PNG is a selected format (no format is saved, including PDF);
-reduce figure size or DPI. PDF keeps text and vector drawing
-resolution-independent; the DPI setting only affects rasterised content inside
-the PDF.
+estimated to exceed **40 million pixels**, **Download PNG** is disabled; reduce
+figure size or DPI. **Download PDF** remains available because PDF keeps text
+and vector drawing resolution-independent; the DPI setting only affects
+rasterised content inside the PDF.
 
 The HTML contains the figure data but loads Plotly JavaScript from a CDN.
 It therefore needs network access to that CDN; it is not a fully self-contained
 offline export. Interactive 3D plots do not offer standalone Python plot code.
-
-Choose a writable directory for **Save**. Saving again with the same filename
-and format overwrites the existing file; use distinct names for results you
-want to preserve. For persistent container output, see
-[Saving files from Docker](../installation.md#saving-files-from-docker).
 
 ## Standalone Python code
 
@@ -72,6 +66,8 @@ activation command appropriate to your shell. On a desktop, the final
 call with `plt.savefig("plot.png", dpi=300, bbox_inches="tight")` and run
 with Matplotlib's non-interactive `Agg` backend, for example
 `MPLBACKEND=Agg python root_explorer_plot.py` on macOS/Linux.
+The same approach writes files directly into a directory, which is convenient
+when producing many figures.
 
 Keep package versions alongside the script for reproducibility; the command
 above installs dependencies but does not lock their versions.

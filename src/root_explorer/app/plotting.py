@@ -92,7 +92,7 @@ class PlotRequest:
     geometry: GeometryState
     event_index: int | None
     preview: bool
-    save_name: str
+    file_name: str
     threshold: float | None = None
     quantile_percentile: float | None = None
     fit_config: FitConfig | None = None
@@ -139,12 +139,12 @@ def render_plot_tab(
             default_marker_size_3d=2.5,
             default_opacity_2d=0.45,
             default_opacity_3d=0.65,
-            save_name="root_explorer_plot",
+            file_name="root_explorer_plot",
             shortcuts_enabled=shortcuts_enabled,
         )
     with output:
         st.subheader("Output", anchor=False)
-        _generate_and_show(request, make_plot, "plot_result", "plot_save_cached")
+        _generate_and_show(request, make_plot, "plot_result", "plot_export")
 
 
 def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_index: int) -> None:
@@ -163,11 +163,11 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
             default_marker_size_3d=4.0,
             default_opacity_2d=0.75,
             default_opacity_3d=0.75,
-            save_name="root_explorer_event_plot",
+            file_name="root_explorer_event_plot",
         )
     with output:
         st.subheader(f"Output: event {event_index}", anchor=False)
-        _generate_and_show(request, make_plot, "event_plot_result", "event_save_cached")
+        _generate_and_show(request, make_plot, "event_plot_result", "event_export")
 
 
 def _render_plot_controls(
@@ -181,7 +181,7 @@ def _render_plot_controls(
     default_marker_size_3d: float,
     default_opacity_2d: float,
     default_opacity_3d: float,
-    save_name: str,
+    file_name: str,
     shortcuts_enabled: bool = True,
 ) -> tuple[PlotRequest, bool]:
     """Render the shared plot-control surface with stable per-tab widget keys."""
@@ -317,7 +317,7 @@ def _render_plot_controls(
             geometry=geometry,
             event_index=event_index,
             preview=is_event_plot,
-            save_name=save_name,
+            file_name=file_name,
             threshold=threshold,
             quantile_percentile=quantile_percentile,
             fit_config=fit_config,
@@ -327,7 +327,7 @@ def _render_plot_controls(
 
 
 def _generate_and_show(
-    request: PlotRequest, make_plot: bool, result_key: str, save_button_key: str
+    request: PlotRequest, make_plot: bool, result_key: str, download_key: str
 ) -> None:
     if make_plot:
         try:
@@ -360,7 +360,7 @@ def _generate_and_show(
     show_cached_plot_result(
         result_key,
         export_prefix="event" if request.event_index is not None else "plot",
-        save_button_key=save_button_key,
+        download_key=download_key,
         make_plot_label="Make event plot" if request.event_index is not None else "Make plot",
         make_plot_shortcut="Shift + P" if request.event_index is not None else "P",
         empty_message=(
@@ -472,10 +472,10 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             plot_warnings.append(prepared.normalisation_result.error)
         elif prepared.normalisation_result is not None and prepared.normalisation_result.warning:
             plot_warnings.append(prepared.normalisation_result.warning)
-        save_name = (
-            f"{request.save_name}_{request.event_index}"
+        file_name = (
+            f"{request.file_name}_{request.event_index}"
             if request.event_index is not None
-            else request.save_name
+            else request.file_name
         )
         return {
             "kind": "matplotlib",
@@ -501,8 +501,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "correlation_result": correlation_result,
             "color_clipping_result": prepared.color_clipping_result,
             "warnings": plot_warnings,
-            "save_name": save_name,
-            "save_button_label": "Save selected formats",
+            "file_name": file_name,
         }
     except Exception:
         if figure is not None:
@@ -637,8 +636,8 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     title = request.labels["title"] or (
         f"Event {event_index}" if event_index is not None else request.plot_type
     )
-    save_name = (
-        f"{request.save_name}_{event_index}" if event_index is not None else request.save_name
+    file_name = (
+        f"{request.file_name}_{event_index}" if event_index is not None else request.file_name
     )
     preview = _preview_dataframe(x, y, z, weights, color) if request.preview else None
 
@@ -678,8 +677,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,
             "color_clipping_result": color_clipping_result,
-            "save_name": save_name,
-            "save_button_label": "Save HTML",
+            "file_name": file_name,
         }
     figure, axes = plt.subplots(figsize=(request.style["fig_width"], request.style["fig_height"]))
     try:
@@ -714,8 +712,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "correlation_result": correlation_result,
             "color_clipping_result": color_clipping_result,
             "warnings": plot_warnings,
-            "save_name": save_name,
-            "save_button_label": "Save selected formats",
+            "file_name": file_name,
         }
     except Exception:
         plt.close(figure)

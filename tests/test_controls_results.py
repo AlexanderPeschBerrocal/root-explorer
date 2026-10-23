@@ -19,7 +19,6 @@ from root_explorer.app.controls import (
     field_option_labels,
     needs_y_variable,
     needs_z_variable,
-    selected_static_formats,
     supports_histogram_weights,
     supports_point_color,
 )
@@ -84,7 +83,7 @@ def test_plotly_results_are_not_closed(monkeypatch) -> None:
     assert "plot_result" not in session_state
 
 
-def test_control_predicates_and_static_formats() -> None:
+def test_control_predicates() -> None:
     assert COLOR_SCALES[-2:] == ["Greys", "Coolwarm"]
     # Every displayed name must resolve to a real Matplotlib colour map.
     assert all(matplotlib_cmap_name(name) in plt.colormaps() for name in COLOR_SCALES)
@@ -94,7 +93,6 @@ def test_control_predicates_and_static_formats() -> None:
     assert supports_point_color("2D scatter")
     assert not supports_point_color("1D histogram")
     assert supports_histogram_weights("2D histogram")
-    assert selected_static_formats({"save_png": False, "save_pdf": True}) == ["pdf"]
 
 
 def test_field_option_labels_keep_names_first_and_show_shape_and_dtype() -> None:
@@ -275,7 +273,7 @@ def test_cached_plot_renders_primary_figure_before_secondary_analysis(monkeypatc
             message="Fit converged.",
         ),
         "preview": pd.DataFrame({"x": [0.5]}),
-        "save_name": "example",
+        "file_name": "example",
     }
 
     def show_table(dataframe, **kwargs) -> None:
@@ -308,7 +306,7 @@ def test_cached_plot_renders_primary_figure_before_secondary_analysis(monkeypatc
         results.show_cached_plot_result(
             "test_plot_result",
             export_prefix="plot",
-            save_button_key="plot_save",
+            download_key="plot_export",
             make_plot_label="Make plot",
             make_plot_shortcut="P",
             empty_message="No plot",
