@@ -207,7 +207,7 @@ def verified_event_plot(page: Page, section: Locator) -> Locator:
     the Make event plot request is processed. Verify the values *after* the
     plot request, and never publish a plot with unexpected axes.
     """
-    axes = {"event_x: branch": "Muon_eta", "event_y: branch": "Muon_pt"}
+    axes = {"x: branch": "Muon_eta", "y: branch": "Muon_pt"}
     image = section.locator('[data-testid="stImage"] img').first
 
     for attempt in range(3):
