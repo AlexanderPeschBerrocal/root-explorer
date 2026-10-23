@@ -284,23 +284,28 @@ def _render_plot_controls(
                 prefix, plot_type, default_use_variances=weight_branch is not None
             )
 
-    presentation_style = plot_style_controls(
-        prefix,
-        plot_type,
-        color_enabled=color_enabled,
-        default_marker_size_2d=default_marker_size_2d,
-        default_marker_size_3d=default_marker_size_3d,
-        default_opacity_2d=default_opacity_2d,
-        default_opacity_3d=default_opacity_3d,
-        default_equal_aspect=False,
-    )
+    # Presentation settings are collapsed by default; everything that changes the
+    # plotted data stays visible above. Collapsed widgets still run and keep their
+    # values, so they remain part of the plot configuration and generated code.
+    with st.expander("Style"):
+        presentation_style = plot_style_controls(
+            prefix,
+            plot_type,
+            color_enabled=color_enabled,
+            default_marker_size_2d=default_marker_size_2d,
+            default_marker_size_3d=default_marker_size_3d,
+            default_opacity_2d=default_opacity_2d,
+            default_opacity_3d=default_opacity_3d,
+            default_equal_aspect=False,
+        )
     style = {**analysis_style, **presentation_style}
-    labels = label_controls(
-        prefix,
-        plot_type,
-        has_colorbar=plot_type == "2D histogram"
-        or (supports_point_color(plot_type) and color_enabled),
-    )
+    with st.expander("Labels"):
+        labels = label_controls(
+            prefix,
+            plot_type,
+            has_colorbar=plot_type == "2D histogram"
+            or (supports_point_color(plot_type) and color_enabled),
+        )
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",
@@ -410,6 +415,17 @@ def _exclusion_note(request: PlotRequest, excluded_count: int) -> str | None:
     return note
 
 
+def _sampling_note(shown: int, total: int) -> str | None:
+    """Explain that a scatter plot draws only a sample of its points."""
+
+    if shown >= total:
+        return None
+    return (
+        f"Showing a fixed random sample of {shown:,} of {total:,} points. Summary statistics "
+        "use all points. Increase **Maximum scatter points** under **Style** to draw more."
+    )
+
+
 def _weighted_summary_notes(weight_branch: str | None, weights: np.ndarray) -> list[str]:
     """Explain which summary columns are weighted and when they are unavailable."""
 
@@ -465,6 +481,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         correlation_result = calculate_correlations(prepared.x, prepared.y)
 
     render_x, render_y, render_color = prepared.render_arrays(request.plot_type)
+    sampling_note = _sampling_note(len(render_x), len(prepared.x))
     preview = (
         _preview_dataframe(render_x, render_y, None, prepared.weights, render_color)
         if request.preview
@@ -499,6 +516,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "weighted_summary": weighted_summary,
             "summary_notes": summary_notes,
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": prepared.threshold_result,
             "quantile_result": prepared.quantile_result,
             "fit_result": fit_result,
@@ -636,7 +654,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if supports_point_color(request.plot_type) and color is not None:
         color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
+    value_count = len(x)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
+    sampling_note = _sampling_note(len(x), value_count)
     x_label = request.labels["custom_x"] or axis_labels[0]
     default_y_label = axis_labels[1] if request.y_spec is not None else "entries"
     if request.y_spec is None and request.weight_branch is not None:
@@ -687,6 +707,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "exclusion_note": _exclusion_note(request, excluded_count),
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,
@@ -721,6 +742,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "code": generate_static_plot_code(request),
             "summary": summary,
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,

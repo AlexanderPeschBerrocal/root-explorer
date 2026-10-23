@@ -21,7 +21,7 @@ coordinates are available. Some options depend on the selected plot type.
 
 A 1D histogram counts observations in bins (or accumulates weights if weighting is selected). The x-axis represents the selected variable. For jagged particle values, the plotted population may be **objects** rather than **events**; see [Variables and collections](variables-and-collections.md).
 
-A 2D histogram bins paired values on two axes. A scatter plot shows individual pairs, but display-oriented point limits/downsampling can apply to large samples. Do not interpret a downsampled scatter cloud as necessarily containing every selected observation.
+A 2D histogram bins paired values on two axes. A scatter plot shows individual pairs, but display-oriented point limits/downsampling can apply to large samples. Do not interpret a downsampled scatter cloud as necessarily containing every selected observation. When a scatter plot draws only a sample, a caption below the plot states how many of the points are shown; the summary statistics still use all of them.
 
 ## Make a plot
 
@@ -30,13 +30,15 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 3. Configure any applicable cuts, weights, bin settings and plot style.
 4. Click **Make plot** to generate the output.
 
+The **Style** and **Labels** sections, with figure size, axis scales and limits, grid, marker and colour settings, and title and label overrides, are collapsed by default; click a section to open it. Collapsing only hides the controls: their values stay active and are included in downloaded plot code. Everything that changes the plotted data or statistics, such as variables, cuts, weights, binning, normalisation and fits, stays visible.
+
 Settings such as the number of bins, figure size, marker size and opacity are sliders by default. To enter an exact value, click the keyboard button next to a slider; it turns into a number input with the same limits, and the button next to it switches back. The value is kept when switching, and each setting remembers its mode for the session.
 
 The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result.
 
 ## Titles and labels
 
-The plot title and axis labels can be overridden in the label settings below the plot controls. Labels of static plots support mathematical notation through Matplotlib's built-in [mathtext](https://matplotlib.org/stable/users/explain/text/mathtext.html), so no LaTeX installation is required. Write the mathematical part between dollar signs:
+The plot title and axis labels can be overridden in the **Labels** section of the plot controls. Labels of static plots support mathematical notation through Matplotlib's built-in [mathtext](https://matplotlib.org/stable/users/explain/text/mathtext.html), so no LaTeX installation is required. Write the mathematical part between dollar signs:
 
 | Label text | Displayed as |
 | --- | --- |

@@ -849,7 +849,6 @@ def plot_style_controls(
 ) -> dict[str, Any]:
     """Show only the style settings relevant to the selected plot type."""
 
-    st.markdown("### Style", anchors=False)
     style: dict[str, Any] = {}
 
     if plot_type in {"1D histogram", "2D histogram", "2D scatter"}:

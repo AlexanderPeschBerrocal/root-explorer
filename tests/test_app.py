@@ -1074,8 +1074,8 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     headings = [widget.value for widget in at.tabs[0].markdown]
     cuts = next(i for i, text in enumerate(headings) if "### Cuts" in text)
     analysis = next(i for i, text in enumerate(headings) if "### Histogram analysis" in text)
-    style = next(i for i, text in enumerate(headings) if "### Style" in text)
-    assert cuts < analysis < style
+    assert cuts < analysis
+    assert [expander.label for expander in at.tabs[0].expander][-2:] == ["Style", "Labels"]
     assert at.checkbox(key="plot_manual_histogram_limits").label == (
         "Custom histogram range and flow handling"
     )
@@ -1099,7 +1099,7 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
 
     at.selectbox(key="plot_type").select("2D scatter").run()
     assert not any("### Histogram analysis" in widget.value for widget in at.tabs[0].markdown)
-    assert any("### Style" in widget.value for widget in at.tabs[0].markdown)
+    assert "Style" in [expander.label for expander in at.tabs[0].expander]
 
 
 def test_normalisation_control_and_output_in_streamlit(root_path) -> None:

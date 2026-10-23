@@ -121,6 +121,8 @@ def show_cached_plot_result(
     else:
         st.error(f"Unknown cached plot kind: {kind}")
         return
+    if result.get("sampling_note"):
+        st.caption(result["sampling_note"])
 
     normalisation = result.get("normalisation_result")
     if isinstance(normalisation, HistogramNormalisationResult):

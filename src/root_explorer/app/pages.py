@@ -311,7 +311,7 @@ def render_help_tab(context: DataContext) -> None:
 **Performance tips**
 - Large entry ranges, many cached {item_name}s, high scatter point limits, and detailed GDML meshes can consume a lot of memory.
 - Use smaller read ranges while configuring plots.
-- For scatter plots, tune **max scatter points** in the Style section.
+- For scatter plots, tune **Maximum scatter points** in the collapsed **Style** section. A caption below the plot states when only a sample of the points is drawn.
 - For geometry, reduce the parse/draw vertex limits or disable container/world volumes unless you need them.
 
 Good generic starting points:
