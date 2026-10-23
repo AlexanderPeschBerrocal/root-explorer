@@ -307,9 +307,8 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert at.text_input(key="plot_file_name").value == "muon_pt"
     assert at.selectbox(key="plot_export_dpi").value == 300
     assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
-    assert any(
-        "**Make plot** button again or **press P**" in caption.value for caption in at.caption
-    )
+    # Export settings are not plot settings, so the plot is not reported as outdated.
+    assert not any("settings have changed" in info.value for info in at.info)
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
         button for button in at.get("download_button") if button.key == "plot_export_download_code"
@@ -678,10 +677,7 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     result = at.session_state["event_plot_result"]
     assert result["kind"] == "plotly"
     assert result["figure"].data[0].type == "scatter3d"
-    assert any(
-        "**Make event plot** button again or **press Shift + P**" in caption.value
-        for caption in at.caption
-    )
+    assert not any("settings have changed" in info.value for info in at.info)
 
 
 def test_ranking_label_includes_absolute_value_transformation(root_path) -> None:
@@ -1074,8 +1070,8 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
     headings = [widget.value for widget in at.tabs[0].markdown]
     cuts = next(i for i, text in enumerate(headings) if "### Cuts" in text)
     analysis = next(i for i, text in enumerate(headings) if "### Histogram analysis" in text)
-    style = next(i for i, text in enumerate(headings) if "### Style" in text)
-    assert cuts < analysis < style
+    assert cuts < analysis
+    assert [expander.label for expander in at.tabs[0].expander][-2:] == ["Style", "Labels"]
     assert at.checkbox(key="plot_manual_histogram_limits").label == (
         "Custom histogram range and flow handling"
     )
@@ -1099,7 +1095,7 @@ def test_histogram_analysis_controls_are_grouped_and_preserve_keys(root_path):
 
     at.selectbox(key="plot_type").select("2D scatter").run()
     assert not any("### Histogram analysis" in widget.value for widget in at.tabs[0].markdown)
-    assert any("### Style" in widget.value for widget in at.tabs[0].markdown)
+    assert "Style" in [expander.label for expander in at.tabs[0].expander]
 
 
 def test_normalisation_control_and_output_in_streamlit(root_path) -> None:
@@ -1147,3 +1143,13 @@ def test_unit_area_control_is_1d_only(root_path) -> None:
     assert at.checkbox(key="plot_normalise_unit_area")
     at.selectbox(key="plot_type").select("2D histogram").run()
     assert not any(widget.key == "plot_normalise_unit_area" for widget in at.checkbox)
+
+
+def test_event_plot_selectors_use_the_same_axis_labels_as_the_plotter(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="event_plot_type").select("2D scatter").run()
+    at.checkbox(key="event_color_points").check().run()
+    assert at.selectbox(key="x_mode").label == "x: variable type"
+    for axis in ["x", "y", "color"]:
+        assert at.selectbox(key=f"event_{axis}_mode").label == f"{axis}: variable type"
+    assert at.selectbox(key="event_x_branch").label == "x: branch"

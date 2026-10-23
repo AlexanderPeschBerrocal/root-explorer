@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -211,6 +211,7 @@ def _render_plot_controls(
         item_name=context.data_item_name,
         field_info=context.field_info,
         show_field_details=show_field_details,
+        display_prefix="x",
         allow_event_reductions=event_index is None,
     )
     y_spec = z_spec = color_spec = None
@@ -222,6 +223,7 @@ def _render_plot_controls(
             item_name=context.data_item_name,
             field_info=context.field_info,
             show_field_details=show_field_details,
+            display_prefix="y",
             allow_event_reductions=event_index is None,
         )
     if needs_z_variable(plot_type):
@@ -232,6 +234,7 @@ def _render_plot_controls(
             item_name=context.data_item_name,
             field_info=context.field_info,
             show_field_details=show_field_details,
+            display_prefix="z",
             allow_event_reductions=event_index is None,
         )
     color_enabled = False
@@ -251,6 +254,7 @@ def _render_plot_controls(
                 item_name=context.data_item_name,
                 field_info=context.field_info,
                 show_field_details=show_field_details,
+                display_prefix="color",
                 allow_event_reductions=event_index is None,
             )
             empty_collection_caption(color_spec, context.field_info, role="colour")
@@ -284,23 +288,28 @@ def _render_plot_controls(
                 prefix, plot_type, default_use_variances=weight_branch is not None
             )
 
-    presentation_style = plot_style_controls(
-        prefix,
-        plot_type,
-        color_enabled=color_enabled,
-        default_marker_size_2d=default_marker_size_2d,
-        default_marker_size_3d=default_marker_size_3d,
-        default_opacity_2d=default_opacity_2d,
-        default_opacity_3d=default_opacity_3d,
-        default_equal_aspect=False,
-    )
+    # Presentation settings are collapsed by default; everything that changes the
+    # plotted data stays visible above. Collapsed widgets still run and keep their
+    # values, so they remain part of the plot configuration and generated code.
+    with st.expander("Style"):
+        presentation_style = plot_style_controls(
+            prefix,
+            plot_type,
+            color_enabled=color_enabled,
+            default_marker_size_2d=default_marker_size_2d,
+            default_marker_size_3d=default_marker_size_3d,
+            default_opacity_2d=default_opacity_2d,
+            default_opacity_3d=default_opacity_3d,
+            default_equal_aspect=False,
+        )
     style = {**analysis_style, **presentation_style}
-    labels = label_controls(
-        prefix,
-        plot_type,
-        has_colorbar=plot_type == "2D histogram"
-        or (supports_point_color(plot_type) and color_enabled),
-    )
+    with st.expander("Labels"):
+        labels = label_controls(
+            prefix,
+            plot_type,
+            has_colorbar=plot_type == "2D histogram"
+            or (supports_point_color(plot_type) and color_enabled),
+        )
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",
@@ -343,6 +352,7 @@ def _generate_and_show(
             else:
                 with st.spinner("Reading data and building the 3D plot…", show_time=True):
                     result = _build_plot_result(request)
+            result["settings"] = _plot_settings(request)
             store_plot_result(result_key, result)
         except ArrayShapeMismatchError as exc:
             discard_plot_result(result_key)
@@ -371,6 +381,7 @@ def _generate_and_show(
             show_technical_details(exc)
     show_cached_plot_result(
         result_key,
+        current_settings=_plot_settings(request),
         export_prefix="event" if request.event_index is not None else "plot",
         download_key=download_key,
         make_plot_label="Make event plot" if request.event_index is not None else "Make plot",
@@ -408,6 +419,32 @@ def _exclusion_note(request: PlotRequest, excluded_count: int) -> str | None:
             "too short for a colour or cut reduction (nth, mean, max or min)."
         )
     return note
+
+
+def _plot_settings(request: PlotRequest) -> PlotRequest:
+    """Return the request in a form that is cheap and safe to compare between reruns.
+
+    The parsed geometry scene holds large mesh data and is left out; a changed GDML
+    source already discards plots. Geometry options only matter for 3D scatter plots.
+    """
+
+    geometry = (
+        replace(request.geometry, scene=None)
+        if request.plot_type == "3D scatter interactive"
+        else GeometryState(scene=None, options={})
+    )
+    return replace(request, geometry=geometry)
+
+
+def _sampling_note(shown: int, total: int) -> str | None:
+    """Explain that a scatter plot draws only a sample of its points."""
+
+    if shown >= total:
+        return None
+    return (
+        f"Showing a fixed random sample of {shown:,} of {total:,} points. Summary statistics "
+        "use all points. Increase **Maximum scatter points** under **Style** to draw more."
+    )
 
 
 def _weighted_summary_notes(weight_branch: str | None, weights: np.ndarray) -> list[str]:
@@ -465,6 +502,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         correlation_result = calculate_correlations(prepared.x, prepared.y)
 
     render_x, render_y, render_color = prepared.render_arrays(request.plot_type)
+    sampling_note = _sampling_note(len(render_x), len(prepared.x))
     preview = (
         _preview_dataframe(render_x, render_y, None, prepared.weights, render_color)
         if request.preview
@@ -499,6 +537,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "weighted_summary": weighted_summary,
             "summary_notes": summary_notes,
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": prepared.threshold_result,
             "quantile_result": prepared.quantile_result,
             "fit_result": fit_result,
@@ -636,7 +675,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if supports_point_color(request.plot_type) and color is not None:
         color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
+    value_count = len(x)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
+    sampling_note = _sampling_note(len(x), value_count)
     x_label = request.labels["custom_x"] or axis_labels[0]
     default_y_label = axis_labels[1] if request.y_spec is not None else "entries"
     if request.y_spec is None and request.weight_branch is not None:
@@ -687,6 +728,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "summary": summary,
             "exclusion_note": _exclusion_note(request, excluded_count),
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,
@@ -721,6 +763,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "code": generate_static_plot_code(request),
             "summary": summary,
             "preview": preview,
+            "sampling_note": sampling_note,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
             "correlation_result": correlation_result,

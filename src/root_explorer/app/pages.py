@@ -243,18 +243,18 @@ def render_root_objects_browser(
         from .histogram_viewer import render_histogram_controls, render_histogram_output
 
         with left:
-            render_histogram_controls(
+            settings = render_histogram_controls(
                 opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
             )
         with right:
-            render_histogram_output()
+            render_histogram_output(settings)
     else:
         with left:
-            render_graph_controls(
+            settings = render_graph_controls(
                 opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
             )
         with right:
-            render_graph_output()
+            render_graph_output(settings)
 
 
 def render_contents_tab(
@@ -284,7 +284,7 @@ def render_help_tab(context: DataContext) -> None:
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
 4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
-5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one.
+5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
 6. Titles and axis labels of static plots support math between dollar signs, for example `$p_T$ [GeV]`. Interactive 3D plots show labels literally.
 
 **Field badges, jagged collections, and cuts**
@@ -311,7 +311,7 @@ def render_help_tab(context: DataContext) -> None:
 **Performance tips**
 - Large entry ranges, many cached {item_name}s, high scatter point limits, and detailed GDML meshes can consume a lot of memory.
 - Use smaller read ranges while configuring plots.
-- For scatter plots, tune **max scatter points** in the Style section.
+- For scatter plots, tune **Maximum scatter points** in the collapsed **Style** section. A caption below the plot states when only a sample of the points is drawn.
 - For geometry, reduce the parse/draw vertex limits or disable container/world volumes unless you need them.
 
 Good generic starting points:

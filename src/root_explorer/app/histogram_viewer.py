@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import streamlit as st
 
@@ -35,8 +37,12 @@ def _cached_histogram(
 
 def render_histogram_controls(
     root_path: str, object_path: str, classname: str, *, shortcuts_enabled: bool = True
-) -> None:
-    """Load only the explicitly opened histogram and configure its presentation."""
+) -> tuple[Any, ...] | None:
+    """Load only the explicitly opened histogram and configure its presentation.
+
+    Returns the current settings, which the output compares with those of the
+    displayed plot, or ``None`` if the histogram cannot be shown.
+    """
     st.subheader(f"Histogram: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
@@ -45,7 +51,7 @@ def render_histogram_controls(
     except (UnsupportedHistogramError, OSError, ValueError, KeyError) as exc:
         discard_plot_result("root_histogram_result")
         st.warning(str(exc))
-        return
+        return None
     h = data.histogram
     st.caption(" x ".join(f"{len(axis)} bins" for axis in h.axes))
     if data.is_profile:
@@ -98,6 +104,7 @@ def render_histogram_controls(
         if h.ndim == 1 and not data.is_profile
         else None
     )
+    settings = (style, labels, fit_config)
     make_plot = st.button(
         "Make plot",
         key="hist_make_plot",
@@ -135,6 +142,7 @@ def render_histogram_controls(
                     "file_name": "root_histogram",
                     "warnings": warnings,
                     "fit_result": fit_result,
+                    "settings": settings,
                 },
             )
         except (
@@ -147,11 +155,13 @@ def render_histogram_controls(
                 close_plot_result({"kind": "matplotlib", "figure": figure})
             discard_plot_result("root_histogram_result")
             st.warning(str(exc))
+    return settings
 
 
-def render_histogram_output() -> None:
+def render_histogram_output(current_settings: tuple[Any, ...] | None = None) -> None:
     show_cached_plot_result(
         "root_histogram_result",
+        current_settings=current_settings,
         export_prefix="histogram",
         download_key="histogram_export",
         make_plot_label="Make plot",
