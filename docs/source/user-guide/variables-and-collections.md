@@ -12,7 +12,7 @@ A field such as `Muon_pt` normally contains a list of muon transverse momenta *w
 
 If you plot direct jagged branch values in a histogram, ROOT Explorer **flattens** the lists and plots object-level observations. An event with three selected muons can contribute three histogram entries, while an event with none contributes no muon entries. This is not the same as a histogram with exactly one entry per event.
 
-For event-level observables derived from a collection, the Plotter's axis selectors offer:
+For event-level observables derived from a collection, the Plotter's axis, colour and cut selectors offer:
 
 | Mode | Meaning | Empty collection |
 | --- | --- | --- |
@@ -32,8 +32,9 @@ scalar, index 0 returns that scalar and later indices are missing.
 read range. For example, summing `Muon_pt` and then cutting on `MET_pt` selects
 events with their original muon sums; it does not first remove low-momentum muons
 and sum the survivors. The interface does not provide a chained object-filter,
-then event-reduction workflow. Event reductions are not offered in the cut or
-scatter-colour selectors, or in single-event plot axes.
+then event-reduction workflow. Event reductions are not offered in the
+single-event plot of **Event inspection**, where a reduction would be one constant
+for the displayed event.
 
 ## Derived variables
 
@@ -94,9 +95,14 @@ Missing values are never replaced by zero.
 
 Range cuts are combined with logical **AND**, with inclusive lower and upper
 bounds (`minimum <= value <= maximum`). Leave a bound blank for an open end.
-Non-finite cut values fail the cut. Event-level scalar cuts can be broadcast
-to all plotted objects in each event; object-level cuts must match the plotted
-collection's per-event structure. A cut on one particle collection does not
+Non-finite cut values fail the cut. Event-level cuts, such as `MET_pt` or a
+per-event reduction such as `max(Muon_pt)`, are repeated for all plotted objects
+in each event, so they keep or reject the objects of an event together. For
+example, plotting `Jet_pt` with the cut `max(Muon_pt) >= 50` keeps every jet of
+the events whose highest muon `pt` is at least 50. A mean, max, min or nth object
+has no value for an event with an empty or too short collection, so such events
+fail the cut. Object-level cuts must match the plotted collection's per-event
+structure. A cut on one particle collection does not
 implicitly select or match objects in a different collection.
 
 After cuts, a common finite-value mask removes observations with non-finite

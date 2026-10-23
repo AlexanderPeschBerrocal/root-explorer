@@ -17,6 +17,7 @@ from ..analysis.arrays import (
     cut_values_for_values,
     excluded_values_note,
     histogram_weights_for_values,
+    reduction_can_lack_value,
     require_values,
     validate_variable_event_shapes,
     variable_values_for_values,
@@ -57,6 +58,7 @@ from ..plotting.plots import (
 from .controls import (
     PLOT_TYPES,
     distribution_calculator_controls,
+    empty_collection_caption,
     fit_controls,
     histogram_analysis_controls,
     histogram_weight_selector,
@@ -243,8 +245,9 @@ def _render_plot_controls(
                 item_name=context.data_item_name,
                 field_info=context.field_info,
                 show_field_details=show_field_details,
-                allow_event_reductions=False,
+                allow_event_reductions=event_index is None,
             )
+            empty_collection_caption(color_spec, context.field_info, role="colour")
 
     cut_specs, cut_bounds = range_cut_controls(
         prefix,
@@ -252,6 +255,7 @@ def _render_plot_controls(
         item_name=context.data_item_name,
         field_info=context.field_info,
         show_field_details=show_field_details,
+        allow_event_reductions=event_index is None,
     )
     analysis_style: dict[str, Any] = {}
     weight_branch = None
@@ -376,6 +380,24 @@ def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str |
         return None
 
 
+def _exclusion_note(request: PlotRequest, excluded_count: int) -> str | None:
+    """Describe excluded values, naming colour or cut reductions as a possible cause."""
+
+    if not excluded_count:
+        return None
+    note = excluded_values_note(excluded_count)
+    if any(
+        reduction_can_lack_value(spec)
+        for spec in [request.color_spec, *request.cut_specs]
+        if spec is not None
+    ):
+        note += (
+            " This count can include the objects of events whose collection is empty or "
+            "too short for a colour or cut reduction (nth, mean, max or min)."
+        )
+    return note
+
+
 def _weighted_summary_notes(weight_branch: str | None, weights: np.ndarray) -> list[str]:
     """Explain which summary columns are weighted and when they are unavailable."""
 
@@ -461,9 +483,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
             "figure": figure,
             "code": _safe_generate_plot_code(request, plot_warnings),
             "summary": summary,
-            "exclusion_note": (
-                excluded_values_note(prepared.excluded_count) if prepared.excluded_count else None
-            ),
+            "exclusion_note": _exclusion_note(request, prepared.excluded_count),
             "weighted_summary": weighted_summary,
             "summary_notes": summary_notes,
             "preview": preview,
@@ -652,7 +672,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             ),
             "geometry_source": request.geometry.source,
             "summary": summary,
-            "exclusion_note": excluded_values_note(excluded_count) if excluded_count else None,
+            "exclusion_note": _exclusion_note(request, excluded_count),
             "preview": preview,
             "threshold_result": threshold_result,
             "quantile_result": quantile_result,
