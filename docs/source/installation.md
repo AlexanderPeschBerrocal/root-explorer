@@ -90,9 +90,10 @@ root-explorer                         # start without a file
 root-explorer path/to/file.root       # open a file on start-up
 root-explorer file.root --port 8600   # use another port
 root-explorer file.root --no-browser  # do not open a browser window
+root-explorer --server.address 127.0.0.1 file.root  # forward a Streamlit setting
 ```
 
-`python -m root_explorer` is equivalent. Further options are passed to Streamlit, for example `--server.address=0.0.0.0`; run `root-explorer --help` for an overview. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
+`python -m root_explorer` is equivalent. Further options are passed to Streamlit, using either `--server.address=127.0.0.1` or `--server.address 127.0.0.1`, before or after the ROOT filename; run `root-explorer --help` for an overview. Boolean Streamlit settings also require a value, for example `--server.headless true`. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
 
 After changing the package version in a source checkout, reinstall it with `python -m pip install -e .` so that the command and the version shown in the app are up to date.
 

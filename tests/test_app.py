@@ -150,6 +150,23 @@ def test_geometry_opacity_offers_a_number_input_toggle(root_path) -> None:
 WEIGHTED_COLUMNS = ["sum of weights", "N_eff", "weighted mean", "weighted std"]
 
 
+@pytest.mark.parametrize("scale", [1e154, 1e-200])
+def test_weighted_plot_accepts_extreme_finite_weights(tmp_path, scale) -> None:
+    path = tmp_path / "extreme_weights.root"
+    with uproot.recreate(path) as root_file:
+        root_file.mktree("Events", {"x": np.array([1.0, 2.0]), "w": np.array([scale, scale])})
+    at = _load_root_file(make_app_test(), path)
+    at.selectbox(key="x_branch").select("x").run()
+    at.checkbox(key="plot_use_weights").check().run()
+    at.selectbox(key="plot_weight_branch").select("w").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    summary = at.session_state["plot_result"]["weighted_summary"].iloc[0]
+    assert summary["N_eff"] == pytest.approx(2.0)
+    assert summary["weighted mean"] == pytest.approx(1.5)
+    assert summary["weighted std"] == pytest.approx(0.5)
+
+
 def test_weighted_summary_for_object_values_with_event_weights(tmp_path) -> None:
     from conftest import _generate_test_root
 

@@ -144,3 +144,16 @@ def test_empty_weighted_summary() -> None:
 def test_weighted_summary_rejects_misaligned_inputs() -> None:
     with pytest.raises(ArrayShapeMismatchError):
         describe_weighted_array(np.array([1.0, 2.0]), np.array([1.0]))
+
+
+@pytest.mark.parametrize("scale", [1e154, 1e200, 1e-200, 1e-300])
+@pytest.mark.parametrize("weights", [[1.0, 1.0], [2.0, 1.0], [2.0, -1.0], [1.0, -1.0]])
+def test_weighted_summary_is_invariant_under_extreme_weight_scaling(scale, weights) -> None:
+    values = np.array([1.0, 2.0])
+    weights = np.array(weights)
+    expected = describe_weighted_array(values, weights)
+    with np.errstate(over="raise", divide="raise", invalid="raise"):
+        actual = describe_weighted_array(values, weights * scale)
+    for key in ("N_eff", "weighted mean", "weighted std"):
+        assert actual[key] == pytest.approx(expected[key], nan_ok=True)
+    assert actual["sum of weights"] / scale == pytest.approx(expected["sum of weights"])

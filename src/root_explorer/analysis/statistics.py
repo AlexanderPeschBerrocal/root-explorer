@@ -190,19 +190,26 @@ def describe_weighted_array(values: np.ndarray, weights: np.ndarray) -> dict[str
         context="weighted summary statistics",
     )
     selected_values, selected_weights = aligned
-    sum_w = float(np.sum(selected_weights))
-    sum_w2 = float(np.sum(selected_weights**2))
+    # Relative statistics must not depend on the units or overall scale of the
+    # weights. Squaring the original weights can overflow or underflow even
+    # when all inputs and the final statistics are representable.
+    scale = float(np.max(np.abs(selected_weights))) if len(selected_weights) else 0.0
+    relative_weights = selected_weights / scale if scale > 0 else selected_weights
+    sum_relative = float(np.sum(relative_weights))
+    sum_relative2 = float(np.sum(relative_weights**2))
+    with np.errstate(over="ignore"):
+        sum_w = float(np.float64(scale) * sum_relative)
     result = {
         "sum of weights": sum_w,
-        "N_eff": sum_w**2 / sum_w2 if sum_w2 > 0 else np.nan,
+        "N_eff": sum_relative**2 / sum_relative2 if sum_relative2 > 0 else np.nan,
         "weighted mean": np.nan,
         "weighted std": np.nan,
     }
-    if len(selected_values) == 0 or sum_w <= 0:
+    if len(selected_values) == 0 or sum_relative <= 0:
         return result
 
-    mean = float(np.sum(selected_weights * selected_values) / sum_w)
-    variance = float(np.sum(selected_weights * (selected_values - mean) ** 2) / sum_w)
+    mean = float(np.sum(relative_weights * selected_values) / sum_relative)
+    variance = float(np.sum(relative_weights * (selected_values - mean) ** 2) / sum_relative)
     result["weighted mean"] = mean
     result["weighted std"] = float(np.sqrt(variance)) if variance >= 0 else np.nan
     return result

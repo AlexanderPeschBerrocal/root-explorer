@@ -9,6 +9,7 @@ import streamlit as st
 
 from ..config import DOCS_URL
 from ..io.root import filter_root_objects
+from ..io.source import source_version
 from ..models import RootObjectInfo
 from .controls import field_structure_label
 from .results import collection_summary, discard_plot_result
@@ -90,6 +91,18 @@ def render_root_objects_browser(
     """Browse metadata and open supported plot objects deliberately."""
 
     opened = st.session_state.get("root_inspector_open")
+    identity = (file_name, source_version(file_name)) if file_name else None
+    if st.session_state.get("root_object_source") != identity:
+        discard_plot_result("root_graph_result")
+        discard_plot_result("root_histogram_result")
+        st.session_state["root_object_source"] = identity
+        # A replacement can remove an object or change its class. Keep an
+        # inspection open only if the new catalogue still contains that object.
+        if opened is not None and not any(
+            (info.qualified_path, info.classname) == opened[1:] for info in catalogue
+        ):
+            st.session_state.pop("root_inspector_open", None)
+            opened = None
     if opened is not None and opened[0] != file_name:
         st.session_state.pop("root_inspector_open", None)
         discard_plot_result("root_graph_result")

@@ -79,15 +79,17 @@ def render_graph_controls(
     st.subheader(f"Graph: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
-        graph = _cached_graph(root_path, object_path, source_version(root_path))
-    except (UnsupportedGraphError, ValueError, OSError) as exc:
+        version = source_version(root_path)
+        graph = _cached_graph(root_path, object_path, version)
+    except (UnsupportedGraphError, ValueError, OSError, KeyError) as exc:
+        discard_plot_result("root_graph_result")
         st.warning(str(exc))
         return
     st.caption(f"Points: {len(graph.x):,}")
     omitted_points = nonfinite_coordinate_count(graph)
     if omitted_points:
         st.warning(f"Omitted {omitted_points} graph point(s) with non-finite coordinates.")
-    style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path)))))
+    style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path, version)))))
     # A deliberate Open action triggers the initial plot. A mere row selection does not.
     make_plot = st.button(
         "Make plot",

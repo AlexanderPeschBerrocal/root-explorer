@@ -17,8 +17,9 @@ from ..geometry.overlay import (
     geometry_summary_dataframe,
     load_geometry_scene,
 )
+from ..io.source import SourceUnavailableError, source_version
 from .controls import slider_or_number_input
-from .results import store_uploaded_file
+from .results import discard_plot_result, store_uploaded_file
 from .state import GeometryState
 
 
@@ -94,6 +95,7 @@ def render_geometry_sidebar() -> GeometryState:
         return GeometryState(scene=None, options={"enabled": False})
 
     try:
+        version = source_version(geometry_path)
         scene = load_geometry_scene(
             geometry_path,
             quality,
@@ -119,6 +121,7 @@ def render_geometry_sidebar() -> GeometryState:
         st.warning("Geometry warnings: " + "; ".join(str(warning) for warning in warnings[:3]))
     return GeometryState(
         scene=scene,
+        source=(geometry_path, version),
         options={
             "enabled": True,
             "materials": selected_materials,
@@ -131,6 +134,23 @@ def render_geometry_sidebar() -> GeometryState:
             "max_vertices": int(display_max_vertices),
         },
     )
+
+
+def invalidate_geometry_results() -> None:
+    """Discard retained 3D plots when their GDML source changes or disappears."""
+
+    for key in ("plot_result", "event_plot_result"):
+        result = st.session_state.get(key)
+        source = result.get("geometry_source") if result else None
+        if source is None:
+            continue
+        path, previous_version = source
+        try:
+            changed = source_version(path) != previous_version
+        except SourceUnavailableError:
+            changed = True
+        if changed:
+            discard_plot_result(key)
 
 
 def render_geometry_tab(state: GeometryState) -> None:

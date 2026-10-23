@@ -650,6 +650,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             "figure": overlay_geometry_on_plotly(
                 figure, request.geometry.scene, request.geometry.options
             ),
+            "geometry_source": request.geometry.source,
             "summary": summary,
             "exclusion_note": excluded_values_note(excluded_count) if excluded_count else None,
             "preview": preview,

@@ -76,6 +76,32 @@ def test_cli_and_source_detection_use_the_same_remote_prefixes() -> None:
     assert cli.REMOTE_PREFIXES == REMOTE_PREFIXES
 
 
+@pytest.mark.parametrize("position", [None, 0, 2, 4])
+def test_split_streamlit_options_do_not_consume_the_root_file(position) -> None:
+    tokens = ["--server.address", "127.0.0.1", "--server.headless", "true"]
+    if position is not None:
+        tokens.insert(position, "events.root")
+    arguments = cli.streamlit_arguments(tokens)
+    assert "--server.address=127.0.0.1" in arguments
+    assert "--server.headless=true" in arguments
+    if position is None:
+        assert "--" not in arguments
+    else:
+        assert arguments[-2:] == ["--", str(Path("events.root").resolve())]
+
+
+@pytest.mark.parametrize("suffix", [[], ["--no-browser"], ["--"]])
+def test_split_streamlit_option_requires_a_value(suffix) -> None:
+    with pytest.raises(SystemExit) as error:
+        cli.streamlit_arguments(["--server.address", *suffix])
+    assert error.value.code == 2
+
+
+def test_separator_preserves_a_filename_that_looks_like_an_option() -> None:
+    arguments = cli.streamlit_arguments(["--", "--server.address.root"])
+    assert arguments[-2:] == ["--", str(Path("--server.address.root").resolve())]
+
+
 def test_main_starts_streamlit_with_the_translated_arguments(monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(
@@ -125,6 +151,8 @@ def test_python_module_launch_serves_the_application(root_path, tmp_path) -> Non
             sys.executable,
             "-m",
             "root_explorer",
+            "--server.address",
+            "127.0.0.1",
             str(root_path),
             "--no-browser",
             "--port",

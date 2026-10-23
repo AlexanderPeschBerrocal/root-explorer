@@ -8,7 +8,7 @@ import streamlit as st
 
 from .. import installed_version
 from ..config import APP_TITLE
-from .geometry import render_geometry_sidebar, render_geometry_tab
+from .geometry import invalidate_geometry_results, render_geometry_sidebar, render_geometry_tab
 from .input import clear_data_results, invalidate_data_results, render_data_input
 from .pages import render_contents_tab, render_help_tab, render_root_objects_browser
 from .plotting import render_event_plot_tab, render_plot_tab
@@ -52,6 +52,7 @@ def main() -> None:
         file_context = render_data_input()
         geometry = render_geometry_sidebar()
 
+    invalidate_geometry_results()
     context = file_context.data
     if context is None:
         # Results from a previously selected container must not reappear later.
