@@ -77,12 +77,16 @@ def show_cached_plot_result(
     make_plot_label: str,
     make_plot_shortcut: str,
     empty_message: str,
+    current_settings: Any = None,
 ) -> None:
     """Display the most recently generated plot and its download buttons.
 
     Streamlit buttons are momentary: changing an export setting triggers a rerun
     where the original "Make plot" button is no longer pressed. Keeping the last
     figure in session state lets the plot and its downloads remain on that rerun.
+
+    A result records the settings that produced it under ``"settings"``. When
+    ``current_settings`` differs, a notice says that the plot is out of date.
     """
 
     result = st.session_state.get(result_key)
@@ -90,10 +94,11 @@ def show_cached_plot_result(
         st.info(empty_message)
         return
 
-    st.caption(
-        f"Showing the most recently generated plot. Click the **{make_plot_label}** button again "
-        f"or **press {make_plot_shortcut}** to update it after changing settings."
-    )
+    if current_settings is not None and result.get("settings") != current_settings:
+        st.info(
+            "The settings have changed since this plot was made. "
+            f"Click **{make_plot_label}** or **press {make_plot_shortcut}** to update it."
+        )
 
     summary = result.get("summary")
     if summary is not None:

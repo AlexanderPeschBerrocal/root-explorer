@@ -307,9 +307,8 @@ def test_app_loads_root_file_and_makes_static_plot(root_path) -> None:
     assert at.text_input(key="plot_file_name").value == "muon_pt"
     assert at.selectbox(key="plot_export_dpi").value == 300
     assert at.selectbox(key="plot_export_dpi").options == ["150 DPI", "300 DPI", "600 DPI"]
-    assert any(
-        "**Make plot** button again or **press P**" in caption.value for caption in at.caption
-    )
+    # Export settings are not plot settings, so the plot is not reported as outdated.
+    assert not any("settings have changed" in info.value for info in at.info)
     assert result["code"].startswith('"""Standalone plot exported by ROOT Explorer.')
     code_download = next(
         button for button in at.get("download_button") if button.key == "plot_export_download_code"
@@ -678,10 +677,7 @@ def test_app_ranks_events_and_makes_3d_event_plot(root_path) -> None:
     result = at.session_state["event_plot_result"]
     assert result["kind"] == "plotly"
     assert result["figure"].data[0].type == "scatter3d"
-    assert any(
-        "**Make event plot** button again or **press Shift + P**" in caption.value
-        for caption in at.caption
-    )
+    assert not any("settings have changed" in info.value for info in at.info)
 
 
 def test_ranking_label_includes_absolute_value_transformation(root_path) -> None:

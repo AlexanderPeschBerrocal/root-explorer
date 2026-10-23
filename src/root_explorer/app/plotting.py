@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -352,6 +352,7 @@ def _generate_and_show(
             else:
                 with st.spinner("Reading data and building the 3D plot…", show_time=True):
                     result = _build_plot_result(request)
+            result["settings"] = _plot_settings(request)
             store_plot_result(result_key, result)
         except ArrayShapeMismatchError as exc:
             discard_plot_result(result_key)
@@ -380,6 +381,7 @@ def _generate_and_show(
             show_technical_details(exc)
     show_cached_plot_result(
         result_key,
+        current_settings=_plot_settings(request),
         export_prefix="event" if request.event_index is not None else "plot",
         download_key=download_key,
         make_plot_label="Make event plot" if request.event_index is not None else "Make plot",
@@ -417,6 +419,21 @@ def _exclusion_note(request: PlotRequest, excluded_count: int) -> str | None:
             "too short for a colour or cut reduction (nth, mean, max or min)."
         )
     return note
+
+
+def _plot_settings(request: PlotRequest) -> PlotRequest:
+    """Return the request in a form that is cheap and safe to compare between reruns.
+
+    The parsed geometry scene holds large mesh data and is left out; a changed GDML
+    source already discards plots. Geometry options only matter for 3D scatter plots.
+    """
+
+    geometry = (
+        replace(request.geometry, scene=None)
+        if request.plot_type == "3D scatter interactive"
+        else GeometryState(scene=None, options={})
+    )
+    return replace(request, geometry=geometry)
 
 
 def _sampling_note(shown: int, total: int) -> str | None:

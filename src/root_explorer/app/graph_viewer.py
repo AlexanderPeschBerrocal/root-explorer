@@ -75,8 +75,12 @@ def render_graph_controls(
     classname: str,
     *,
     shortcuts_enabled: bool = True,
-) -> None:
-    """Render a graph after deliberate opening, retaining its plot across reruns."""
+) -> tuple[Any, ...] | None:
+    """Render a graph after deliberate opening, retaining its plot across reruns.
+
+    Returns the current settings, which the output compares with those of the
+    displayed plot, or ``None`` if the graph cannot be shown.
+    """
     st.subheader(f"Graph: {object_path.rsplit('/', 1)[-1]}", anchor=False)
     st.caption(f"`{classname}` · `{object_path}`")
     try:
@@ -85,12 +89,13 @@ def render_graph_controls(
     except (UnsupportedGraphError, ValueError, OSError, KeyError) as exc:
         discard_plot_result("root_graph_result")
         st.warning(str(exc))
-        return
+        return None
     st.caption(f"Points: {len(graph.x):,}")
     omitted_points = nonfinite_coordinate_count(graph)
     if omitted_points:
         st.warning(f"Omitted {omitted_points} graph point(s) with non-finite coordinates.")
     style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path, version)))))
+    settings = (style, labels)
     # A deliberate Open action triggers the initial plot. A mere row selection does not.
     make_plot = st.button(
         "Make plot",
@@ -115,6 +120,7 @@ def render_graph_controls(
                     "code": generate_graph_plot_code(spec),
                     "file_name": "root_graph",
                     "warnings": [],
+                    "settings": settings,
                 },
             )
         except (InvalidAxisLimitError, InvalidAxisScaleError, ValueError) as exc:
@@ -123,11 +129,13 @@ def render_graph_controls(
             discard_plot_result("root_graph_result")
             st.warning(str(exc))
     # The output is rendered separately in the right-hand master-detail pane.
+    return settings
 
 
-def render_graph_output() -> None:
+def render_graph_output(current_settings: tuple[Any, ...] | None = None) -> None:
     show_cached_plot_result(
         "root_graph_result",
+        current_settings=current_settings,
         export_prefix="graph",
         download_key="graph_export",
         make_plot_label="Make plot",

@@ -34,7 +34,7 @@ The **Style** and **Labels** sections, with figure size, axis scales and limits,
 
 Settings such as the number of bins, figure size, marker size and opacity are sliders by default. To enter an exact value, click the keyboard button next to a slider; it turns into a number input with the same limits, and the button next to it switches back. The value is kept when switching, and each setting remembers its mode for the session.
 
-The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result.
+The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result; instead, a notice above the plot says that the settings have changed since it was made. The notice disappears once you make a new plot or return to the settings of the displayed one. Download settings such as the filename do not count as plot settings.
 
 ## Titles and labels
 
