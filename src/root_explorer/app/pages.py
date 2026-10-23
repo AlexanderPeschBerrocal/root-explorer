@@ -301,13 +301,12 @@ def render_help_tab(context: DataContext) -> None:
 - Use the geometry scale and offset controls if the ROOT coordinates and GDML geometry use different units or origins.
 - Keep the geometry vertex limits modest when exploring large detector descriptions.
 
-**Saving plots**
-- Static matplotlib plots can be saved as PNG, PDF, or both using the export checkboxes.
-- Interactive 3D Plotly plots are saved as HTML.
-- **Save** writes the currently displayed plot to the specified directory on the filesystem of the machine running ROOT Explorer. If the app runs on a remote server, that is the server's filesystem, not your computer.
-- **Download** sends the selected file directly to your browser so you can save it on your computer.
+**Downloading plots**
+- Static matplotlib plots can be downloaded as PNG or PDF with **Download PNG** and **Download PDF**; the raster export resolution sets the PNG size.
+- Interactive 3D Plotly plots can be downloaded as HTML with **Download HTML**.
 - **Download plot code** downloads a Python script that can be used as a starting point for reproducing a static plot.
-- Export actions use the currently displayed generated plot, not merely the current control settings.
+- Downloads are sent through your browser to your own computer, also when ROOT Explorer runs in Docker or on a remote server.
+- Downloads use the currently displayed generated plot, not merely the current control settings.
 
 **Performance tips**
 - Large entry ranges, many cached {item_name}s, high scatter point limits, and detailed GDML meshes can consume a lot of memory.

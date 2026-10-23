@@ -6,7 +6,6 @@ import io
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import hist
@@ -766,36 +765,6 @@ def validate_raster_resolution(fig, dpi: int | float) -> tuple[int, int]:
             "size or export resolution."
         )
     return width, height
-
-
-def save_matplotlib_figure(
-    fig,
-    outdir: Path,
-    name: str,
-    formats: Sequence[str],
-    *,
-    dpi: int | float = DEFAULT_EXPORT_DPI,
-) -> list[Path]:
-    selected = [fmt for fmt in formats if fmt in {"png", "pdf"}]
-    if not selected:
-        return []
-    if "png" in selected:
-        validate_raster_resolution(fig, dpi)
-    outdir.mkdir(parents=True, exist_ok=True)
-    base = safe_filename(name)
-    saved_paths: list[Path] = []
-    for fmt in selected:
-        path = outdir / f"{base}.{fmt}"
-        fig.savefig(path, dpi=dpi, bbox_inches="tight")
-        saved_paths.append(path)
-    return saved_paths
-
-
-def save_plotly_figure(fig, outdir: Path, name: str) -> Path:
-    outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / f"{safe_filename(name)}.html"
-    fig.write_html(path, include_plotlyjs="cdn")
-    return path
 
 
 def matplotlib_figure_bytes(

@@ -22,11 +22,9 @@ from ..plotting.plots import (
     matplotlib_figure_bytes,
     plotly_figure_html,
     safe_filename,
-    save_matplotlib_figure,
-    save_plotly_figure,
     validate_raster_resolution,
 )
-from .controls import export_controls, selected_static_formats
+from .controls import export_controls
 from .tables import render_dataframe
 
 
@@ -61,16 +59,16 @@ def show_cached_plot_result(
     result_key: str,
     *,
     export_prefix: str,
-    save_button_key: str,
+    download_key: str,
     make_plot_label: str,
     make_plot_shortcut: str,
     empty_message: str,
 ) -> None:
-    """Display the most recently generated plot and provide a save button.
+    """Display the most recently generated plot and its download buttons.
 
-    Streamlit buttons are momentary: clicking a save button triggers a rerun where
-    the original "Make plot" button is no longer pressed. Keeping the last
-    figure in session state lets the save button exist on that rerun.
+    Streamlit buttons are momentary: changing an export setting triggers a rerun
+    where the original "Make plot" button is no longer pressed. Keeping the last
+    figure in session state lets the plot and its downloads remain on that rerun.
     """
 
     result = st.session_state.get(result_key)
@@ -207,85 +205,62 @@ def show_cached_plot_result(
         st.markdown("#### Data preview", anchors=False)
         render_dataframe(preview)
 
-    export = export_controls(export_prefix, kind, default_save_name=result["save_name"])
-    outdir = Path(export["save_directory"])
-    save_name = export["save_name"]
-    download_name = safe_filename(save_name)
-    st.caption(
-        "Save writes to the filesystem of the machine running ROOT Explorer; "
-        "Download saves a copy through this browser."
-    )
+    export = export_controls(export_prefix, kind, default_file_name=result["file_name"])
+    download_name = safe_filename(export["file_name"])
 
     if kind == "plotly":
-        save_col, download_col = st.columns(2)
-        with save_col:
-            if st.button(
-                result.get("save_button_label", "Save HTML"), key=save_button_key, width="stretch"
-            ):
-                saved_path = save_plotly_figure(fig, outdir, save_name)
-                st.success(f"Saved: {saved_path}")
-        with download_col:
+        st.download_button(
+            "Download HTML",
+            data=lambda: plotly_figure_html(fig),
+            file_name=f"{download_name}.html",
+            mime="text/html",
+            key=f"{download_key}_download_html",
+            on_click="ignore",
+        )
+        return
+
+    export_dpi = int(export.get("export_dpi", 300))
+    resolution_error = None
+    try:
+        validate_raster_resolution(fig, export_dpi)
+    except InvalidPlotResolutionError as exc:
+        resolution_error = str(exc)
+        st.warning(resolution_error)
+    code = result.get("code")
+    png_column, pdf_column, *code_column = st.columns(3 if code is not None else 2)
+    with png_column:
+        st.download_button(
+            "Download PNG",
+            data=lambda: matplotlib_figure_bytes(fig, "png", dpi=export_dpi),
+            file_name=f"{download_name}.png",
+            mime="image/png",
+            key=f"{download_key}_download_png",
+            on_click="ignore",
+            width="stretch",
+            # PDF stays available: its text and vector lines do not depend on the DPI.
+            disabled=resolution_error is not None,
+        )
+    with pdf_column:
+        st.download_button(
+            "Download PDF",
+            data=lambda: matplotlib_figure_bytes(fig, "pdf", dpi=export_dpi),
+            file_name=f"{download_name}.pdf",
+            mime="application/pdf",
+            key=f"{download_key}_download_pdf",
+            on_click="ignore",
+            width="stretch",
+        )
+    if code is not None:
+        with code_column[0]:
             st.download_button(
-                "Download HTML",
-                data=lambda: plotly_figure_html(fig),
-                file_name=f"{download_name}.html",
-                mime="text/html",
-                key=f"{save_button_key}_download_html",
+                "Download plot code",
+                data=code,
+                file_name=f"{download_name}.py",
+                mime="text/x-python",
+                key=f"{download_key}_download_code",
                 on_click="ignore",
                 width="stretch",
             )
-    else:
-        formats = selected_static_formats(export)
-        export_dpi = int(export.get("export_dpi", 300))
-        resolution_error = None
-        if "png" in formats:
-            try:
-                validate_raster_resolution(fig, export_dpi)
-            except InvalidPlotResolutionError as exc:
-                resolution_error = str(exc)
-                st.warning(resolution_error)
-        code = result.get("code")
-        export_columns = st.columns(1 + len(formats) + int(code is not None))
-        with export_columns[0]:
-            if st.button(
-                result.get("save_button_label", "Save plot"),
-                key=save_button_key,
-                width="stretch",
-                disabled=resolution_error is not None,
-            ):
-                saved_paths = save_matplotlib_figure(
-                    fig, outdir, save_name, formats, dpi=export_dpi
-                )
-                if saved_paths:
-                    st.success("Saved: " + ", ".join(str(path) for path in saved_paths))
-                else:
-                    st.warning("No static export format selected. Select PNG, PDF, or both.")
-        image_columns = export_columns[1:]
-        if code is not None:
-            with export_columns[1]:
-                st.download_button(
-                    "Download plot code",
-                    data=code,
-                    file_name=f"{download_name}.py",
-                    mime="text/x-python",
-                    key=f"{save_button_key}_download_code",
-                    on_click="ignore",
-                    width="stretch",
-                )
-            image_columns = export_columns[2:]
-        mime_types = {"png": "image/png", "pdf": "application/pdf"}
-        for column, file_format in zip(image_columns, formats, strict=True):
-            with column:
-                st.download_button(
-                    f"Download {file_format.upper()}",
-                    data=lambda fmt=file_format: matplotlib_figure_bytes(fig, fmt, dpi=export_dpi),
-                    file_name=f"{download_name}.{file_format}",
-                    mime=mime_types[file_format],
-                    key=f"{save_button_key}_download_{file_format}",
-                    on_click="ignore",
-                    width="stretch",
-                    disabled=file_format == "png" and resolution_error is not None,
-                )
 
 
 def color_clipping_summary(result: ColorClippingResult) -> str | None:

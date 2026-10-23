@@ -130,7 +130,7 @@ def render_histogram_controls(
                     "kind": "matplotlib",
                     "figure": figure,
                     "code": code,
-                    "save_name": "root_histogram",
+                    "file_name": "root_histogram",
                     "warnings": warnings,
                     "fit_result": fit_result,
                 },
@@ -151,7 +151,7 @@ def render_histogram_output() -> None:
     show_cached_plot_result(
         "root_histogram_result",
         export_prefix="histogram",
-        save_button_key="histogram_save",
+        download_key="histogram_export",
         make_plot_label="Make plot",
         make_plot_shortcut="P",
         empty_message="Configure the histogram and click Make plot.",

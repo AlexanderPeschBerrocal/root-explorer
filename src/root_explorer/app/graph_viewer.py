@@ -112,7 +112,7 @@ def render_graph_controls(
                     "kind": "matplotlib",
                     "figure": figure,
                     "code": generate_graph_plot_code(spec),
-                    "save_name": "root_graph",
+                    "file_name": "root_graph",
                     "warnings": [],
                 },
             )
@@ -128,7 +128,7 @@ def render_graph_output() -> None:
     show_cached_plot_result(
         "root_graph_result",
         export_prefix="graph",
-        save_button_key="graph_save",
+        download_key="graph_export",
         make_plot_label="Make plot",
         make_plot_shortcut="P",
         empty_message="Configure the graph and click Make plot.",

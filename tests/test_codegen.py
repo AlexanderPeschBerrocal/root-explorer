@@ -56,7 +56,7 @@ def _request(
         geometry=GeometryState(scene=None, options={}),
         event_index=None,
         preview=False,
-        save_name="plot",
+        file_name="plot",
         threshold=threshold,
         quantile_percentile=quantile_percentile,
         fit_config=fit_config,
@@ -589,7 +589,7 @@ def test_export_rejects_interactive_3d_request() -> None:
         geometry=GeometryState(scene=None, options={}),
         event_index=None,
         preview=False,
-        save_name="plot",
+        file_name="plot",
     )
 
     with pytest.raises(ValueError, match="not available"):

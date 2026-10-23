@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import struct
-from pathlib import Path
 
 import matplotlib
 import numpy as np
@@ -42,8 +41,6 @@ from root_explorer.plotting.plots import (
     render_static_plot,
     resolve_kde_bandwidth,
     safe_filename,
-    save_matplotlib_figure,
-    save_plotly_figure,
     validate_plot_labels,
     validate_raster_resolution,
 )
@@ -378,7 +375,7 @@ def test_filters_downsampling_and_descriptions() -> None:
         apply_range_cuts([np.array([1.0]), np.array([2.0, 3.0])], [])
 
 
-def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
+def test_static_and_plotly_figures_export() -> None:
     fig, ax = plt.subplots(figsize=(2.0, 1.0))
     render_static_plot(
         fig,
@@ -392,8 +389,6 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
         title="scatter",
     )
     assert ax.get_title() == "scatter"
-    assert save_matplotlib_figure(fig, tmp_path, "unsafe / title", ["png", "pdf"], dpi=300)
-    assert (tmp_path / "unsafe___title.png").is_file()
     png_150 = matplotlib_figure_bytes(fig, "png", dpi=150)
     png_300 = matplotlib_figure_bytes(fig, "png", dpi=300)
     assert png_150.startswith(b"\x89PNG")
@@ -419,8 +414,6 @@ def test_static_and_plotly_figures_export(tmp_path: Path) -> None:
     assert interactive.layout.scene.xaxis.title.text == "x"
     assert interactive.data[0].marker.color[0] == 4
     assert len(interactive.data[0].marker.colorscale) == 11
-    html_path = save_plotly_figure(interactive, tmp_path, "event plot")
-    assert html_path.name == "event_plot.html"
     assert b"plotly" in plotly_figure_html(interactive).lower()
     assert safe_filename("../bad name") == ".._bad_name"
 
