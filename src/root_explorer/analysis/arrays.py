@@ -215,7 +215,16 @@ def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
 
 
 def delta_phi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
-    return np.asarray(np.arctan2(np.sin(phi1 - phi2), np.cos(phi1 - phi2)))
+    """Return phi1 - phi2 wrapped into the documented interval (-pi, pi].
+
+    arctan2 returns -pi, or a value within rounding of it, for differences that
+    are odd multiples of pi, for example phi1 = 0 and phi2 = pi. Such values
+    describe the same angle as +pi and are mapped to it.
+    """
+
+    wrapped = np.arctan2(np.sin(phi1 - phi2), np.cos(phi1 - phi2))
+    on_boundary = np.isclose(wrapped, -np.pi, rtol=0.0, atol=1e-12)
+    return np.asarray(np.where(on_boundary, np.pi, wrapped))
 
 
 def read_for_scope(
