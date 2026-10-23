@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..analysis.arrays import (
-    apply_finite_filter,
     array_length,
     histogram_weights_for_values,
+    require_values,
     validate_variable_event_shapes,
     variable_values_for_values,
 )
@@ -37,11 +37,11 @@ from ..analysis.variables import evaluate_variable
 from ..models import VariableSpec
 from .plots import (
     ColorClippingResult,
-    apply_range_cuts,
     calculate_color_clipping,
     create_static_figure,
     downsample_arrays,
     render_static_plot,
+    select_plot_values,
 )
 
 STATIC_PLOT_TYPES = frozenset({"1D histogram", "2D histogram", "2D scatter"})
@@ -94,6 +94,7 @@ class PreparedStaticPlot:
     histogram_flow_summary: HistogramFlowSummary | None = None
     histogram_flow_mode: str = "ignore"
     normalisation_result: HistogramNormalisationResult | None = None
+    excluded_count: int = 0
 
     def render_arrays(
         self, plot_type: str
@@ -195,13 +196,14 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         )
         cuts.append((cut_values, bounds[0], bounds[1]))
 
-    arrays = apply_finite_filter(apply_range_cuts(arrays, cuts))
+    arrays, excluded_count = select_plot_values(arrays, cuts)
     x, y, weights, color = _unpack_prepared_arrays(
         arrays,
         has_y=spec.y_spec is not None,
         has_weights=spec.weight_branch is not None,
         has_color=spec.color_spec is not None,
     )
+    require_values(x, excluded_count)
 
     threshold_result = None
     quantile_result = None
@@ -339,6 +341,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         histogram_flow_summary=flow_summary,
         histogram_flow_mode=flow_mode,
         normalisation_result=normalisation_result,
+        excluded_count=excluded_count,
     )
 
 

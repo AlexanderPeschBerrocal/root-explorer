@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from ..analysis.arrays import (
     align_variable_values_to_reference,
-    apply_finite_filter,
     array_length,
     histogram_weights_for_values,
+    require_values,
     validate_variable_event_shapes,
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
@@ -28,7 +28,6 @@ from .plots import (
     apply_log_histogram_y_axis,
     apply_log_x_axis,
     apply_log_y_axis,
-    apply_range_cuts,
     calculate_color_clipping,
     create_static_figure,
     downsample_arrays,
@@ -41,6 +40,7 @@ from .plots import (
     draw_kde_2d_overlay,
     draw_scatter_2d,
     finish_static_axes,
+    select_plot_values,
 )
 from .sourcegen import bundle_python_source, python_source_literal
 
@@ -111,7 +111,8 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         create_static_figure,
         x_evaluator,
         array_length,
-        apply_finite_filter,
+        select_plot_values,
+        require_values,
         finish_static_axes,
     ]
     if y_evaluator is not None:
@@ -121,7 +122,6 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     if color_evaluator is not None:
         roots.extend([color_evaluator, align_variable_values_to_reference])
     if cut_evaluators:
-        roots.append(apply_range_cuts)
         roots.extend(cut_evaluators)
         roots.append(align_variable_values_to_reference)
     if has_threshold:
@@ -379,8 +379,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     else:
         lines.extend(["color = None", "color_label = None"])
 
+    lines.append("cuts = []")
     if plan.cut_evaluators:
-        lines.append("cuts = []")
         for index, evaluator in enumerate(plan.cut_evaluators):
             lines.extend(
                 [
@@ -397,11 +397,10 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                     f"cuts.append((cut_{index}, PLOT.cut_bounds[{index}][0], PLOT.cut_bounds[{index}][1]))",
                 ]
             )
-        lines.append("arrays = apply_range_cuts(arrays, cuts)")
-
-    lines.extend(["arrays = apply_finite_filter(arrays)"])
+    lines.append("arrays, excluded_count = select_plot_values(arrays, cuts)")
     index = 0
     lines.append(f"x = arrays[{index}]")
+    lines.append("require_values(x, excluded_count)")
     index += 1
     if plan.y_evaluator is not None:
         lines.append(f"y = arrays[{index}]")

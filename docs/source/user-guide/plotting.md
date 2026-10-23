@@ -94,9 +94,10 @@ the static plots' logarithmic-axis controls.
 
 For threshold/quantile calculations, KDE bandwidth and sampling, and the
 distinction between histogram-content contours and confidence regions, see
-the histogram guide above. Check
-[known correctness limitations](../performance.md#known-correctness-limitations)
-when using missing source values or replacing a file at an existing path.
+the histogram guide above. For fields with missing values, see
+[Missing values](variables-and-collections.md#missing-values); for files replaced
+at an existing path, see
+[Caching and changed files](../performance.md#caching-and-changed-files).
 
 Static plots can be downloaded and selected plotting configurations can be exported as standalone Python code. Retain a reproducible script for final physics results.
 

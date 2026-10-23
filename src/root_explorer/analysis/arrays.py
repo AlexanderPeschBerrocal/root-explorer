@@ -18,12 +18,27 @@ from ..io.root import (
 from ..models import VariableSpec
 
 
+def _missing_as_nan(arr: Any) -> Any:
+    """Replace missing values by NaN while keeping every value at its position.
+
+    ``ak.flatten(..., axis=None)`` silently drops missing values. Flattening
+    fields independently would then compact each field differently and pair
+    values from different events or objects. Keeping missing values as NaN
+    preserves positions, so the shared finite-value mask applied after alignment
+    excludes an event or object from every array at once. Missing lists are left
+    as they are: they contribute no values, consistent with a count of zero.
+    """
+
+    try:
+        return ak.fill_none(arr, np.nan, axis=-1)
+    except Exception:
+        return arr
+
+
 def to_numpy_flat(arr: Any) -> np.ndarray:
     try:
-        return np.asarray(ak.to_numpy(ak.flatten(arr, axis=None), allow_missing=False)).astype(
-            float
-        )
-        # ak.to_numpy() returns a masked array if the input has missing values, so we do not allow it
+        values = ak.flatten(_missing_as_nan(arr), axis=None)
+        return np.asarray(ak.to_numpy(values, allow_missing=False)).astype(float)
     except Exception:
         try:
             return np.asarray(arr)
@@ -32,8 +47,11 @@ def to_numpy_flat(arr: Any) -> np.ndarray:
 
 
 def event_to_numpy(arr: Any) -> np.ndarray:
+    if arr is None:
+        # A missing event-level scalar is a missing value, not an absent one.
+        return np.array([np.nan])
     try:
-        return np.asarray(ak.to_numpy(ak.flatten(arr, axis=None)))
+        return np.asarray(ak.to_numpy(ak.flatten(_missing_as_nan(arr), axis=None)))
     except Exception:
         try:
             return np.asarray(arr)
@@ -117,9 +135,46 @@ def apply_finite_filter(arrays: Sequence[np.ndarray]) -> list[np.ndarray]:
     return [a[mask] for a in aligned]
 
 
+class EmptySelectionError(ValueError):
+    """Raised when no aligned values remain to be plotted."""
+
+
+def filter_finite_counted(arrays: Sequence[np.ndarray]) -> tuple[list[np.ndarray], int]:
+    """Apply the shared finite-value mask and return how many positions it excluded.
+
+    Missing values are represented as NaN, so a position is excluded from every
+    array at once if any participating value is missing or not finite.
+    """
+
+    filtered = apply_finite_filter(arrays)
+    before = len(align_arrays(arrays)[0]) if arrays else 0
+    after = len(filtered[0]) if filtered else 0
+    return filtered, before - after
+
+
+def excluded_values_note(excluded: int) -> str:
+    """Describe values excluded by the shared finite-value mask."""
+
+    noun = "value was" if excluded == 1 else "values were"
+    return (
+        f"{excluded:,} {noun} excluded because a plotted variable, weight, colour or cut value "
+        "was missing or not finite."
+    )
+
+
+def require_values(values: np.ndarray, excluded: int) -> None:
+    """Raise a concise error when no values remain after cuts and the finite mask."""
+
+    if len(values) == 0:
+        detail = f" {excluded_values_note(excluded)}" if excluded else ""
+        raise EmptySelectionError(f"No values remain to plot after applying the cuts.{detail}")
+
+
 def multiplicity_per_event(arr: Any) -> np.ndarray:
     try:
-        return np.asarray(ak.to_numpy(ak.num(arr, axis=1))).astype(float)
+        # A missing collection has no multiplicity (NaN); an empty one has zero.
+        counts = ak.fill_none(ak.num(arr, axis=1), np.nan)
+        return np.asarray(ak.to_numpy(counts)).astype(float)
     except Exception:
         # Scalar event-level branch: multiplicity is one value per event.
         try:
@@ -152,7 +207,9 @@ def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
             out = ak.min(values, axis=1, mask_identity=False)
         else:
             raise ValueError(mode)
-        return np.asarray(ak.to_numpy(out)).astype(float)
+        # Reductions skip missing values inside a collection; a missing collection
+        # gives a missing (NaN) result instead of being treated as empty.
+        return np.asarray(ak.to_numpy(ak.fill_none(out, np.nan))).astype(float)
     except Exception:
         return safe_float_array(to_numpy_flat(arr))
 
@@ -215,6 +272,9 @@ def variable_is_per_event(spec: VariableSpec) -> bool:
 
 
 def array_length(arr: Any) -> int:
+    if isinstance(arr, ak.Array):
+        # np.asarray() cannot convert arrays containing missing values.
+        return len(arr)
     values = np.asarray(arr)
     if values.ndim == 0:
         return 1
@@ -234,7 +294,8 @@ def raw_counts_per_event(arr: Any, event_index: int | None) -> np.ndarray:
         while ak.to_layout(values).purelist_depth > 2:
             # Flatten nested object substructure while preserving the outer event axis.
             values = ak.flatten(values, axis=2)
-        return np.asarray(ak.to_numpy(ak.num(values, axis=1))).astype(int)
+        # A missing collection contributes no values when flattened.
+        return np.asarray(ak.to_numpy(ak.fill_none(ak.num(values, axis=1), 0))).astype(int)
     except Exception:
         try:
             return np.ones(array_length(arr), dtype=int)
@@ -248,8 +309,12 @@ def raw_list_shape_levels(arr: Any) -> list[np.ndarray]:
     try:
         values = ak.Array(arr)
         depth = ak.to_layout(values).purelist_depth
+        # Mark missing lists as -1 so they stay distinguishable from empty lists and
+        # keep their position instead of being dropped by flattening.
         return [
-            ak.to_numpy(ak.flatten(ak.num(values, axis=axis), axis=None)).astype(int)
+            ak.to_numpy(ak.flatten(ak.fill_none(ak.num(values, axis=axis), -1), axis=None)).astype(
+                int
+            )
             for axis in range(1, depth)
         ]
     except Exception:

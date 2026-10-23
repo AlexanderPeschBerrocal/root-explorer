@@ -63,6 +63,6 @@ The UI displays entry indices in the selected container. These are not
 necessarily physics event identifiers (`run`/`lumi`/`event`). Keep the
 distinction clear when transferring an interesting event into a real
 analysis. Working with smaller read ranges can reduce computation time.
-Fields with optional/missing source values currently have an
-[alignment limitation](../performance.md#known-correctness-limitations)
-that can also affect ranked entry indices.
+Rankings keep the original entry index for every value; entries whose metric
+is missing are not listed (see
+[Missing values](variables-and-collections.md#missing-values)).
