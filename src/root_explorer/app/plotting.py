@@ -211,6 +211,7 @@ def _render_plot_controls(
         item_name=context.data_item_name,
         field_info=context.field_info,
         show_field_details=show_field_details,
+        display_prefix="x",
         allow_event_reductions=event_index is None,
     )
     y_spec = z_spec = color_spec = None
@@ -222,6 +223,7 @@ def _render_plot_controls(
             item_name=context.data_item_name,
             field_info=context.field_info,
             show_field_details=show_field_details,
+            display_prefix="y",
             allow_event_reductions=event_index is None,
         )
     if needs_z_variable(plot_type):
@@ -232,6 +234,7 @@ def _render_plot_controls(
             item_name=context.data_item_name,
             field_info=context.field_info,
             show_field_details=show_field_details,
+            display_prefix="z",
             allow_event_reductions=event_index is None,
         )
     color_enabled = False
@@ -251,6 +254,7 @@ def _render_plot_controls(
                 item_name=context.data_item_name,
                 field_info=context.field_info,
                 show_field_details=show_field_details,
+                display_prefix="color",
                 allow_event_reductions=event_index is None,
             )
             empty_collection_caption(color_spec, context.field_info, role="colour")

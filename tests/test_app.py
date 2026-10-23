@@ -1147,3 +1147,13 @@ def test_unit_area_control_is_1d_only(root_path) -> None:
     assert at.checkbox(key="plot_normalise_unit_area")
     at.selectbox(key="plot_type").select("2D histogram").run()
     assert not any(widget.key == "plot_normalise_unit_area" for widget in at.checkbox)
+
+
+def test_event_plot_selectors_use_the_same_axis_labels_as_the_plotter(root_path) -> None:
+    at = _load_root_file(make_app_test(), root_path)
+    at.selectbox(key="event_plot_type").select("2D scatter").run()
+    at.checkbox(key="event_color_points").check().run()
+    assert at.selectbox(key="x_mode").label == "x: variable type"
+    for axis in ["x", "y", "color"]:
+        assert at.selectbox(key=f"event_{axis}_mode").label == f"{axis}: variable type"
+    assert at.selectbox(key="event_x_branch").label == "x: branch"
