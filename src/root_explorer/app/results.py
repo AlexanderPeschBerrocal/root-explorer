@@ -14,6 +14,7 @@ import streamlit as st
 from ..analysis.fitting import FitResult
 from ..analysis.histograms import HistogramNormalisationResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
+from ..io.root import FieldReadError
 from ..models import FieldInfo
 from ..plotting.plots import (
     ColorClippingResult,
@@ -26,6 +27,18 @@ from ..plotting.plots import (
 )
 from .controls import export_controls
 from .tables import render_dataframe
+
+
+def show_technical_details(error: BaseException) -> None:
+    """Offer the traceback of a failure without making it the primary message.
+
+    For a failed read, the traceback of the reader's original error is shown,
+    since the wrapping FieldReadError only adds context to its message.
+    """
+
+    cause = error.__cause__ if isinstance(error, FieldReadError) else None
+    with st.expander("Technical details"):
+        st.exception(cause or error)
 
 
 def close_plot_result(result: Any) -> None:

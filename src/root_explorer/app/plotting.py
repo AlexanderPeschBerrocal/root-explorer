@@ -31,6 +31,7 @@ from ..analysis.statistics import (
 )
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
+from ..io.root import FieldReadError
 from ..io.source import SourceUnavailableError
 from ..models import VariableSpec
 from ..plotting.codegen import generate_static_plot_code
@@ -70,7 +71,12 @@ from .controls import (
     supports_point_color,
     variable_selector,
 )
-from .results import discard_plot_result, show_cached_plot_result, store_plot_result
+from .results import (
+    discard_plot_result,
+    show_cached_plot_result,
+    show_technical_details,
+    store_plot_result,
+)
 from .state import DataContext, GeometryState
 
 
@@ -352,11 +358,17 @@ def _generate_and_show(
         ) as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))
+        except FieldReadError as exc:
+            # Routine data problems: a concise message, with the reader's error on request.
+            discard_plot_result(result_key)
+            st.error(str(exc))
+            show_technical_details(exc)
         except Exception as exc:
+            # Unexpected failures are likely bugs, so the traceback stays one click away.
             discard_plot_result(result_key)
             prefix = "Event plot" if request.event_index is not None else "Plot"
             st.error(f"{prefix} failed: {exc}")
-            st.exception(exc)
+            show_technical_details(exc)
     show_cached_plot_result(
         result_key,
         export_prefix="event" if request.event_index is not None else "plot",
