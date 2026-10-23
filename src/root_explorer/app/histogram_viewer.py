@@ -6,7 +6,7 @@ import numpy as np
 import streamlit as st
 
 from ..analysis.fitting import fit_histogram_1d
-from ..io.histograms import UnsupportedHistogramError, read_histogram
+from ..io.histograms import PersistedHistogram, UnsupportedHistogramError, read_histogram
 from ..io.source import SourceVersion, source_version
 from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
 from ..plotting.plots import (
@@ -26,7 +26,9 @@ from .results import (
 
 
 @st.cache_data(show_spinner="Reading histogram…", max_entries=16)
-def _cached_histogram(root_path: str, object_path: str, version: SourceVersion):
+def _cached_histogram(
+    root_path: str, object_path: str, version: SourceVersion
+) -> PersistedHistogram:
     """Load one histogram; ``version`` invalidates the cache when the file changes."""
     return read_histogram(root_path, object_path)
 

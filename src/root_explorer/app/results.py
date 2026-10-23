@@ -10,6 +10,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from ..analysis.fitting import FitResult
 from ..analysis.histograms import HistogramNormalisationResult
@@ -395,7 +396,7 @@ def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field")
     return pd.DataFrame(rows)
 
 
-def store_uploaded_file(uploaded) -> str:
+def store_uploaded_file(uploaded: UploadedFile) -> str:
     suffix = Path(uploaded.name).suffix or ".root"
     data = bytes(uploaded.getbuffer())
     digest = hashlib.sha256(data).hexdigest()[:12]

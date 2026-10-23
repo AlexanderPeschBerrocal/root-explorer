@@ -74,19 +74,7 @@ root_explorer = ["assets/*.png"]
 
 [tool.mypy]
 python_version = "3.12"
-# Every module outside the Streamlit application layer; app/ follows in a later stage.
-files = [
-    "src/root_explorer/__init__.py",
-    "src/root_explorer/__main__.py",
-    "src/root_explorer/cli.py",
-    "src/root_explorer/config.py",
-    "src/root_explorer/models.py",
-    "src/root_explorer/streamlit_app.py",
-    "src/root_explorer/analysis",
-    "src/root_explorer/geometry",
-    "src/root_explorer/io",
-    "src/root_explorer/plotting",
-]
+files = ["src/root_explorer"]
 disallow_untyped_defs = true
 warn_return_any = true
 warn_unused_configs = true

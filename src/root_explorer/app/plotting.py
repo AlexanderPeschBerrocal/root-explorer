@@ -471,7 +471,7 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         else None
     )
     fit_result = None
-    if request.fit_config is not None and prepared.histogram_1d is not None:
+    if request.fit_config is not None and prepared.display_histogram_1d is not None:
         with st.spinner("Fitting histogram…"):
             fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
     figure = None
@@ -620,9 +620,9 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
             )
 
     summary_rows = [describe_array(axis_labels[0], x)]
-    if request.y_spec is not None:
+    if y is not None:
         summary_rows.append(describe_array(axis_labels[1], y))
-    if request.z_spec is not None:
+    if z is not None:
         summary_rows.append(describe_array(axis_labels[2], z))
     if color is not None:
         summary_rows.append(describe_array(color_label or "color", color))
@@ -654,6 +654,8 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     preview = _preview_dataframe(x, y, z, weights, color) if request.preview else None
 
     if request.plot_type == "3D scatter interactive":
+        if y is None or z is None:
+            raise ValueError("3D scatter requires y and z variables.")
         color_min, color_max = (
             scatter_color_scale_linear(request.style) if color is not None else (None, None)
         )

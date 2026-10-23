@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
@@ -12,6 +12,9 @@ from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
 from ..models import FieldInfo, VariableSpec
 from ..plotting.plots import ContourConfigurationError, parse_contour_levels, parse_optional_float
+
+if TYPE_CHECKING:
+    from ..analysis.fitting import FitConfig
 
 DEFAULT_STATIC_DISPLAY_DPI = 200
 DEFAULT_STATIC_EXPORT_DPI = 300
@@ -512,7 +515,9 @@ def histogram_weight_selector(
     )
 
 
-def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = False):
+def fit_controls(
+    prefix: str, plot_type: str, *, default_use_variances: bool = False
+) -> FitConfig | None:
     """Configure a binned least-squares fit for a 1D histogram."""
     if plot_type != "1D histogram":
         return None
@@ -545,7 +550,7 @@ def fit_controls(prefix: str, plot_type: str, *, default_use_variances: bool = F
         help="When disabled, all selected bins receive equal weight. No Poisson model is assumed.",
     )
     range_enabled = st.checkbox("Custom fit range", key=f"{prefix}_fit_range_enabled")
-    fit_range = (None, None)
+    fit_range: tuple[float | None, float | None] = (None, None)
     if range_enabled:
         left, right = st.columns(2)
         with left:
