@@ -173,7 +173,7 @@ def test_event_reductions_preserve_numpy_results(request, fixture_name: str, mod
 
 
 @pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
-def test_derived_ratio_handles_zero_denominators(request, fixture_name: str) -> None:
+def test_ratio_of_a_field_with_itself_is_one(request, fixture_name: str) -> None:
     root_path = request.getfixturevalue(fixture_name)
     ratio, label = evaluate_variable(
         VariableSpec(mode="ratio", branch_a="Muon_pt", branch_b="Muon_pt"),
@@ -187,7 +187,7 @@ def test_derived_ratio_handles_zero_denominators(request, fixture_name: str) -> 
 
 
 @pytest.mark.parametrize("fixture_name", ["root_path", "rntuple_path"])
-def test_delta_eta_is_signed_difference(request, fixture_name: str) -> None:
+def test_delta_eta_label_and_identical_operands(request, fixture_name: str) -> None:
     root_path = request.getfixturevalue(fixture_name)
     delta_eta, label = evaluate_variable(
         VariableSpec(mode="delta_eta", branch_a="Muon_eta", branch_b="Muon_eta"),

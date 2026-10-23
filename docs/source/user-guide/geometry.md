@@ -33,8 +33,9 @@ The parser provides a simplified visualisation, not a complete GDML implementati
 | Construct | Current behaviour |
 | --- | --- |
 | `box`, `tube`, `cutTube`, `cone` | Converted to triangle meshes; curved surfaces depend on mesh quality |
-| Nested `physvol` placements | Inline numeric `position` and `rotation` elements are applied |
-| `union` | Combines operand meshes, including the second operand's inline transform; does not remove interior surfaces as a true Boolean union would |
+| Units | Lengths without a unit are in mm and angles without a unit in radians, as in Geant4 |
+| Nested `physvol` placements | Inline numeric `position` and `rotation` elements are applied. As in Geant4, a placement rotation turns the volume by the inverse of the given rotation |
+| `union` | Combines operand meshes, including the second operand's inline transform, whose rotation is applied as given, as in Geant4; does not remove interior surfaces as a true Boolean union would |
 | `subtraction`, `intersection` | Approximated by the first operand, with a warning |
 | `positionref`, `rotationref` | Not resolved; referenced placements can silently appear at the origin or with the wrong rotation |
 | Constants and expressions in numeric attributes | Not evaluated; unparseable values fall back to defaults |
