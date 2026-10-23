@@ -5,8 +5,9 @@ from __future__ import annotations
 import streamlit as st
 
 from ..analysis.ranking import compute_event_metric, metric_dataframe
-from ..io.root import choose_default
+from ..io.root import FieldReadError, choose_default
 from .controls import field_option_labels, slider_or_number_input
+from .results import show_technical_details
 from .state import DataContext
 from .tables import render_dataframe
 
@@ -76,7 +77,11 @@ def render_event_selection(context: DataContext) -> int:
                 )
                 st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
             except Exception as exc:
-                st.error(f"Ranking failed: {exc}")
+                # The previous ranking belongs to other settings and must not remain visible.
+                for key in ["rank_df", "rank_label"]:
+                    st.session_state.pop(key, None)
+                st.error(str(exc) if isinstance(exc, FieldReadError) else f"Ranking failed: {exc}")
+                show_technical_details(exc)
         if "rank_df" in st.session_state:
             st.write(f"Metric: **{st.session_state.get('rank_label', 'metric')}**")
             render_dataframe(st.session_state["rank_df"], height=220)

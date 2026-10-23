@@ -45,6 +45,14 @@ event container, select it in **Event container** to continue with the normal
 workflow. Plots and rankings created for a previously selected container are
 cleared when you switch to an empty one.
 
+Individual branches or fields can be unreadable even when the file opens, for
+example because a data block is corrupted or uses an unsupported type. If a plot,
+event plot or ranking needs such a branch, ROOT Explorer reports which branch or
+field of which container and file failed, and for which entries or event. The
+original error is available under **Technical details**. The previous plot or
+ranking is removed rather than shown as if it were current, and other branches
+can still be used.
+
 Objects may reside in nested ROOT directories. The browser shows the latest
 cycle of each object by default; enable **Show all ROOT cycles** to inspect
 older stored versions too. Selecting a row does not itself open a viewer:

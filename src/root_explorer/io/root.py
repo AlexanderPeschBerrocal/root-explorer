@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import re
 from collections.abc import Collection, Sequence
+from pathlib import Path
 from typing import Any
 
 import awkward as ak
@@ -13,7 +14,7 @@ import streamlit as st
 import uproot
 
 from ..models import FieldInfo, FieldStructure, RootObjectInfo, RootObjectKind
-from .source import SourceVersion, source_version
+from .source import SourceVersion, is_remote_source, source_version
 
 _ROOT_LEAFLIST_RE = re.compile(r"(?:[^:/]+(?:\[[^\]]+\])*/[BbSsIiFfDdLlOoGgCc](?::|$))+")
 
@@ -418,16 +419,68 @@ def _cached_get_field_info(
     return info
 
 
+class FieldReadError(OSError):
+    """Raised when a branch or field cannot be read from an event container.
+
+    The message names the source, container, branch or field and entries, so the
+    application can report a failed read concisely. The original exception is kept
+    as ``__cause__`` for technical details.
+    """
+
+
+def _source_name(path: str) -> str:
+    """Return the file name of a local source, without its server directory."""
+
+    return path if is_remote_source(path) else Path(path).name
+
+
+def _field_read_error(
+    path: str,
+    container_name: str,
+    container: Any,
+    field_name: str,
+    entries: str,
+    error: Exception,
+) -> FieldReadError:
+    item_name = "field" if isinstance(container, uproot.behaviors.RNTuple.RNTuple) else "branch"
+    location = f"`{container_name}`"
+    if container is not None:
+        location = f"{event_container_kind(container)} {location}"
+    lines = str(error).strip().splitlines()
+    reason = lines[0] if lines else type(error).__name__
+    return FieldReadError(
+        f"Could not read {item_name} `{field_name}` of {location} in "
+        f"`{_source_name(path)}` ({entries}): {reason}"
+    )
+
+
+def _entry_range(entry_start: int, entry_stop: int | None) -> str:
+    if entry_stop is None:
+        return f"entries from {entry_start}"
+    return f"entries {entry_start}-{entry_stop - 1}"
+
+
 def read_field_uncached(
     path: str, container_name: str, field_name: str, entry_start: int, entry_stop: int | None
 ) -> ak.Array:
     """Read one field without framework-specific caching."""
 
-    f = uproot.open(path)
-    container = f[container_name]
-    arr: ak.Array = container[field_name].array(
-        library="ak", entry_start=entry_start, entry_stop=entry_stop
-    )
+    container = None
+    try:
+        f = uproot.open(path)
+        container = f[container_name]
+        arr: ak.Array = container[field_name].array(
+            library="ak", entry_start=entry_start, entry_stop=entry_stop
+        )
+    except Exception as exc:
+        raise _field_read_error(
+            path,
+            container_name,
+            container,
+            field_name,
+            _entry_range(entry_start, entry_stop),
+            exc,
+        ) from exc
     return arr
 
 
@@ -458,11 +511,17 @@ def read_event_field_uncached(
 ) -> Any:
     """Read one event field without framework-specific caching."""
 
-    f = uproot.open(path)
-    container = f[container_name]
-    arr = container[field_name].array(
-        library="ak", entry_start=event_index, entry_stop=event_index + 1
-    )
+    container = None
+    try:
+        f = uproot.open(path)
+        container = f[container_name]
+        arr = container[field_name].array(
+            library="ak", entry_start=event_index, entry_stop=event_index + 1
+        )
+    except Exception as exc:
+        raise _field_read_error(
+            path, container_name, container, field_name, f"event {event_index}", exc
+        ) from exc
     return arr[0]
 
 
