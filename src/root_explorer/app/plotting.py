@@ -70,6 +70,7 @@ from .controls import (
     supports_point_color,
     variable_selector,
 )
+from .layout import adaptive_plot_columns, control_groups
 from .results import discard_plot_result, show_cached_plot_result, store_plot_result
 from .state import DataContext, GeometryState
 
@@ -126,7 +127,7 @@ def render_plot_tab(
 ) -> None:
     """Render controls and output for plotting the selected entry range."""
 
-    controls, output = st.columns([0.36, 0.64], gap="large")
+    controls, output = adaptive_plot_columns("plot", context.fields)
     with controls:
         st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
@@ -150,7 +151,7 @@ def render_plot_tab(
 def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_index: int) -> None:
     """Render controls and output for one selected event."""
 
-    controls, output = st.columns([0.36, 0.64], gap="large")
+    controls, output = adaptive_plot_columns("event", context.fields)
     with controls:
         st.subheader("Plot configuration", anchor=False)
         request, make_plot = _render_plot_controls(
@@ -187,114 +188,124 @@ def _render_plot_controls(
     """Render the shared plot-control surface with stable per-tab widget keys."""
 
     is_event_plot = event_index is not None
-    plot_type = st.selectbox(
-        "Plot type", PLOT_TYPES, index=0, key="event_plot_type" if is_event_plot else "plot_type"
-    )
-    show_field_details = st.toggle(
-        f"Show {context.data_item_name} details in selectors",
-        value=False,
-        key=f"{prefix}_show_field_details",
-        help="Add structural-shape and logical-dtype badges after each name in selectors.",
-    )
-    st.markdown("### Variables", anchors=False)
-    axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
-    x_spec = variable_selector(
-        axis_prefix("x"),
-        context.fields,
-        ["x", "pt", "eta"] if event_index is not None else ["pt", "energy", "eta", "x"],
-        item_name=context.data_item_name,
-        field_info=context.field_info,
-        show_field_details=show_field_details,
-        allow_event_reductions=event_index is None,
-    )
-    y_spec = z_spec = color_spec = None
-    if needs_y_variable(plot_type):
-        y_spec = variable_selector(
-            axis_prefix("y"),
-            context.fields,
-            ["y", "eta", "phi"] if event_index is not None else ["eta", "phi", "y"],
-            item_name=context.data_item_name,
-            field_info=context.field_info,
-            show_field_details=show_field_details,
-            allow_event_reductions=event_index is None,
+    # Selection and analysis controls first; on wide screens the appearance
+    # controls move beside them (see adaptive_plot_columns).
+    selection, appearance = control_groups(prefix)
+    with selection:
+        plot_type = st.selectbox(
+            "Plot type",
+            PLOT_TYPES,
+            index=0,
+            key="event_plot_type" if is_event_plot else "plot_type",
         )
-    if needs_z_variable(plot_type):
-        z_spec = variable_selector(
-            axis_prefix("z"),
-            context.fields,
-            ["z", "phi"] if event_index is not None else ["phi", "z"],
-            item_name=context.data_item_name,
-            field_info=context.field_info,
-            show_field_details=show_field_details,
-            allow_event_reductions=event_index is None,
-        )
-    color_enabled = False
-    if supports_point_color(plot_type):
-        color_enabled = st.checkbox(
-            "Color points",
+        show_field_details = st.toggle(
+            f"Show {context.data_item_name} details in selectors",
             value=False,
-            key=f"{prefix}_color_points",
+            key=f"{prefix}_show_field_details",
+            help="Add structural-shape and logical-dtype badges after each name in selectors.",
         )
-        if color_enabled:
-            color_spec = variable_selector(
-                axis_prefix("color"),
+        st.markdown("### Variables", anchors=False)
+        axis_prefix = (lambda axis: f"{prefix}_{axis}") if is_event_plot else (lambda axis: axis)
+        x_spec = variable_selector(
+            axis_prefix("x"),
+            context.fields,
+            ["x", "pt", "eta"] if event_index is not None else ["pt", "energy", "eta", "x"],
+            item_name=context.data_item_name,
+            field_info=context.field_info,
+            show_field_details=show_field_details,
+            allow_event_reductions=event_index is None,
+        )
+        y_spec = z_spec = color_spec = None
+        if needs_y_variable(plot_type):
+            y_spec = variable_selector(
+                axis_prefix("y"),
                 context.fields,
-                ["energy", "pt", "charge", "pdgId"]
-                if event_index is not None
-                else ["pt", "energy", "mass", "pdgId", "charge"],
+                ["y", "eta", "phi"] if event_index is not None else ["eta", "phi", "y"],
                 item_name=context.data_item_name,
                 field_info=context.field_info,
                 show_field_details=show_field_details,
                 allow_event_reductions=event_index is None,
             )
-            empty_collection_caption(color_spec, context.field_info, role="colour")
+        if needs_z_variable(plot_type):
+            z_spec = variable_selector(
+                axis_prefix("z"),
+                context.fields,
+                ["z", "phi"] if event_index is not None else ["phi", "z"],
+                item_name=context.data_item_name,
+                field_info=context.field_info,
+                show_field_details=show_field_details,
+                allow_event_reductions=event_index is None,
+            )
+        color_enabled = False
+        if supports_point_color(plot_type):
+            color_enabled = st.checkbox(
+                "Color points",
+                value=False,
+                key=f"{prefix}_color_points",
+            )
+            if color_enabled:
+                color_spec = variable_selector(
+                    axis_prefix("color"),
+                    context.fields,
+                    ["energy", "pt", "charge", "pdgId"]
+                    if event_index is not None
+                    else ["pt", "energy", "mass", "pdgId", "charge"],
+                    item_name=context.data_item_name,
+                    field_info=context.field_info,
+                    show_field_details=show_field_details,
+                    allow_event_reductions=event_index is None,
+                )
+                empty_collection_caption(color_spec, context.field_info, role="colour")
 
-    cut_specs, cut_bounds = range_cut_controls(
-        prefix,
-        context.fields,
-        item_name=context.data_item_name,
-        field_info=context.field_info,
-        show_field_details=show_field_details,
-        allow_event_reductions=event_index is None,
-    )
-    analysis_style: dict[str, Any] = {}
-    weight_branch = None
-    threshold = quantile_percentile = None
-    fit_config = None
-    if plot_type in {"1D histogram", "2D histogram"}:
-        st.markdown("### Histogram analysis", anchors=False)
-        weight_branch = histogram_weight_selector(
+        cut_specs, cut_bounds = range_cut_controls(
             prefix,
-            plot_type,
             context.fields,
             item_name=context.data_item_name,
             field_info=context.field_info,
             show_field_details=show_field_details,
+            allow_event_reductions=event_index is None,
         )
-        analysis_style = histogram_analysis_controls(prefix, plot_type, default_bins=default_bins)
-        if plot_type == "1D histogram":
-            threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
-            fit_config = fit_controls(
-                prefix, plot_type, default_use_variances=weight_branch is not None
+        analysis_style: dict[str, Any] = {}
+        weight_branch = None
+        threshold = quantile_percentile = None
+        fit_config = None
+        if plot_type in {"1D histogram", "2D histogram"}:
+            st.markdown("### Histogram analysis", anchors=False)
+            weight_branch = histogram_weight_selector(
+                prefix,
+                plot_type,
+                context.fields,
+                item_name=context.data_item_name,
+                field_info=context.field_info,
+                show_field_details=show_field_details,
             )
+            analysis_style = histogram_analysis_controls(
+                prefix, plot_type, default_bins=default_bins
+            )
+            if plot_type == "1D histogram":
+                threshold, quantile_percentile = distribution_calculator_controls(prefix, plot_type)
+                fit_config = fit_controls(
+                    prefix, plot_type, default_use_variances=weight_branch is not None
+                )
 
-    presentation_style = plot_style_controls(
-        prefix,
-        plot_type,
-        color_enabled=color_enabled,
-        default_marker_size_2d=default_marker_size_2d,
-        default_marker_size_3d=default_marker_size_3d,
-        default_opacity_2d=default_opacity_2d,
-        default_opacity_3d=default_opacity_3d,
-        default_equal_aspect=False,
-    )
-    style = {**analysis_style, **presentation_style}
-    labels = label_controls(
-        prefix,
-        plot_type,
-        has_colorbar=plot_type == "2D histogram"
-        or (supports_point_color(plot_type) and color_enabled),
-    )
+    with appearance:
+        presentation_style = plot_style_controls(
+            prefix,
+            plot_type,
+            color_enabled=color_enabled,
+            default_marker_size_2d=default_marker_size_2d,
+            default_marker_size_3d=default_marker_size_3d,
+            default_opacity_2d=default_opacity_2d,
+            default_opacity_3d=default_opacity_3d,
+            default_equal_aspect=False,
+        )
+        style = {**analysis_style, **presentation_style}
+        labels = label_controls(
+            prefix,
+            plot_type,
+            has_colorbar=plot_type == "2D histogram"
+            or (supports_point_color(plot_type) and color_enabled),
+        )
     make_plot = st.button(
         "Make event plot" if is_event_plot else "Make plot",
         type="primary",

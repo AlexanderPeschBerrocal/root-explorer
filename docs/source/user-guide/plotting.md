@@ -30,13 +30,15 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 3. Configure any applicable cuts, weights, bin settings and plot style.
 4. Click **Make plot** to generate the output.
 
+On wide screens, the plot area is divided into three equal columns so that less scrolling is needed: variables, cuts and histogram analysis; style and label settings; and the output. This happens only when each column is wide enough to show every branch or field name in full. Otherwise the controls stay in one column on the left, beside a wider output column, and on phones the output appears below the controls. Collapsing the sidebar gives the plot area more room.
+
 Settings such as the number of bins, figure size, marker size and opacity are sliders by default. To enter an exact value, click the keyboard button next to a slider; it turns into a number input with the same limits, and the button next to it switches back. The value is kept when switching, and each setting remembers its mode for the session.
 
 The plot area continues displaying the **most recently generated plot** until you explicitly generate another. Changing widgets without clicking **Make plot** does not retroactively update the displayed result.
 
 ## Titles and labels
 
-The plot title and axis labels can be overridden in the label settings below the plot controls. Labels of static plots support mathematical notation through Matplotlib's built-in [mathtext](https://matplotlib.org/stable/users/explain/text/mathtext.html), so no LaTeX installation is required. Write the mathematical part between dollar signs:
+The plot title and axis labels can be overridden in the label settings after the style settings. Labels of static plots support mathematical notation through Matplotlib's built-in [mathtext](https://matplotlib.org/stable/users/explain/text/mathtext.html), so no LaTeX installation is required. Write the mathematical part between dollar signs:
 
 | Label text | Displayed as |
 | --- | --- |
