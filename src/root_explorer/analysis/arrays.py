@@ -271,6 +271,17 @@ def variable_is_per_event(spec: VariableSpec) -> bool:
     return spec.mode in {"multiplicity", "nth", "sum", "mean", "max", "min"}
 
 
+def reduction_can_lack_value(spec: VariableSpec) -> bool:
+    """Return whether a per-event reduction has no finite value for some collections.
+
+    The mean, max and min of an empty collection are NaN, -inf and +inf, and the
+    nth object of a shorter collection is missing, so the shared finite-value mask
+    excludes every plotted object of such an event.
+    """
+
+    return spec.mode in {"nth", "mean", "max", "min"}
+
+
 def array_length(arr: Any) -> int:
     if isinstance(arr, ak.Array):
         # np.asarray() cannot convert arrays containing missing values.

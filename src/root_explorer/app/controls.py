@@ -7,6 +7,7 @@ from typing import Any
 
 import streamlit as st
 
+from ..analysis.arrays import reduction_can_lack_value
 from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
 from ..models import FieldInfo, VariableSpec
@@ -409,6 +410,30 @@ PLOT_TYPES = ["1D histogram", "2D histogram", "2D scatter", "3D scatter interact
 COLOR_SCALES = ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Greys", "Coolwarm"]
 
 
+def empty_collection_caption(
+    spec: VariableSpec, field_info: Sequence[FieldInfo], *, role: str
+) -> None:
+    """Explain that a colour or cut reduction has no value for some events.
+
+    Such events are excluded by the shared finite-value mask, which is expected
+    for a cut but easily overlooked when the reduction only colours the points.
+    """
+
+    if not reduction_can_lack_value(spec):
+        return
+    source = next((field for field in field_info if field.name == spec.branch), None)
+    # A scalar branch is its own mean, max and min; only a later nth index is missing.
+    is_scalar = source is not None and source.structure == "scalar"
+    if is_scalar and (spec.mode != "nth" or spec.index == 0):
+        return
+    if spec.mode == "nth":
+        missing = f"Events with fewer than {spec.index + 1} objects have no value"
+    else:
+        missing = f"Events with an empty collection have no {spec.mode}"
+    effect = "their objects are not plotted" if role == "colour" else "they fail this cut"
+    st.caption(f"{missing}, so {effect}.")
+
+
 def color_scale_controls(
     prefix: str,
     suffix: str = "",
@@ -630,6 +655,7 @@ def range_cut_controls(
     item_name: str,
     field_info: Sequence[FieldInfo] = (),
     show_field_details: bool = False,
+    allow_event_reductions: bool = True,
 ) -> tuple[list[VariableSpec], list[tuple[float | None, float | None]]]:
     st.markdown("### Cuts", anchors=False)
     n_cuts = st.number_input(
@@ -645,18 +671,18 @@ def range_cut_controls(
     cut_bounds: list[tuple[float | None, float | None]] = []
     for i in range(int(n_cuts)):
         with st.expander(f"Cut {i + 1}", expanded=i < 3):
-            cut_specs.append(
-                variable_selector(
-                    f"{prefix}_cut_{i}",
-                    fields,
-                    ["pt", "eta", "mass"],
-                    item_name=item_name,
-                    field_info=field_info,
-                    show_field_details=show_field_details,
-                    allow_event_reductions=False,
-                    display_prefix=f"cut_{i + 1}",
-                )
+            cut_spec = variable_selector(
+                f"{prefix}_cut_{i}",
+                fields,
+                ["pt", "eta", "mass"],
+                item_name=item_name,
+                field_info=field_info,
+                show_field_details=show_field_details,
+                allow_event_reductions=allow_event_reductions,
+                display_prefix=f"cut_{i + 1}",
             )
+            empty_collection_caption(cut_spec, field_info, role="cut")
+            cut_specs.append(cut_spec)
             lo = st.text_input(
                 f"Cut {i + 1} minimum",
                 value="",

@@ -291,7 +291,7 @@ def render_help_tab(context: DataContext) -> None:
 - Enable **Show {context.data_item_name} details in selectors** below the plot-type selection in the Plotter or Event inspection tab to add name-first badges such as `[scalar] [float32]`, `[fixed 3]`, or `[jagged] [float32]`. These describe the per-event structure and logical data type without loading the full field.
 - `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the field browser.
 - For object collections, direct {item_name} values are flattened for plotting.
-- In the Plotter, **Multiplicity per event**, **nth object per event**, and per-event reductions such as sum, mean, max, and min are useful for turning jagged collections into one value per event.
+- In the Plotter, **Multiplicity per event**, **nth object per event**, and per-event reductions such as sum, mean, max, and min are useful for turning jagged collections into one value per event. They are also available for point colours and cuts, where the event's value applies to all of its plotted objects.
 - Range cuts are combined with logical AND and applied simultaneously before plotting.
 - Histogram weights support the common HEP case where one event-level {item_name} such as `genWeight` should weight every plotted object from that event. Object-level weight {item_name}s are also supported when they already match the plotted values.
 

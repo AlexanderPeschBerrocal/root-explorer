@@ -71,9 +71,13 @@ observation represented in the summary and correlation calculations.
 ## Axis limits, colours and logarithmic scales
 
 Axis limits change the displayed window; they do not act as cuts. For scatter
-colouring, an event-level scalar can be repeated for its objects, while an
+colouring, an event-level value, including a per-event reduction such as
+`N(Muon_pt)` or `sum(Jet_pt)`, is repeated for the objects of its event, while an
 object-level colour field must match the plotted collection. Non-finite colours
-exclude their observations. Colour limits clip the colour mapping rather than
+exclude their observations: colouring by a mean, max, min or nth object hides the
+objects of events whose collection is empty or too short, and a caption below the
+colour selector points this out. Prefer multiplicity or sum when every object
+should stay visible. Colour limits clip the colour mapping rather than
 remove points: values outside the limits use the end colours.
 
 Static plots offer logarithmic scales where applicable. For scatter and
