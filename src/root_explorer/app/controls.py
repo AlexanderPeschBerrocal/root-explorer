@@ -524,7 +524,6 @@ def fit_controls(
     from ..analysis.fit_expressions import discover_fit_parameters
     from ..analysis.fitting import FIT_MODELS, FitConfig
 
-    st.markdown("**Histogram fit**")
     if not st.checkbox("Enable fit", value=False, key=f"{prefix}_fit_enabled"):
         return None
     model = st.selectbox("Fit model", [*FIT_MODELS, "Custom expression"], key=f"{prefix}_fit_model")
@@ -618,7 +617,6 @@ def distribution_calculator_controls(
 
     if plot_type != "1D histogram":
         return None, None
-    st.markdown("**Distribution calculator**")
     enabled = st.checkbox(
         "Calculate threshold / quantile",
         value=False,

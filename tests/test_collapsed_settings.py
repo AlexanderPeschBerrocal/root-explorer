@@ -101,3 +101,12 @@ def test_scatter_plots_state_when_only_a_sample_is_drawn(scalar_path, plot_type,
     result = _scatter(at, plot_type, suffix, 2_000)
     assert result["sampling_note"] is None
     assert not any("random sample" in caption.value for caption in at.caption)
+
+
+def test_single_checkbox_tools_have_no_separate_headings(scalar_path) -> None:
+    at = _app(scalar_path)
+    texts = [markdown.value for markdown in at.tabs[0].markdown]
+    assert "**Distribution calculator**" not in texts
+    assert "**Histogram fit**" not in texts
+    assert at.checkbox(key="plot_distribution_enabled").label == "Calculate threshold / quantile"
+    assert at.checkbox(key="plot_fit_enabled").label == "Enable fit"
