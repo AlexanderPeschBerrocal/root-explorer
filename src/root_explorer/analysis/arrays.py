@@ -219,7 +219,8 @@ def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
         else:
             raise ValueError(mode)
         # Reductions skip missing values inside a collection; a missing collection
-        # gives a missing (NaN) result instead of being treated as empty.
+        # gives a missing (NaN) result instead of being treated as empty. NaN
+        # values propagate through sum and mean but are skipped by max and min.
         return np.asarray(ak.to_numpy(ak.fill_none(out, np.nan))).astype(float)
     except Exception:
         return safe_float_array(to_numpy_flat(arr))

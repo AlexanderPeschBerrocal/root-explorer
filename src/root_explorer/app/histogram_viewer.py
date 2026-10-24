@@ -7,10 +7,13 @@ from typing import Any
 import numpy as np
 import streamlit as st
 
-from ..analysis.fitting import fit_histogram_1d
 from ..io.histograms import PersistedHistogram, UnsupportedHistogramError, read_histogram
 from ..io.source import SourceVersion, source_version
-from ..plotting.histograms import HistogramPlotSpec, render_histogram_data
+from ..plotting.histograms import (
+    HistogramPlotSpec,
+    fit_persisted_histogram,
+    render_histogram_data,
+)
 from ..plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
@@ -119,7 +122,7 @@ def render_histogram_controls(
             fit_result = None
             if fit_config is not None:
                 with st.spinner("Fitting histogram…"):
-                    fit_result = fit_histogram_1d(h, fit_config)
+                    fit_result = fit_persisted_histogram(data, fit_config)
             with st.spinner("Rendering plot…"):
                 figure = render_histogram_data(data, spec.style, spec.labels)
                 if fit_result is not None and fit_result.success:

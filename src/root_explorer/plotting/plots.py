@@ -515,6 +515,31 @@ def _scatter_color_limits(style: dict[str, Any]) -> tuple[float | None, float | 
     return cmin, cmax
 
 
+def _complete_color_limits(
+    cmin: float | None, cmax: float | None, values: npt.ArrayLike
+) -> tuple[float | None, float | None]:
+    """Fill a single missing colour limit from the finite colour values.
+
+    Matplotlib and Plotly would otherwise take it from the data independently
+    and could silently produce an inverted or empty colour range.
+    """
+
+    if cmin is None and cmax is None:
+        return None, None
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if not finite.size:
+        raise InvalidColorScaleError("Colour limits require finite colour values.")
+    lo = float(np.min(finite)) if cmin is None else cmin
+    hi = float(np.max(finite)) if cmax is None else cmax
+    if not np.isfinite(lo) or not np.isfinite(hi) or lo >= hi:
+        raise InvalidColorScaleError(
+            f"color min must be smaller than color max (automatic range: "
+            f"{np.min(finite):g} to {np.max(finite):g})."
+        )
+    return lo, hi
+
+
 def calculate_color_clipping(
     color: np.ndarray,
     style: dict[str, Any],
@@ -531,6 +556,9 @@ def calculate_color_clipping(
     aligned = align_arrays(arrays, names=names, context="scatter color clipping")
     values = aligned[0]
     selected_weights = aligned[1] if weights is not None else None
+    # Validate a one-sided range like the drawing does; only explicit limits clip.
+    if np.any(np.isfinite(values)):
+        _complete_color_limits(cmin, cmax, values)
 
     below = values < cmin if cmin is not None else np.zeros(len(values), dtype=bool)
     above = values > cmax if cmax is not None else np.zeros(len(values), dtype=bool)
@@ -546,10 +574,19 @@ def calculate_color_clipping(
     )
 
 
-def scatter_color_scale_linear(style: dict[str, Any]) -> tuple[float | None, float | None]:
-    """Resolve explicit limits for a linear scatter colour scale."""
+def scatter_color_scale_linear(
+    style: dict[str, Any], color: np.ndarray | None = None
+) -> tuple[float | None, float | None]:
+    """Resolve limits for a linear scatter colour scale.
 
-    return _scatter_color_limits(style)
+    With the plotted ``color`` values, a single explicit limit is completed by
+    the data's minimum or maximum and an empty or inverted range is rejected.
+    """
+
+    cmin, cmax = _scatter_color_limits(style)
+    if color is None:
+        return cmin, cmax
+    return _complete_color_limits(cmin, cmax, color)
 
 
 def scatter_color_scale_log(color: np.ndarray, style: dict[str, Any]) -> LogNorm:
@@ -588,7 +625,7 @@ def scatter_color_scale(
 
     if style.get("log_color", False):
         return scatter_color_scale_log(color, style), None, None
-    cmin, cmax = scatter_color_scale_linear(style)
+    cmin, cmax = scatter_color_scale_linear(style, color)
     return None, cmin, cmax
 
 
@@ -726,8 +763,12 @@ def draw_highest_density_contours(
     xedges: np.ndarray,
     yedges: np.ndarray,
     levels: str | Sequence[float],
-) -> Any:
-    """Draw and label meaningful highest-density contours on a 2D histogram."""
+) -> tuple[Any, str | None]:
+    """Draw and label meaningful highest-density contours on a 2D histogram.
+
+    Returns the contour set and a warning naming requested levels that cannot
+    be drawn because their threshold equals the lowest or highest bin content.
+    """
 
     grouped = highest_density_contour_thresholds(histogram, levels)
     finite = histogram[np.isfinite(histogram)]
@@ -738,6 +779,15 @@ def draw_highest_density_contours(
         raise ContourConfigurationError(
             "No meaningful contour can be drawn for these levels and histogram bins."
         )
+    dropped = []
+    for reason, threshold in (("only the peak bin", maximum), ("every bin", minimum)):
+        percentages = grouped.get(threshold, ())
+        if percentages:
+            names = ", ".join(f"{level:g}%" for level in percentages)
+            subject = "levels" if len(percentages) > 1 else "level"
+            verb = "they enclose" if len(percentages) > 1 else "it encloses"
+            dropped.append(f"Contour {subject} {names} cannot be drawn: {verb} {reason}.")
+    warning = " ".join(dropped) or None
 
     xcenters = (xedges[:-1] + xedges[1:]) / 2.0
     ycenters = (yedges[:-1] + yedges[1:]) / 2.0
@@ -754,7 +804,7 @@ def draw_highest_density_contours(
         for threshold in thresholds
     }
     ax.clabel(contours, contours.levels, fmt=labels, fontsize=8)
-    return contours
+    return contours, warning
 
 
 def safe_filename(name: str) -> str:
@@ -844,16 +894,7 @@ def build_plotly_3d(
     if color is not None:
         marker.update(color=color, colorbar={"title": color_label or "color"})
         if color_min is not None or color_max is not None:
-            values = np.asarray(color, dtype=float)
-            values = values[np.isfinite(values)]
-            if not values.size:
-                raise InvalidColorScaleError("Colour limits require finite colour values.")
-            lower = float(np.min(values)) if color_min is None else color_min
-            upper = float(np.max(values)) if color_max is None else color_max
-            if not np.isfinite(lower) or not np.isfinite(upper) or lower >= upper:
-                raise InvalidColorScaleError(
-                    "color min must be smaller than color max, including the automatic bound."
-                )
+            lower, upper = _complete_color_limits(color_min, color_max, color)
             # Plotly ignores a lone endpoint; both bounds are required.
             marker.update(cmin=lower, cmax=upper, cauto=False)
     fig = go.Figure(data=[go.Scatter3d(x=x, y=y, z=z, mode="markers", marker=marker)])
@@ -1086,7 +1127,7 @@ def draw_colored_scatter_2d_linear(
 ) -> None:
     """Draw a 2D scatter plot with a linear colour scale."""
 
-    cmin, cmax = scatter_color_scale_linear(style)
+    cmin, cmax = scatter_color_scale_linear(style, color)
     scatter = ax.scatter(
         x,
         y,
@@ -1188,7 +1229,7 @@ def draw_histogram_contours(
 ) -> str | None:
     """Draw selected contours from a prepared histogram's visible bins."""
     try:
-        draw_highest_density_contours(
+        _, warning = draw_highest_density_contours(
             ax,
             np.asarray(histogram.values(), dtype=float),
             np.asarray(histogram.axes[0].edges, dtype=float),
@@ -1197,7 +1238,7 @@ def draw_histogram_contours(
         )
     except ContourConfigurationError as exc:
         return str(exc)
-    return None
+    return warning
 
 
 def finish_static_axes(ax: Any, plot_type: str, title: str, style: dict[str, Any]) -> None:

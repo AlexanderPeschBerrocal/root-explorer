@@ -36,3 +36,21 @@ def test_metric_dataframe_drops_nonfinite_values_and_limits_rows() -> None:
     )
 
     assert frame.to_dict("records") == [{"event": 12, "metric": 3.0}]
+
+
+@pytest.mark.parametrize("descending", [True, False])
+def test_metric_dataframe_orders_ties_by_event_number(descending: bool) -> None:
+    # Enough ties that an unstable sort would scramble the event order.
+    rng = np.random.default_rng(1)
+    events = rng.permutation(np.arange(100, 400))
+    values = (events % 3).astype(float)
+    frame = ranking.metric_dataframe(events, values, descending=descending, max_rows=300)
+
+    metric_order = sorted({0.0, 1.0, 2.0}, reverse=descending)
+    expected = [
+        (int(event), metric)
+        for metric in metric_order
+        for event in range(100, 400)
+        if event % 3 == metric
+    ]
+    assert list(zip(frame["event"], frame["metric"], strict=True)) == expected

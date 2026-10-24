@@ -258,12 +258,16 @@ def _default_bounds(name: str, edges: np.ndarray) -> tuple[float, float]:
     return (-np.inf, np.inf)
 
 
-def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
+def fit_histogram_1d(
+    histogram: hist.Hist, config: FitConfig, *, variances: np.ndarray | None = None
+) -> FitResult:
     """Fit an existing histogram without rebinning or invoking Streamlit.
 
     Range selection includes full bins whose centres are inside the range.
     With use_variances=True, only bins with finite positive stored variances
-    contribute; excluded bins are reported in FitResult.
+    contribute; excluded bins are reported in FitResult. Explicit visible-bin
+    `variances` replace the storage variances, e.g. ROOT's sqrt(N) errors of a
+    persisted histogram without Sumw2, so the fit uses the errors drawn.
     """
     objective = (
         "Variance-weighted least squares" if config.use_variances else "Ordinary least squares"
@@ -311,14 +315,22 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     centers = (edges[:-1] + edges[1:]) / 2
     selected = (centers >= lower) & (centers <= upper)
     excluded = 0
+    bin_variances = np.ones(len(values))
     if config.use_variances:
-        if histogram.storage_type is not hist.storage.Weight:
-            return failed("Explicit stored sum(w²) variances are unavailable for this histogram.")
-        variances = histogram.variances()
         if variances is None:
-            return failed("This histogram has no stored bin variances.")
-        variances = np.asarray(variances, dtype=float)
-        usable = np.isfinite(variances) & (variances > 0)
+            # Unweighted event histograms carry no explicit sum(w²); hist would
+            # otherwise silently substitute Poisson variances equal to the counts.
+            if histogram.storage_type is not hist.storage.Weight:
+                return failed(
+                    "Explicit stored sum(w²) variances are unavailable for this histogram."
+                )
+            variances = histogram.variances()
+            if variances is None:
+                return failed("This histogram has no stored bin variances.")
+        bin_variances = np.asarray(variances, dtype=float)
+        if bin_variances.shape != values.shape:
+            return failed("Bin variances do not match the histogram bins.")
+        usable = np.isfinite(bin_variances) & (bin_variances > 0)
         excluded = int(np.count_nonzero(selected & ~usable))
         selected &= usable
 
@@ -358,9 +370,10 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     for name in names:
         low, high = (-np.inf, np.inf) if expression is not None else _default_bounds(name, edges)
         if config.bounds and name in config.bounds:
+            # A one-sided override keeps the default on the side left unset.
             override_low, override_high = config.bounds[name]
-            low = -np.inf if override_low is None else float(override_low)
-            high = np.inf if override_high is None else float(override_high)
+            low = low if override_low is None else float(override_low)
+            high = high if override_high is None else float(override_high)
         value = float((config.initial_values or {}).get(name, guesses[name]))
         if not np.isfinite(value) or np.isnan(low) or np.isnan(high) or low >= high:
             return failed(
@@ -390,11 +403,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         lower_bounds.append(low)
         upper_bounds.append(high)
 
-    sigma = (
-        np.sqrt(np.asarray(histogram.variances(), dtype=float)[indices])
-        if config.use_variances
-        else np.ones(len(indices))
-    )
+    sigma = np.sqrt(bin_variances[indices])
 
     def residual(params: np.ndarray) -> np.ndarray:
         params_dict = dict(zip(names, params, strict=True))

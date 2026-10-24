@@ -211,3 +211,43 @@ def test_persisted_custom_fit_export_executes():
     finally:
         plt.close("all")
         sys.modules.pop(module.__name__, None)
+
+
+def test_persisted_histogram_without_sumw2_fits_with_displayed_errors(tmp_path):
+    from root_explorer.analysis.fitting import FitConfig, model_bin_integrals
+    from root_explorer.plotting.histograms import fit_persisted_histogram
+
+    path = tmp_path / "plain.root"
+    edges = np.linspace(-5, 5, 41)
+    counts = np.round(
+        model_bin_integrals("Gaussian", edges, {"A": 100.0, "mu": 0.3, "sigma": 1.4}, x0=0)
+    )
+    with uproot.recreate(path) as file:
+        file["plain"] = (counts, edges)
+    data = read_histogram(str(path), "plain;1")
+    # ROOT's sqrt(N) errors are what the error bars draw.
+    np.testing.assert_allclose(histogram_errors(data), np.sqrt(counts))
+    config = FitConfig("Gaussian", use_variances=True)
+    result = fit_persisted_histogram(data, config)
+    assert result.success, result.message
+    assert result.objective == "Variance-weighted least squares"
+    assert result.bins_excluded == np.count_nonzero(counts == 0)
+    assert result.parameters["mu"] == pytest.approx(0.3, abs=0.05)
+
+    spec = HistogramPlotSpec(str(path), "plain;1", _style(), {}, fit_config=config)
+    source = generate_histogram_plot_code(spec)
+    assert "def fit_persisted_histogram(" in source
+    import sys
+    from types import ModuleType
+
+    module = ModuleType("persisted_plain_standalone")
+    sys.modules[module.__name__] = module
+    try:
+        exec(compile(source, "plain.py", "exec"), module.__dict__)
+        exported = module.fit_persisted_histogram(
+            module.read_histogram(str(path), "plain;1"), config
+        )
+        assert exported.success
+        assert exported.parameters == pytest.approx(result.parameters)
+    finally:
+        sys.modules.pop(module.__name__, None)

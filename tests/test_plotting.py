@@ -311,9 +311,10 @@ def test_highest_density_contours_create_contour_artists() -> None:
     )
     edges = np.arange(4, dtype=float)
 
-    contours = draw_highest_density_contours(axes, histogram, edges, edges, [90])
+    contours, warning = draw_highest_density_contours(axes, histogram, edges, edges, [90])
 
     assert contours.levels.tolist() == [1.0]
+    assert warning is None
     assert any(segment.size for segments in contours.allsegs for segment in segments)
     plt.close(figure)
 
@@ -1300,3 +1301,113 @@ def test_constant_positive_scatter_colour_can_use_log_scale():
         assert 0 < norm.vmin < 5 < norm.vmax
     finally:
         plt.close(figure)
+
+
+def _draw_linear_colour_scatter(style: dict, color: np.ndarray):
+    figure, axes = plt.subplots()
+    try:
+        render_static_plot(
+            figure,
+            axes,
+            "2D scatter",
+            np.arange(len(color), dtype=float),
+            np.arange(len(color), dtype=float),
+            "x",
+            "y",
+            {"marker_size_2d": 3.0, "opacity_2d": 0.5, "grid": False, **style},
+            title="partial colour range",
+            color=color,
+        )
+        return axes.collections[0].norm.vmin, axes.collections[0].norm.vmax
+    finally:
+        plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    ("style", "expected"),
+    [
+        ({"color_min_text": "0.5"}, (0.5, 1.0)),
+        ({"color_max_text": "0.25"}, (0.0, 0.25)),
+    ],
+)
+def test_scatter_partial_colour_limit_completes_the_other_side_from_data(style, expected) -> None:
+    color = np.array([0.0, np.nan, 0.4, 1.0])
+    assert _draw_linear_colour_scatter(style, color) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "style",
+    [{"color_min_text": "5"}, {"color_max_text": "-5"}, {"color_min_text": "1"}],
+)
+def test_scatter_partial_colour_limit_rejects_empty_or_inverted_range(style) -> None:
+    color = np.array([0.0, 0.4, 1.0])
+    with pytest.raises(InvalidColorScaleError, match="automatic range: 0 to 1"):
+        _draw_linear_colour_scatter(style, color)
+    # The clipping summary computed before drawing reports the same error.
+    with pytest.raises(InvalidColorScaleError, match="automatic range: 0 to 1"):
+        calculate_color_clipping(color, style)
+
+
+def test_scatter_partial_colour_limit_clipping_marks_only_the_explicit_side() -> None:
+    result = calculate_color_clipping(np.array([0.0, 0.4, 1.0]), {"color_min_text": "0.5"})
+    assert (result.color_min, result.color_max) == (0.5, None)
+    assert (result.below_count, result.above_count) == (2, 0)
+    assert result.extend == "min"
+
+
+def test_highest_density_contours_name_the_levels_that_cannot_be_drawn() -> None:
+    figure, axes = plt.subplots()
+    histogram = np.array(
+        [
+            [1.0, 2.0, 1.0],
+            [2.0, 8.0, 2.0],
+            [1.0, 2.0, 1.0],
+        ]
+    )
+    edges = np.arange(4, dtype=float)
+    try:
+        contours, warning = draw_highest_density_contours(
+            axes, histogram, edges, edges, [10, 30, 50, 95]
+        )
+    finally:
+        plt.close(figure)
+
+    assert contours.levels.tolist() == [2.0]
+    assert warning == (
+        "Contour levels 10%, 30% cannot be drawn: they enclose only the peak bin. "
+        "Contour level 95% cannot be drawn: it encloses every bin."
+    )
+
+
+def test_partially_drawable_contour_levels_warn_through_the_renderer() -> None:
+    figure, axes = plt.subplots()
+    try:
+        warnings = render_static_plot(
+            figure,
+            axes,
+            "2D histogram",
+            np.array([0.5, 1.5, 1.5, 1.5, 1.5, 1.5]),
+            np.array([0.5, 0.5, 0.5, 0.5, 0.5, 1.5]),
+            "x",
+            "y",
+            {
+                "bins_x": 2,
+                "bins_y": 2,
+                "log_z": False,
+                "show_contours": True,
+                "contour_levels": [10.0, 90.0],
+                "grid": False,
+            },
+            title="partial contours",
+            histogram_2d=build_histogram_2d(
+                np.array([0.5, 1.5, 1.5, 1.5, 1.5, 1.5]),
+                np.array([0.5, 0.5, 0.5, 0.5, 0.5, 1.5]),
+                2,
+                2,
+                x_range=(0.0, 2.0),
+                y_range=(0.0, 2.0),
+            ),
+        )
+    finally:
+        plt.close(figure)
+    assert warnings == ["Contour level 10% cannot be drawn: it encloses only the peak bin."]

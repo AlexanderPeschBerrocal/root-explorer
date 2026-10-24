@@ -114,4 +114,6 @@ def metric_dataframe(
 ) -> pd.DataFrame:
     mask = np.isfinite(values)
     df = pd.DataFrame({"event": event_indices[mask].astype(int), "metric": values[mask]})
-    return df.sort_values("metric", ascending=not descending).head(max_rows).reset_index(drop=True)
+    # Ties keep ascending event order, so the table is reproducible.
+    ranked = df.sort_values(["metric", "event"], ascending=[not descending, True], kind="mergesort")
+    return ranked.head(max_rows).reset_index(drop=True)
