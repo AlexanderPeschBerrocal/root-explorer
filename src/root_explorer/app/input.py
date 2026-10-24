@@ -24,7 +24,7 @@ from ..io.source import (
 )
 from ..models import RootObjectInfo
 from .ranking import clear_ranking
-from .results import discard_plot_result, store_uploaded_file
+from .results import discard_plot_result, local_absolute_path, store_uploaded_file
 from .state import DataContext, EventDataStatus, RootFileContext
 
 
@@ -61,6 +61,9 @@ def render_data_input() -> RootFileContext:
     ):
         st.error(f"File does not exist: {root_path}")
         st.stop()
+    # Read, cache and export a local file under one absolute path, so that a
+    # relative path typed in the box is not cached twice.
+    root_path = local_absolute_path(root_path)
 
     try:
         version = source_version(root_path)

@@ -33,7 +33,9 @@ LEN_UNITS = {
     "nm": 1e-6,
     "nanometer": 1e-6,
     "angstrom": 1e-7,
+    "Ang": 1e-7,
     "fermi": 1e-12,
+    "fm": 1e-12,
     "pc": 3.0856775807e19,
     "parsec": 3.0856775807e19,
 }
@@ -51,8 +53,11 @@ ANGLE_UNITS = {
 
 EXTERNAL_ENTITY = re.compile(r"<!ENTITY\s+%?\s*[^\s>]+\s+(?:SYSTEM|PUBLIC)\b")
 
-# Daughter constructs that are not expanded; their mother volume still counts as a container.
+# Daughter constructs that are not expanded.
 UNSUPPORTED_DAUGHTERS = {"replicavol", "paramvol", "divisionvol", "file"}
+# Replicas and divisions fill their mother, which is therefore still drawn as an
+# approximation; parameterised and external daughters make it a container.
+CONTAINER_DAUGHTERS = {"paramvol", "file"}
 
 QUALITY_SEGMENTS = {
     "fast": 16,
@@ -498,8 +503,10 @@ class SceneBuilder:
         except ET.ParseError as exc:
             # Expat never loads external entities, so files split with
             # <!ENTITY name SYSTEM "part.xml"> fail with an "undefined entity" error.
+            text = self.gdml_path.read_text(encoding="utf-8", errors="replace")
+            # Ignore commented-out declarations.
             if "undefined entity" in str(exc) and EXTERNAL_ENTITY.search(
-                self.gdml_path.read_text(encoding="utf-8", errors="replace")
+                re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
             ):
                 raise ValueError(
                     "GDML files that include other files via XML entities "
@@ -515,23 +522,18 @@ class SceneBuilder:
             self.warnings.append(msg)
 
     def parse(self) -> None:
-        definitions = child_by_tag(self.root, "define")
-        if definitions is not None:
-            self.position_definitions = {
-                item.attrib["name"]: item
-                for item in children_by_tag(definitions, "position")
-                if "name" in item.attrib
-            }
-            self.rotation_definitions = {
-                item.attrib["name"]: item
-                for item in children_by_tag(definitions, "rotation")
-                if "name" in item.attrib
-            }
-            self.scale_definitions = {
-                item.attrib["name"]: item
-                for item in children_by_tag(definitions, "scale")
-                if "name" in item.attrib
-            }
+        # Like Geant4, read every <define> block, not only the first.
+        for definitions in children_by_tag(self.root, "define"):
+            for tag, table in (
+                ("position", self.position_definitions),
+                ("rotation", self.rotation_definitions),
+                ("scale", self.scale_definitions),
+            ):
+                table.update(
+                    (item.attrib["name"], item)
+                    for item in children_by_tag(definitions, tag)
+                    if "name" in item.attrib
+                )
         self.warn_unsupported_constructs()
         solids_el = child_by_tag(self.root, "solids")
         if solids_el is None:
@@ -728,10 +730,10 @@ class SceneBuilder:
             raise ValueError("GDML volume nesting exceeds the supported depth of 256")
         ancestors = ancestors | {identity_key}
         physvols = children_by_tag(volume.element, "physvol")
-        # Replicas, parameterisations and divisions are not expanded, but they still make
+        # Parameterised and external daughters are not expanded, but they still make
         # their mother a container rather than a leaf to draw.
         has_daughters = bool(physvols) or any(
-            strip_namespace(ch.tag) in UNSUPPORTED_DAUGHTERS for ch in volume.element
+            strip_namespace(ch.tag) in CONTAINER_DAUGHTERS for ch in volume.element
         )
         render_this = True
         if volume.name == self.world_name:

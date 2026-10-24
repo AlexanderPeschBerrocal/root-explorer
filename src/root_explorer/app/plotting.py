@@ -137,7 +137,8 @@ def render_plot_tab(
 
     if not context.fields:
         st.info(
-            "This event container has no supported numeric fields to plot. See its field browser."
+            "This event container has no supported numeric fields to plot. See the "
+            f"**{context.data_item_plural.title()} and objects** tab for its fields."
         )
         return
 

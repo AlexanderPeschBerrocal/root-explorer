@@ -454,8 +454,8 @@ def apply_range_cuts(
     mask = np.ones(n, dtype=bool)
 
     for index, (cut, (_, lo, hi)) in enumerate(zip(aligned_cuts, cuts, strict=True), start=1):
-        if any(bound is not None and not np.isfinite(bound) for bound in (lo, hi)):
-            raise InvalidCutError(f"Cut {index} bounds must be finite numbers or blank.")
+        if any(bound is not None and np.isnan(bound) for bound in (lo, hi)):
+            raise InvalidCutError(f"Cut {index} bounds must be numbers or blank.")
         if lo is not None and hi is not None and lo > hi:
             raise InvalidCutError(f"Cut {index} minimum must not exceed its maximum.")
         cut_values = cut.astype(float, copy=False)
@@ -532,6 +532,13 @@ def _complete_color_limits(
         raise InvalidColorScaleError("Colour limits require finite colour values.")
     lo = float(np.min(finite)) if cmin is None else cmin
     hi = float(np.max(finite)) if cmax is None else cmax
+    if lo == hi and (cmin is None) != (cmax is None) and np.min(finite) == np.max(finite):
+        # A constant colour field at the single explicit limit is valid. Widen only
+        # the automatic side by 0.1 % (0.001 at zero), as Matplotlib does for a
+        # degenerate automatic range.
+        margin = 0.001 * abs(lo) if lo != 0 else 0.001
+        lo = lo if cmin is not None else lo - margin
+        hi = hi if cmax is not None else hi + margin
     if not np.isfinite(lo) or not np.isfinite(hi) or lo >= hi:
         raise InvalidColorScaleError(
             f"color min must be smaller than color max (automatic range: "
@@ -590,18 +597,32 @@ def scatter_color_scale_linear(
 
 
 def resolve_scatter_color_style(style: dict[str, Any], color: np.ndarray | None) -> dict[str, Any]:
-    """Complete a one-sided linear colour range from all plotted colour values.
+    """Complete a one-sided colour range from all plotted colour values.
 
     Scatter plots may draw only a sample of the points, whose extremes can differ
     from those of the full selection that the colour clipping summary describes.
     """
 
-    if color is None or style.get("log_color", False):
+    if color is None:
         return style
     cmin, cmax = _scatter_color_limits(style)
     if (cmin is None) == (cmax is None):
         return style
-    lower, upper = _complete_color_limits(cmin, cmax, color)
+    lower: float | None
+    upper: float | None
+    if style.get("log_color", False):
+        values = np.asarray(color, dtype=float)
+        positive = values[np.isfinite(values) & (values > 0)]
+        if not positive.size:
+            # Leave the error to the logarithmic scale's own validation.
+            return style
+        lower = float(np.min(positive)) if cmin is None else cmin
+        upper = float(np.max(positive)) if cmax is None else cmax
+        if lower >= upper:
+            # Invalid or degenerate ranges keep the logarithmic scale's own handling.
+            return style
+    else:
+        lower, upper = _complete_color_limits(cmin, cmax, color)
     return {**style, "color_min_text": repr(lower), "color_max_text": repr(upper)}
 
 

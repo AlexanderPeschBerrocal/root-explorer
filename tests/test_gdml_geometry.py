@@ -11,6 +11,7 @@ coordinates and bounding boxes rather than triangle order.
 from __future__ import annotations
 
 import math
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
@@ -561,7 +562,9 @@ def test_cyclic_assembly_references_fail(tmp_path) -> None:
         ("file", '<physvol><file name="other.gdml"/></physvol>'),
     ],
 )
-def test_mothers_of_unsupported_daughters_are_containers(tmp_path, construct, body) -> None:
+def test_unsupported_daughters_warn_and_only_unfilled_mothers_are_containers(
+    tmp_path, construct, body
+) -> None:
     text = _gdml(
         '<box name="mother_box" x="10" y="10" z="10"/>\n<box name="leaf_box" x="1" y="1" z="1"/>',
         f"""    <volume name="Leaf"><materialref ref="G4_Si"/><solidref ref="leaf_box"/></volume>
@@ -577,7 +580,10 @@ def test_mothers_of_unsupported_daughters_are_containers(tmp_path, construct, bo
     </volume>""",
     )
     scene = _scene(tmp_path, text)
-    assert scene["meta"]["objects"] == 0
+    # Replicas and divisions fill their mother, which is drawn as an approximation;
+    # parameterised and external daughters leave it a hidden container.
+    fills_mother = construct in {"replicavol", "divisionvol"}
+    assert scene["meta"]["objects"] == (1 if fills_mother else 0)
     assert scene["meta"]["warnings"] == [
         f"Unsupported GDML construct {construct!r}; geometry may be omitted or simplified."
     ]
@@ -621,6 +627,8 @@ def test_internal_xml_entities_still_expand(tmp_path) -> None:
         ("nanometer", 1e-6),
         ("angstrom", 1e-7),
         ("fermi", 1e-12),
+        ("Ang", 1e-7),
+        ("fm", 1e-12),
         ("pc", 3.0856775807e19),
         ("parsec", 3.0856775807e19),
     ],
@@ -695,3 +703,26 @@ def test_object_limit_reports_truncation_only_when_an_object_is_left_out(tmp_pat
     assert truncated["meta"]["warnings"] == [
         "Stopped at 2 objects / 72 vertices. Increase the geometry parse limits for more."
     ]
+
+
+def test_references_resolve_from_every_define_block(tmp_path):
+    text = _single(
+        '<box name="shape" x="2" y="4" z="6"/>',
+        placement='<positionref ref="shift"/><rotationref ref="turn"/>',
+    )
+    text = text.replace(
+        "<solids>",
+        '<define><position name="shift" x="2" unit="cm"/></define>'
+        '<define><rotation name="turn" z="90" unit="deg"/></define><solids>',
+    )
+    scene = _scene(tmp_path, text)
+    np.testing.assert_allclose(_bbox(_vertices(scene)), [18, -1, -3, 22, 1, 3], atol=ATOL)
+
+
+def test_commented_out_external_entity_does_not_explain_another_parse_error(tmp_path) -> None:
+    text = _single('<box name="shape" x="&w;" y="2" z="2"/>').replace(
+        '<?xml version="1.0"?>',
+        '<?xml version="1.0"?>\n<!-- <!ENTITY solids SYSTEM "solids.xml"> -->',
+    )
+    with pytest.raises(ET.ParseError, match="undefined entity"):
+        _scene(tmp_path, text)

@@ -40,7 +40,10 @@ from root_explorer.plotting.plots import (
     plotly_figure_html,
     render_static_plot,
     resolve_kde_bandwidth,
+    resolve_scatter_color_style,
     safe_filename,
+    scatter_color_scale_linear,
+    scatter_color_scale_log,
     validate_plot_labels,
     validate_raster_resolution,
 )
@@ -1411,3 +1414,22 @@ def test_partially_drawable_contour_levels_warn_through_the_renderer() -> None:
     finally:
         plt.close(figure)
     assert warnings == ["Contour level 10% cannot be drawn: it encloses only the peak bin."]
+
+
+@pytest.mark.parametrize(
+    ("style", "expected"),
+    [({"color_min_text": "5"}, (5.0, 5.005)), ({"color_max_text": "5"}, (4.995, 5.0))],
+)
+def test_constant_colour_field_at_the_single_limit_is_drawn(style, expected) -> None:
+    color = np.full(3, 5.0)
+    assert scatter_color_scale_linear(style, color) == pytest.approx(expected)
+    assert calculate_color_clipping(color, style).extend == "neither"
+
+
+def test_one_sided_log_colour_limit_uses_all_values_before_sampling() -> None:
+    color = np.array([1.0, 2.0, 100.0])
+    resolved = resolve_scatter_color_style({"log_color": True, "color_min_text": "1.5"}, color)
+    assert float(resolved["color_max_text"]) == 100.0
+    # The drawn sample may miss the largest value; the scale still ends at it.
+    norm = scatter_color_scale_log(color[:2], resolved)
+    assert (norm.vmin, norm.vmax) == (1.5, 100.0)

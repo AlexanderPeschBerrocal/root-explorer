@@ -45,10 +45,17 @@ def test_string_only_container_remains_browseable(tmp_path, kind):
     )
 
 
-@pytest.mark.parametrize(("low", "high"), [(np.nan, None), (None, np.inf), (3.0, 2.0)])
+@pytest.mark.parametrize(("low", "high"), [(np.nan, None), (None, np.nan), (3.0, 2.0)])
 def test_invalid_cut_bounds_are_rejected(low, high):
     with pytest.raises(InvalidCutError):
         apply_range_cuts([np.array([1.0, 2.0])], [(np.array([1.0, 2.0]), low, high)])
+
+
+@pytest.mark.parametrize(("low", "high"), [(-np.inf, None), (None, np.inf), (-np.inf, np.inf)])
+def test_infinite_cut_bounds_are_open_bounds(low, high):
+    values = np.array([1.0, 2.0])
+    (selected,) = apply_range_cuts([values], [(values, low, high)])
+    np.testing.assert_array_equal(selected, values)
 
 
 def test_malformed_cut_does_not_become_an_open_bound(root_path):
@@ -62,4 +69,4 @@ def test_malformed_cut_does_not_become_an_open_bound(root_path):
     at.button(key="plot_make").click().run()
     assert not at.exception
     assert "plot_result" not in at.session_state
-    assert any("bounds must be finite" in item.value for item in at.warning)
+    assert any("bounds must be numbers or blank" in item.value for item in at.warning)

@@ -199,6 +199,18 @@ def open_uproot_source(path: str) -> Any:
         return uproot.open(path)
 
 
+def open_uproot_source_standalone(path: str) -> Any:
+    """Standalone-script equivalent of open_uproot_source.
+
+    Outside the app, fsspec's own error already names a missing remote backend.
+    """
+
+    return uproot.open(path)
+
+
+__standalone_source_overrides__ = {"open_uproot_source": open_uproot_source_standalone}
+
+
 def open_root_file(path: str) -> Any:
     """Return a shared Uproot handle for the current version of ``path``."""
 

@@ -720,15 +720,12 @@ def range_cut_controls(
             )
             lo_value = parse_optional_float(lo)
             hi_value = parse_optional_float(hi)
-            if str(lo).strip() and (lo_value is None or not math.isfinite(lo_value)):
-                st.warning(
-                    f"Cut {i + 1} minimum must be a finite number. Correct it before plotting."
-                )
+            # inf and -inf are valid open bounds; unparseable text and nan are not.
+            if str(lo).strip() and (lo_value is None or math.isnan(lo_value)):
+                st.warning(f"Cut {i + 1} minimum must be a number. Correct it before plotting.")
                 lo_value = float("nan")
-            if str(hi).strip() and (hi_value is None or not math.isfinite(hi_value)):
-                st.warning(
-                    f"Cut {i + 1} maximum must be a finite number. Correct it before plotting."
-                )
+            if str(hi).strip() and (hi_value is None or math.isnan(hi_value)):
+                st.warning(f"Cut {i + 1} maximum must be a number. Correct it before plotting.")
                 hi_value = float("nan")
             cut_bounds.append((lo_value, hi_value))
     return cut_specs, cut_bounds

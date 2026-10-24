@@ -275,3 +275,37 @@ def test_ranking_absolute_value_choice_survives_multiplicity(root_path) -> None:
     assert at.checkbox(key="metric_abs").disabled
     at.selectbox(key="metric_mode").select("sum").run()
     assert at.checkbox(key="metric_abs").value is True
+
+
+def test_ranking_table_is_only_rebuilt_when_its_inputs_change(root_path, monkeypatch) -> None:
+    from root_explorer.app import ranking
+
+    builds: list[tuple[bool, int]] = []
+    build_table = ranking.metric_dataframe
+
+    def counting_table(events, values, descending, rows):
+        builds.append((descending, rows))
+        return build_table(events, values, descending, rows)
+
+    monkeypatch.setattr(ranking, "metric_dataframe", counting_table)
+    at = _app(root_path)
+    at.selectbox(key="metric_mode").select("sum").run()
+    at.button(key="rank_compute").click().run()
+    at.run()
+    at.run()
+    assert builds == [(True, 10)]
+    largest_first = next(widget for widget in at.checkbox if widget.label == "largest first")
+    largest_first.uncheck().run()
+    at.run()
+    assert builds == [(True, 10), (False, 10)]
+    at.button(key="rank_compute").click().run()
+    assert builds == [(True, 10), (False, 10), (False, 10)]
+
+
+def test_relative_local_paths_are_used_as_absolute_paths(root_path, monkeypatch) -> None:
+    monkeypatch.chdir(root_path.parent)
+    at = _app(root_path.name)
+    assert not at.exception
+    context = at.session_state["data_context"]
+    assert str(root_path) in repr(context)
+    assert f"'{root_path.name}'" not in repr(context)

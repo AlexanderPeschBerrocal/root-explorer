@@ -60,7 +60,8 @@ Ranking uses the sidebar's read range but **does not apply Plotter cuts or
 histogram weights**. Changing **largest first** or **rows** updates the table
 immediately. After changing the field, measure, absolute-value option or threshold,
 a notice asks you to click **Compute ranking** again; until then the table shows
-the previous ranking.
+the previous ranking, ordered and truncated by the current **largest first** and
+**rows** settings.
 Selecting a ranked event does not regenerate an event plot automatically:
 click **Make event plot** after **Use selected event**.
 

@@ -101,8 +101,9 @@ Missing values are never replaced by zero.
 
 Set **Number of cuts** (up to 20) to add range cuts. Range cuts are combined with logical **AND**, with inclusive lower and upper
 bounds (`minimum <= value <= maximum`). Leave a bound blank for an open end.
-An invalid or non-finite bound, or a minimum greater than the maximum, prevents
-plot generation until corrected; it never silently becomes an open bound.
+A bound that is not a number (for example a typo or `nan`), or a minimum greater
+than the maximum, prevents plot generation until corrected; it never silently
+becomes an open bound. `inf` and `-inf` are valid and act as open bounds.
 Non-finite cut values fail the cut. Event-level cuts, such as `MET_pt` or a
 per-event reduction such as `max(Muon_pt)`, are repeated for all plotted objects
 in each event, so they keep or reject the objects of an event together. For

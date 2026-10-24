@@ -184,3 +184,32 @@ def test_bundle_python_source_ignores_globals_used_only_in_annotations(
     namespace: dict[str, object] = {}
     exec(compile(source, "bundle.py", "exec"), namespace)
     assert namespace["doubled"](3.0)(1.0) == 6.0
+
+
+def test_bundle_python_source_ignores_locals_that_shadow_module_globals(
+    tmp_path, monkeypatch
+) -> None:
+    (tmp_path / "root_explorer_fake_shadow.py").write_text(
+        textwrap.dedent(
+            """
+            from __future__ import annotations
+
+
+            def shadow(items):
+                annotations = [item * 2 for item in items]
+                return annotations
+            """
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        module = importlib.import_module("root_explorer_fake_shadow")
+        # ``annotations`` is a module global (a __future__ feature) that cannot be
+        # bundled, but inside ``shadow`` it is a local variable.
+        source = bundle_python_source(module.shadow)
+    finally:
+        sys.modules.pop("root_explorer_fake_shadow", None)
+    namespace: dict[str, object] = {}
+    exec(compile(source, "bundle.py", "exec"), namespace)
+    assert namespace["shadow"]([1, 2]) == [2, 4]

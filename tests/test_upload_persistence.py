@@ -114,4 +114,16 @@ def test_upload_suffix_is_sanitised_and_file_is_readable(upload_dir):
     assert path.parent == upload_dir
     assert path.suffix == ".root"
     assert Path(store_uploaded_file(Upload("geometry.gdml", b"<gdml/>"))).suffix == ".gdml"
-    assert path.stat().st_mode & 0o777 == 0o644
+    umask = os.umask(0)
+    os.umask(umask)
+    assert path.stat().st_mode & 0o777 == 0o666 & ~umask
+
+
+def test_published_uploads_follow_a_restrictive_umask(upload_dir):
+    previous = os.umask(0o077)
+    try:
+        path = Path(store_uploaded_file(Upload("private.root", b"data")))
+    finally:
+        os.umask(previous)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert not [entry for entry in upload_dir.iterdir() if entry.name.endswith(".tmp")]

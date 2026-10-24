@@ -7,6 +7,7 @@ import hashlib
 import math
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -492,11 +493,12 @@ def store_uploaded_file(uploaded: UploadedFile) -> str:
     if not path.exists():
         temporary_path = None
         try:
-            with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as temporary:
-                temporary_path = Path(temporary.name)
+            # Unlike NamedTemporaryFile (always 0600), mode 0666 lets the server's
+            # umask decide the permissions, as for any other file it writes.
+            temporary_path = temp_dir / f".{path.name}.{uuid.uuid4().hex}.tmp"
+            descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            with os.fdopen(descriptor, "wb") as temporary:
                 temporary.write(data)
-            # NamedTemporaryFile is private (0600); publish with ordinary permissions.
-            temporary_path.chmod(0o644)
             try:
                 os.link(temporary_path, path)
             except FileExistsError:

@@ -123,7 +123,7 @@ def test_no_poisson_assumption_for_unweighted_histograms():
         (FitConfig("Gaussian", fit_range=(np.nan, 1)), "Fit range"),
         (FitConfig("Gaussian", fit_range=(0, 0.1)), "Insufficient"),
         (FitConfig("Gaussian", initial_values={"A": -10}), "outside"),
-        (FitConfig("Gaussian", bounds={"sigma": (2, 1)}), "Invalid"),
+        (FitConfig("Gaussian", bounds={"sigma": (2, 1)}), "Bounds for sigma are empty"),
         (FitConfig("unknown"), "Unknown"),
     ],
 )
@@ -231,3 +231,16 @@ def test_explicit_variances_replace_storage_for_unweighted_histograms():
     mismatched = fit_histogram_1d(unweighted, config, variances=values[:-1])
     assert not mismatched.success
     assert "do not match" in mismatched.message
+
+
+def test_one_sided_bound_beyond_the_kept_default_explains_the_empty_range():
+    edges = np.linspace(-5, 5, 41)
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4, "alpha": 1.5, "n": 3.0}
+    values = model_bin_integrals("Crystal Ball", edges, params, x0=0)
+    h = _histogram(edges, values)
+    result = fit_histogram_1d(h, FitConfig("Crystal Ball", bounds={"alpha": (150.0, None)}))
+    assert not result.success
+    assert "lower 150 is not below upper 100" in result.message
+    assert "enter inf or -inf" in result.message
+    unbounded = fit_histogram_1d(h, FitConfig("Crystal Ball", bounds={"alpha": (150.0, np.inf)}))
+    assert "Bounds for alpha are empty" not in unbounded.message

@@ -375,7 +375,14 @@ def fit_histogram_1d(
             low = low if override_low is None else float(override_low)
             high = high if override_high is None else float(override_high)
         value = float((config.initial_values or {}).get(name, guesses[name]))
-        if not np.isfinite(value) or np.isnan(low) or np.isnan(high) or low >= high:
+        if not np.isnan(low) and not np.isnan(high) and low >= high:
+            return failed(
+                f"Bounds for {name} are empty: lower {low:g} is not below upper {high:g}. "
+                "A blank bound keeps the model's default; enter inf or -inf to remove it.",
+                bins_used=len(indices),
+                bins_excluded=excluded,
+            )
+        if not np.isfinite(value) or np.isnan(low) or np.isnan(high):
             return failed(
                 f"Invalid initial value or bounds for {name}.",
                 bins_used=len(indices),

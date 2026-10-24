@@ -326,11 +326,31 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
     return {id(child) for annotation in annotations for child in ast.walk(annotation)}
 
 
+def _locally_bound_names(tree: ast.AST) -> set[str]:
+    """Return names bound inside the bundled source rather than read from the module."""
+
+    bound: set[str] = set()
+    declared_global: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            bound.add(node.id)
+        elif isinstance(node, ast.arg):
+            bound.add(node.arg)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            bound.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound.update((alias.asname or alias.name).split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.Global):
+            declared_global.update(node.names)
+    return bound - declared_global
+
+
 def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
+    local = _locally_bound_names(tree)
     loaded = {
         node.id
         for node in ast.walk(tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id not in local
     }
     return {name for name in loaded if name in module.__dict__ and not hasattr(builtins, name)}
 

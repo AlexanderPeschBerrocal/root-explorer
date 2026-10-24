@@ -21,7 +21,7 @@ settings. Parsed counts can exceed displayed counts because of filtering and
 drawing limits.
 
 Recognised GDML length units (`mm`, `cm`, `m`, `km`, `um`, `nm`, `angstrom`,
-`fermi`, `pc` and their long names such as `millimeter`) are converted to
+`Ang`, `fermi`, `fm`, `pc` and their long names such as `millimeter`) are converted to
 **millimetres** internally, and angle units (`rad`, `mrad`, `deg` and their long
 names) to radians. An unrecognised length unit is treated as millimetres, and an
 unrecognised angle unit as radians, with a parser warning.
@@ -40,10 +40,11 @@ The parser provides a simplified visualisation, not a complete GDML implementati
 | Nested `physvol` placements | Inline numeric `position`, `rotation` and `scale` elements and references to definitions are applied. As in Geant4, a placement rotation turns the volume by the inverse of the given rotation, and a scale (including a reflection such as `z="-1"`) is applied before the rotation |
 | `union` | Combines operand meshes, including the first operand's `firstposition`/`firstrotation` and the second operand's `position`/`rotation` (inline or referenced), whose rotations are applied as given, as in Geant4; does not remove interior surfaces as a true Boolean union would |
 | `subtraction`, `intersection` | Approximated by the first operand, including its `firstposition`/`firstrotation`, with a warning |
-| `positionref`, `rotationref`, `scaleref` and the `first…ref` forms | Resolved from numeric `position`, `rotation` and `scale` entries in `define`; unresolved references stop loading with an error |
+| `positionref`, `rotationref`, `scaleref` and the `first…ref` forms | Resolved from numeric `position`, `rotation` and `scale` entries in any `define` block; unresolved references stop loading with an error |
 | Constants and expressions in numeric attributes | Not evaluated; unparseable attributes of supported solids and transforms fall back to defaults with warnings |
 | `assembly` | Expanded: its placements are positioned relative to the assembly's placement, including nested assemblies |
-| Replicas, divisions, parameterised placements (`replicavol`, `divisionvol`, `paramvol`) and physvol `file` references | Not expanded; a parser warning names the construct, and the mother volume is treated as a container |
+| Replicas and divisions (`replicavol`, `divisionvol`) | Not expanded; a parser warning names the construct. Because they fill their mother volume, the mother is still drawn as an approximation |
+| Parameterised placements (`paramvol`) and physvol `file` references | Not expanded; a parser warning names the construct, and the mother volume is treated as a container |
 | Files that include other files through external XML entities (`<!ENTITY … SYSTEM "…">`) | Not loaded; an error asks you to merge the included files into one GDML file |
 | Other solid types | Skipped with warnings |
 

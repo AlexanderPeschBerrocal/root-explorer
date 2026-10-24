@@ -183,7 +183,10 @@ do not contribute. Parameter guesses and physically meaningful default bounds
 upper bound, the default bound on the other side is kept. An invalid entry in a
 fit range or parameter field is marked with a warning next to the field, and the
 fit then fails with a message while the histogram is still drawn; `inf` and
-`-inf` are accepted as bounds. Fit failures display
+`-inf` are accepted as bounds. A one-sided bound that lies beyond the kept default
+(for example `alpha ≥ 150` with the default upper bound 100) leaves no valid range;
+the fit then fails with a message naming both bounds, and entering `inf` for the
+other side removes the default. Fit failures display
 a warning without removing the histogram.
 
 The output table reports parameters and approximate local covariance-based

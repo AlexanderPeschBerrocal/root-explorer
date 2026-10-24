@@ -11,7 +11,7 @@ from .results import show_technical_details
 from .state import DataContext
 from .tables import render_dataframe
 
-RANKING_KEYS = ("rank_metric", "rank_settings", "rank_df", "rank_label")
+RANKING_KEYS = ("rank_metric", "rank_settings", "rank_df", "rank_label", "rank_table_key")
 
 
 def clear_ranking() -> None:
@@ -88,6 +88,7 @@ def render_event_selection(context: DataContext) -> int:
                     metric_abs,
                 )
                 st.session_state["rank_settings"] = metric_settings
+                st.session_state["rank_version"] = st.session_state.get("rank_version", 0) + 1
                 metric_input = f"|{metric_branch}|" if metric_abs else metric_branch
                 st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
             except Exception as exc:
@@ -97,9 +98,14 @@ def render_event_selection(context: DataContext) -> int:
                 show_technical_details(exc)
         if "rank_metric" in st.session_state:
             events, values = st.session_state["rank_metric"]
-            st.session_state["rank_df"] = metric_dataframe(
-                events, values, descending, int(max_rank_rows)
-            )
+            # Sorting a large range is costly; only redo it when the order, the row
+            # count or the computed metric changed.
+            table_key = (st.session_state.get("rank_version", 0), descending, int(max_rank_rows))
+            if st.session_state.get("rank_table_key") != table_key:
+                st.session_state["rank_df"] = metric_dataframe(
+                    events, values, descending, int(max_rank_rows)
+                )
+                st.session_state["rank_table_key"] = table_key
             if st.session_state.get("rank_settings") != metric_settings:
                 st.info(
                     "The metric settings have changed since this ranking was computed. "
