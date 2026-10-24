@@ -297,13 +297,13 @@ def render_help_tab(context: DataContext) -> None:
 1. Choose a ROOT file, event container (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
-4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
+4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive absolute values, 3D magnitudes, `r`, `phi`, `eta`, massless and massive energies, single-particle invariant masses, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
 5. Click **Make plot** (shortcut **P**) or **Make event plot** (shortcut **Shift+P**) after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
 6. Titles and axis labels of static plots support math between dollar signs, for example `$p_T$ [GeV]`. Interactive 3D plots show labels literally.
 
 **Field badges, jagged collections, and cuts**
 - Enable **Show {context.data_item_name} details in selectors** below the plot-type selection in the Plotter or Event inspection tab to add name-first badges such as `[scalar] [float32]`, `[fixed 3]`, or `[jagged] [float32]`. These describe the per-event structure and logical data type without loading the full field.
-- `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the field browser.
+- `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the **{context.data_item_plural.title()} and objects** tab.
 - For object collections, direct {item_name} values are flattened for plotting.
 - In the Plotter, **Multiplicity per event**, **nth object per event**, and per-event reductions such as sum, mean, max, and min are useful for turning jagged collections into one value per event. They are also available for point colours and cuts, where the event's value applies to all of its plotted objects.
 - Range cuts are combined with logical AND and applied simultaneously before plotting.

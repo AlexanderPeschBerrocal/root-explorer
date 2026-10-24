@@ -61,7 +61,7 @@ draw** to include others. Check the material selection and parsed summary when
 expected structures are absent. Opacity and wireframe settings can help reveal
 otherwise obscured objects.
 
-**Include world volume** controls the world independently of **include container
+**include world volume** controls the world independently of **include container
 volumes**. The latter also enables the otherwise hidden Galactic vacuum volumes.
 
 ## Performance and correctness
@@ -77,8 +77,10 @@ The parse vertex limit is a hard cap rounded down to complete triangles. A warni
 reports parsing truncation only when an object or triangle was actually left out;
 a warning below a 3D plot reports display truncation.
 Cyclic solid, volume or assembly references and volume nesting deeper than 256
-levels stop loading with an error. Changing mesh quality, inclusion flags or parsing limits marks an
-existing 3D plot as out of date; click **Make plot** to regenerate it.
+levels stop loading with an error. Changing any geometry setting (enabling the overlay, mesh quality, inclusion
+flags, parsing and drawing limits, materials, opacity, scale, offsets or
+wireframe) marks an existing 3D plot as out of date; click **Make plot** (or
+**Make event plot**) to regenerate it.
 
 If you replace a GDML file at the same server path, the geometry is parsed
 again automatically on the next interaction; see

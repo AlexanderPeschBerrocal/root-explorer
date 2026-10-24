@@ -245,3 +245,23 @@ def test_persisted_graph_code_uses_an_absolute_path(monkeypatch) -> None:
     assert not at.exception
     code = at.session_state["root_graph_result"]["code"]
     assert repr(str(OBJECTS_PATH)) in code
+
+
+def test_stored_variance_default_follows_later_weight_changes(root_path) -> None:
+    at = _app(root_path)
+    at.checkbox(key="plot_fit_enabled").check().run()
+    assert at.checkbox(key="plot_fit_variances").value is False
+
+    at.checkbox(key="plot_use_weights").check().run()
+    assert at.checkbox(key="plot_fit_variances").value is True
+    at.checkbox(key="plot_use_weights").uncheck().run()
+    assert at.checkbox(key="plot_fit_variances").value is False
+
+    # An explicit choice is kept when the weight selection changes.
+    at.checkbox(key="plot_fit_variances").check().run()
+    at.checkbox(key="plot_use_weights").check().run()
+    at.checkbox(key="plot_fit_variances").uncheck().run()
+    at.checkbox(key="plot_use_weights").uncheck().run()
+    assert at.checkbox(key="plot_fit_variances").value is False
+    assert not at.exception
+    assert not any("Session State API" in warning.value for warning in at.warning)

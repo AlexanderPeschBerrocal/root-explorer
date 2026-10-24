@@ -45,7 +45,9 @@ histogram flow summary (with manual histogram limits), the threshold and
 quantile calculator results, and the fit model, parameters with uncertainties,
 chi-squared or sum of squared residuals, degrees of freedom and fitted bins (or
 the reason a fit failed). Exports of stored histograms with a fit print the same
-fit summary. Infinite fit bounds are exported as `float('inf')`.
+fit summary. Plot warnings shown in the app, such as an unavailable KDE, are
+printed as `ROOT Explorer warning: …`. Infinite fit bounds are exported as
+`float('inf')`.
 
 Input paths and non-structural styles can be edited in the generated
 script. Regenerate it after changing plot type, variable modes, optional

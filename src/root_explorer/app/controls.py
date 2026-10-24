@@ -560,10 +560,20 @@ def fit_controls(
         except ValueError as exc:
             st.warning(f"Invalid custom fit expression: {exc}")
             names = ()
+    variances_key = f"{prefix}_fit_variances"
+    default_key = f"{variances_key}_default"
+    previous_default = st.session_state.get(default_key)
+    # A keyed checkbox ignores later changes to its default. Follow the weight
+    # selection unless the user changed the checkbox themselves.
+    if variances_key not in st.session_state or (
+        default_use_variances != previous_default
+        and st.session_state[variances_key] == previous_default
+    ):
+        st.session_state[variances_key] = default_use_variances
+    st.session_state[default_key] = default_use_variances
     use_variances = st.checkbox(
         "Use stored bin variances (weighted least squares)",
-        value=default_use_variances,
-        key=f"{prefix}_fit_variances",
+        key=variances_key,
         help="When disabled, all selected bins receive equal weight. No Poisson model is assumed.",
     )
     range_enabled = st.checkbox("Custom fit range", key=f"{prefix}_fit_range_enabled")

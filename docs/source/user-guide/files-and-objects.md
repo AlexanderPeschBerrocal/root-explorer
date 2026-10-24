@@ -78,7 +78,8 @@ The stored-object viewers offer the following controls:
 - **Graphs:** a **Drawing mode** of **Markers**, **Line** or **Line + markers**,
   **Show error bars** (for graphs with uncertainties), **Marker size**,
   **Line width**, the figure size, **Log x-axis**, **Log y-axis**, **Grid**,
-  **Apply manual axis limits** and the labels. On a logarithmic axis, error bars
+  **Apply manual axis limits** and the labels. Points with non-finite
+  coordinates are omitted with a warning. On a logarithmic axis, error bars
   that reach zero or below are cut off at the bottom of the axis with a warning;
   points with zero or negative values cannot be drawn on that axis.
 

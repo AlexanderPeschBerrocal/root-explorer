@@ -27,8 +27,9 @@ count formulas indiscriminately to weighted histograms.
 The summary table above the plot describes the selected sample after cuts and
 finite-value filtering; it is not redefined by histogram range, zoom, or flow
 display settings. Its `n`, `min`, `median`, `mean`, `std` and `max` columns are
-**unweighted**. When a weight branch is selected (weights are available for 1D
-and 2D histograms in the Plotter and in Event inspection), a second table below it
+**unweighted**. When a weight branch is selected with **Use weights** and the
+**Weight branch** (**Weight field** for an RNTuple) selector (weights are available
+for 1D and 2D histograms in the Plotter and in Event inspection), a second table below it
 shows weighted statistics of the plotted values:
 
 - **sum of weights** $\sum_i w_i$;
@@ -211,7 +212,8 @@ at 1 and is unbounded; supply appropriate initial values and bounds for
 non-linear or ill-conditioned fits.
 
 Expressions are validated against a restricted syntax tree before evaluation.
-An expression may contain at most 512 characters and 12 fit parameters.
+An expression may contain at most 512 characters, 12 fit parameters, 128 syntax
+elements and a nesting depth of 24; literal exponents are limited to ±64.
 Python statements, imports, attribute access, indexing, and arbitrary function
 calls are forbidden. Custom models are integrated over the original bins using
 fixed-order numerical quadrature, whereas built-in models retain their analytic
