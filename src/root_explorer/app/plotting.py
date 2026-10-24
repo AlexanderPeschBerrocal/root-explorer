@@ -415,7 +415,8 @@ def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str |
     """Keep the histogram available even when its standalone export cannot be built."""
     try:
         return generate_static_plot_code(request)
-    except (ValueError, TypeError, RuntimeError) as exc:
+    # SourceBundleError is a ValueError; OSError covers unreadable helper sources.
+    except (ValueError, TypeError, RuntimeError, OSError) as exc:
         warnings.append(f"Plot-code export unavailable: {exc}")
         return None
 

@@ -356,10 +356,15 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
         raise RuntimeError(f"Missing screenshots: {missing}")
 
 
-def main() -> None:
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the command line; the base URL defaults to the app's --port."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8751")
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="URL of the started app (default: http://127.0.0.1:PORT)",
+    )
     parser.add_argument("--port", type=int, default=8751)
     parser.add_argument(
         "--theme",
@@ -367,7 +372,14 @@ def main() -> None:
         default="both",
         help="Capture dark, light, or both themes (default: both)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.base_url is None:
+        args.base_url = f"http://127.0.0.1:{args.port}"
+    return args
+
+
+def main() -> None:
+    args = parse_arguments()
 
     with tempfile.TemporaryDirectory(prefix="root-explorer-docs-") as temp:
         data = generate(Path(temp) / "synthetic.root")

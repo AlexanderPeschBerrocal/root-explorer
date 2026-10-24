@@ -83,7 +83,7 @@ def get_root_catalogue(path: str) -> tuple[RootObjectInfo, ...]:
 def _cached_get_root_catalogue(path: str, version: SourceVersion) -> tuple[RootObjectInfo, ...]:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    with uproot.open(path) as root_file:
+    with open_uproot_source(path) as root_file:
         return build_root_catalogue(root_file)
 
 
@@ -136,11 +136,51 @@ def event_container_kind_from_info(info: RootObjectInfo) -> str:
     raise TypeError(f"ROOT object is not an event container: {info.classname}")
 
 
-def parse_cli_rootfile() -> str | None:
+def parse_cli_rootfile(argv: Sequence[str] | None = None) -> str | None:
+    """Return the ROOT file passed to the app script, if exactly one was given.
+
+    Several positional arguments are ambiguous, so none of them is pre-selected
+    rather than silently opening an arbitrary one.
+    """
+
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("rootfile", nargs="?")
-    args, _ = parser.parse_known_args()
-    return args.rootfile  # type: ignore[no-any-return]
+    parser.add_argument("rootfiles", nargs="*")
+    args, _ = parser.parse_known_args(argv)
+    rootfiles: list[str] = args.rootfiles
+    return rootfiles[0] if len(rootfiles) == 1 else None
+
+
+class RemoteBackendUnavailableError(ImportError):
+    """Raised when the package needed to read a remote source is not installed."""
+
+
+def remote_backend_message(path: str) -> str | None:
+    """Name what to install to read ``path``, or return ``None`` for local sources."""
+
+    if path.startswith(("http://", "https://")):
+        return (
+            f"Reading http(s):// sources such as `{path}` requires the Python packages "
+            "aiohttp and requests. Install them with `pip install aiohttp requests`."
+        )
+    if path.startswith("root://"):
+        return (
+            f"Reading root:// (XRootD) sources such as `{path}` requires the optional "
+            "Python packages fsspec-xrootd and xrootd. "
+            "Install them with `pip install 'root-explorer[xrootd]'`."
+        )
+    return None
+
+
+def open_uproot_source(path: str) -> Any:
+    """Open ``path`` with Uproot, naming the missing backend of a remote source."""
+
+    try:
+        return uproot.open(path)
+    except ImportError as exc:
+        message = remote_backend_message(path) if is_remote_source(path) else None
+        if message is None:
+            raise
+        raise RemoteBackendUnavailableError(message) from exc
 
 
 def open_root_file(path: str) -> Any:
@@ -157,7 +197,7 @@ def _cached_open_root_file(path: str, version: SourceVersion) -> Any:
     bounded to avoid keeping many superseded files open.
     """
 
-    return uproot.open(path)
+    return open_uproot_source(path)
 
 
 def is_event_container(obj: Any) -> bool:
@@ -198,7 +238,7 @@ def get_entry_count(path: str, container_name: str) -> int:
 def _cached_get_entry_count(path: str, version: SourceVersion, container_name: str) -> int:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    with uproot.open(path) as root_file:
+    with open_uproot_source(path) as root_file:
         return int(root_file[container_name].num_entries)
 
 
@@ -380,7 +420,7 @@ def _cached_get_field_info(
 ) -> list[FieldInfo]:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    with uproot.open(path) as f:
+    with open_uproot_source(path) as f:
         container = f[container_name]
         field_names = container.keys()
         try:
@@ -468,7 +508,7 @@ def read_field_uncached(
 
     container = None
     try:
-        with uproot.open(path) as f:
+        with open_uproot_source(path) as f:
             container = f[container_name]
             arr: ak.Array = container[field_name].array(
                 library="ak", entry_start=entry_start, entry_stop=entry_stop
@@ -514,7 +554,7 @@ def read_event_field_uncached(
 
     container = None
     try:
-        with uproot.open(path) as f:
+        with open_uproot_source(path) as f:
             container = f[container_name]
             arr = container[field_name].array(
                 library="ak", entry_start=event_index, entry_stop=event_index + 1

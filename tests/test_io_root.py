@@ -343,3 +343,42 @@ def test_out_of_range_event_read_has_context(root_path):
     for index in (-1, 100):
         with pytest.raises(root_io.FieldReadError, match=f"event {index}"):
             root_io.read_event_field_uncached(str(root_path), "Events", "Muon_pt", index)
+
+
+@pytest.mark.parametrize(
+    ("path", "missing", "install"),
+    [
+        ("https://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
+        ("http://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
+        (
+            "root://eos.example.org//store/data.root",
+            "fsspec_xrootd",
+            "pip install 'root-explorer[xrootd]'",
+        ),
+    ],
+)
+def test_missing_remote_backend_names_what_to_install(monkeypatch, path, missing, install) -> None:
+    def missing_backend(opened_path):
+        raise ImportError(f"No module named {missing!r}")
+
+    monkeypatch.setattr(root_io.uproot, "open", missing_backend)
+    with pytest.raises(root_io.RemoteBackendUnavailableError) as error:
+        root_io.get_root_catalogue(path)
+    assert install in str(error.value)
+    assert path in str(error.value)
+    assert isinstance(error.value.__cause__, ImportError)
+
+    with pytest.raises(root_io.FieldReadError, match="requires the"):
+        root_io.read_field_uncached(path, "Events", "x", 0, None)
+
+
+def test_local_import_errors_are_not_reworded(monkeypatch, tmp_path) -> None:
+    def broken(opened_path):
+        raise ImportError("compression codec missing")
+
+    path = tmp_path / "events.root"
+    path.write_bytes(b"")
+    monkeypatch.setattr(root_io.uproot, "open", broken)
+    with pytest.raises(ImportError, match="compression codec missing") as error:
+        root_io.open_uproot_source(str(path))
+    assert not isinstance(error.value, root_io.RemoteBackendUnavailableError)

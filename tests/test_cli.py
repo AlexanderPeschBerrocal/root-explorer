@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import socket
 import subprocess
 import sys
@@ -23,6 +24,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_console_script_is_declared() -> None:
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["scripts"]["root-explorer"] == "root_explorer.cli:main"
+
+
+def test_remote_source_backends_are_installed_with_the_package() -> None:
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    names = {
+        re.split(r"[<>=!~;\[ ]", requirement, maxsplit=1)[0]
+        for requirement in pyproject["project"]["dependencies"]
+    }
+    # fsspec's HTTPFileSystem, used by uproot for http(s):// sources, needs both.
+    assert {"aiohttp", "requests"} <= names
+    xrootd = pyproject["project"]["optional-dependencies"]["xrootd"]
+    assert any(requirement.startswith("fsspec-xrootd") for requirement in xrootd)
 
 
 def test_packaged_app_script_runs_the_application() -> None:
@@ -102,6 +115,29 @@ def test_separator_preserves_a_filename_that_looks_like_an_option() -> None:
     assert arguments[-2:] == ["--", str(Path("--server.address.root").resolve())]
 
 
+@pytest.mark.parametrize(
+    ("tokens", "unexpected"),
+    [
+        (["a.root", "b.root"], "b.root"),
+        (["a.root", "--", "b.root"], "b.root"),
+        (["--", "a.root", "b.root"], "b.root"),
+        (["--", "a.root", "--b.root"], "--b.root"),
+        (["a.root", "--server.headless=true", "b.root"], "b.root"),
+        (["--server.address", "127.0.0.1", "a.root", "b.root"], "b.root"),
+    ],
+)
+def test_more_than_one_root_file_is_rejected(tokens, unexpected, capsys) -> None:
+    with pytest.raises(SystemExit) as error:
+        cli.streamlit_arguments(tokens)
+    assert error.value.code == 2
+    assert f"unexpected argument {unexpected!r}" in capsys.readouterr().err
+
+
+def test_separator_without_a_file_opens_nothing() -> None:
+    arguments = cli.streamlit_arguments(["--no-browser", "--"])
+    assert "--" not in arguments
+
+
 def test_main_starts_streamlit_with_the_translated_arguments(monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(
@@ -115,6 +151,21 @@ def test_app_receives_the_file_passed_after_the_separator(monkeypatch) -> None:
     # Streamlit passes everything after "--" to the app script as its sys.argv.
     monkeypatch.setattr(sys, "argv", [str(cli.APP_SCRIPT), "/data/events.root"])
     assert parse_cli_rootfile() == "/data/events.root"
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        ([], None),
+        (["/data/a.root"], "/data/a.root"),
+        (["--", "/data/a.root"], "/data/a.root"),
+        # Ambiguous: neither file is opened instead of silently picking one.
+        (["b.root", "/data/a.root"], None),
+        (["b.root", "--", "/data/a.root"], None),
+    ],
+)
+def test_app_only_prefills_an_unambiguous_root_file(argv, expected) -> None:
+    assert parse_cli_rootfile(argv) == expected
 
 
 @pytest.mark.parametrize("option", ["--help", "--version"])

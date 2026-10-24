@@ -25,8 +25,11 @@ def python_source_literal(value: Any) -> str:
     if value is None or isinstance(value, (bool, int, str)):
         return repr(value)
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise SourceBundleError("Non-finite floats cannot be serialised as plot configuration.")
+        # repr() would give the undefined names inf and nan.
+        if math.isnan(value):
+            return "float('nan')"
+        if math.isinf(value):
+            return "float('inf')" if value > 0 else "float('-inf')"
         return repr(value)
     if is_dataclass(value) and not isinstance(value, type):
         arguments = ", ".join(
@@ -115,7 +118,11 @@ def bundle_python_source(
             definitions.append(f"{object_name} = {replacement.__name__}")
             return
 
-        source = textwrap.dedent(inspect.getsource(obj))
+        try:
+            source = textwrap.dedent(inspect.getsource(obj))
+        except (OSError, TypeError) as exc:
+            # For example, an installation that ships only bytecode.
+            raise SourceBundleError(f"Cannot inspect the source of {object_name!r}.") from exc
         tree = ast.parse(source)
         import_map = _module_import_map(module)
         source = _vendor_local_internal_imports(
@@ -135,8 +142,11 @@ def bundle_python_source(
                     visit(dependency)
                 else:
                     import_source = import_map.get(name)
-                    if import_source is not None:
-                        imports.add(import_source)
+                    if import_source is None:
+                        raise SourceBundleError(
+                            f"Cannot reconstruct import for global {name!r} in {module_name!r}."
+                        )
+                    imports.add(import_source)
                 continue
 
             if isinstance(dependency, ModuleType):
@@ -152,22 +162,36 @@ def bundle_python_source(
                         f"Export helper {object_name!r} depends on forbidden module "
                         f"{dependency.__name__!r}."
                     )
+                if _is_internal_import(import_source, package_prefix):
+                    raise SourceBundleError(
+                        f"Export helper {object_name!r} imports internal module "
+                        f"{dependency.__name__!r}, which cannot be bundled."
+                    )
                 imports.add(import_source)
                 continue
 
             import_source = import_map.get(name)
-            if import_source is not None:
-                if not _is_internal_import(import_source, package_prefix):
-                    imports.add(import_source)
+            if import_source is not None and not _is_internal_import(import_source, package_prefix):
+                imports.add(import_source)
                 continue
 
+            # Literal constants, whether defined in this module or imported from another
+            # internal module, are emitted under their own name. Keying them by value lets
+            # several modules share one constant while differing values still collide.
             if _is_source_constant(dependency):
-                constant_key = (module_name, name)
+                literal = python_source_literal(dependency)
+                constant_key = (f"constant {literal}", name)
                 if constant_key not in visited:
                     visited.add(constant_key)
                     _claim_name(name, constant_key, emitted_names)
-                    constants.append(f"{name} = {python_source_literal(dependency)}")
+                    constants.append(f"{name} = {literal}")
                 continue
+
+            # Anything else would leave an undefined name in the standalone script.
+            raise SourceBundleError(
+                f"Export helper {object_name!r} uses global {name!r} of type "
+                f"{type(dependency).__name__}, which cannot be bundled."
+            )
 
         definitions.append(source.rstrip())
 

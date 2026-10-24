@@ -119,14 +119,20 @@ def render_graph_controls(
                 figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code
 
+            warnings = []
+            try:
+                code = generate_graph_plot_code(spec)
+            except (ValueError, TypeError, RuntimeError, OSError) as exc:
+                code = None
+                warnings.append(f"Plot-code export unavailable: {exc}")
             store_plot_result(
                 "root_graph_result",
                 {
                     "kind": "matplotlib",
                     "figure": figure,
-                    "code": generate_graph_plot_code(spec),
+                    "code": code,
                     "file_name": "root_graph",
-                    "warnings": [],
+                    "warnings": warnings,
                     "settings": settings,
                 },
             )

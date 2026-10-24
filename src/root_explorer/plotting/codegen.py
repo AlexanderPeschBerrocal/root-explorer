@@ -12,8 +12,10 @@ from ..analysis.arrays import (
     require_values,
     validate_variable_event_shapes,
 )
-from ..analysis.fitting import FitConfig, fit_histogram_1d
+from ..analysis.fitting import FitConfig, FitResult, fit_histogram_1d
 from ..analysis.histograms import (
+    HistogramFlowSummary,
+    HistogramNormalisationResult,
     build_histogram_1d,
     build_histogram_2d,
     histogram_for_flow_mode,
@@ -21,7 +23,12 @@ from ..analysis.histograms import (
     resolve_histogram_range,
     summarise_histogram_flow,
 )
-from ..analysis.statistics import calculate_quantile_result, calculate_threshold_result
+from ..analysis.statistics import (
+    QuantileResult,
+    ThresholdResult,
+    calculate_quantile_result,
+    calculate_threshold_result,
+)
 from ..analysis.variables import VariableEvaluator, variable_evaluator
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
 from .plots import (
@@ -70,6 +77,142 @@ class StaticPlotExportPlan:
     log_y: bool
     log_z: bool
     log_color: bool
+
+
+# The helpers below are vendored into exported scripts, which print the numbers the
+# application shows next to the plot. Output stays ASCII for any terminal encoding.
+
+
+def print_result_section(title: str, lines: list[str]) -> None:
+    """Print one titled block of results with indented lines."""
+
+    print(title)
+    for line in lines:
+        print(f"  {line}")
+
+
+def format_optional_number(value: float | None) -> str:
+    """Format a statistic that may be unavailable."""
+
+    return "unavailable" if value is None else f"{value:.6g}"
+
+
+def normalisation_summary_lines(
+    result: HistogramNormalisationResult,
+    bounds: tuple[float, float] | None,
+    flow_mode: str,
+) -> list[str]:
+    """Describe a unit-area normalisation as the application's caption does."""
+
+    lines = [message for message in (result.error, result.warning) if message]
+    if not result.valid:
+        return [*lines, "Unit-area normalisation unavailable; showing unnormalised bin yields."]
+    interval = (
+        f"[{bounds[0]:g}, {bounds[1]:g}]" if bounds is not None else "the nominal histogram range"
+    )
+    domain = (
+        "including folded underflow/overflow"
+        if flow_mode == "fold"
+        else "excluding underflow/overflow"
+    )
+    kind = "Signed unit-integral density" if result.signed_weights else "Unit-area density"
+    return [
+        f"{kind} over {interval} ({domain}).",
+        f"Normalisation sum of weights: {result.denominator:.6g}",
+        *lines,
+        "Original yields and sample statistics are unchanged.",
+    ]
+
+
+def flow_summary_lines(summary: HistogramFlowSummary, flow_mode: str) -> list[str]:
+    """Describe the entries and weights below, inside and above the histogram range."""
+
+    lines = [f"Nominal range: [{summary.lower:g}, {summary.upper:g}], mode: {flow_mode}"]
+    for title, name in (
+        ("Underflow", "underflow"),
+        ("In range", "in_range"),
+        ("Overflow", "overflow"),
+    ):
+        text = f"{title}: {getattr(summary, f'{name}_entries')} entries"
+        if summary.weighted:
+            text += (
+                f", sum of weights {getattr(summary, f'{name}_sumw'):.6g}"
+                f", sum of squared weights {getattr(summary, f'{name}_sumw2'):.6g}"
+            )
+        lines.append(text)
+    return lines
+
+
+def threshold_summary_lines(result: ThresholdResult) -> list[str]:
+    """Describe a threshold calculation as the application's threshold calculator does."""
+
+    total = f"Selected values: {result.total_count}"
+    if result.weighted:
+        total += f", total sum of weights: {format_optional_number(result.total_weight)}"
+    lines = [total]
+    for relation, count, fraction, weight in (
+        ("<=", result.below_count, result.below_fraction, result.below_weight),
+        (">", result.above_count, result.above_fraction, result.above_weight),
+    ):
+        text = f"x {relation} {result.threshold:g}: count {count}"
+        if result.weighted:
+            text += f", sum of weights {format_optional_number(weight)}"
+            text += f", weighted fraction {format_optional_number(fraction)}"
+        else:
+            text += f", fraction {format_optional_number(fraction)}"
+        lines.append(text)
+    lines.append("Fractions use the full selected sample after cuts, including histogram flow.")
+    if result.total_count == 0:
+        lines.append("The selected sample is empty; threshold fractions are unavailable.")
+    elif result.weighted and result.below_fraction is None:
+        lines.append("The total sum of weights is zero; weighted fractions are unavailable.")
+    elif result.weighted and result.has_negative_weights:
+        lines.append("Weighted fractions use signed sums of weights and may lie outside 0 to 1.")
+    return lines
+
+
+def quantile_summary_lines(result: QuantileResult) -> list[str]:
+    """Describe a quantile calculation as the application's quantile calculator does."""
+
+    lines = [
+        f"{result.percentile:g}% quantile: {format_optional_number(result.value)}",
+        "Quantiles use the full selected sample after cuts, including histogram flow.",
+    ]
+    if result.total_count == 0:
+        lines.append("The selected sample is empty; the quantile is unavailable.")
+    elif result.weighted and result.has_negative_weights:
+        lines.append("Weighted quantiles are unavailable for signed weights.")
+    elif result.weighted and result.value is None:
+        lines.append("The total non-negative weight is zero; the weighted quantile is unavailable.")
+    return lines
+
+
+def fit_summary_lines(result: FitResult) -> list[str]:
+    """Describe fit parameters and fit quality as the application's fit table does."""
+
+    lines = [f"Model: {result.model}", f"Objective: {result.objective}"]
+    if result.expression is not None:
+        lines.append(f"Expression: {result.expression}")
+    if result.fit_range is not None:
+        lines.append(f"Fit range: [{result.fit_range[0]:g}, {result.fit_range[1]:g}]")
+    if not result.success:
+        lines.append(f"Fit failed: {result.message.strip()}")
+        return lines
+    width = max((len(name) for name in result.parameters), default=0)
+    for name, value in result.parameters.items():
+        uncertainty = result.uncertainties.get(name)
+        text = f"{name:<{width}} = {value:.6g}"
+        lines.append(text if uncertainty is None else f"{text} +/- {uncertainty:.6g}")
+    statistic = (
+        "Chi-squared" if result.objective.startswith("Variance") else "Sum of squared residuals"
+    )
+    lines.append(
+        f"{statistic}: {format_optional_number(result.statistic)}, ndof: {result.ndof}, "
+        f"fitted bins: {result.bins_used}"
+    )
+    if result.bins_excluded or result.message != "Fit converged. ":
+        lines.append(result.message.strip())
+    return lines
 
 
 def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
@@ -125,9 +268,9 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
         roots.extend(cut_evaluators)
         roots.append(align_variable_values_to_reference)
     if has_threshold:
-        roots.append(calculate_threshold_result)
+        roots.extend([calculate_threshold_result, threshold_summary_lines])
     if has_quantile:
-        roots.append(calculate_quantile_result)
+        roots.extend([calculate_quantile_result, quantile_summary_lines])
     if spec.plot_type == "1D histogram":
         roots.extend(
             [
@@ -136,14 +279,18 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
                 resolve_histogram_range,
                 histogram_for_flow_mode,
                 summarise_histogram_flow,
+                print_result_section,
+                flow_summary_lines,
             ]
         )
         if normalise_unit_area:
-            roots.append(normalise_histogram_1d)
+            roots.extend(
+                [normalise_histogram_1d, HistogramNormalisationResult, normalisation_summary_lines]
+            )
         if has_fit:
             from .plots import draw_fit_overlay
 
-            roots.extend([FitConfig, fit_histogram_1d, draw_fit_overlay])
+            roots.extend([FitConfig, fit_histogram_1d, draw_fit_overlay, fit_summary_lines])
         if show_kde:
             roots.append(draw_kde_1d_overlay)
         if log_x:
@@ -478,17 +625,19 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     if plan.normalise_unit_area:
         lines.extend(
             [
-                "normalisation = None",
                 "if flow_mode == 'separate':",
-                "    print('Normalisation warning: separate flow categories cannot have a density.')",
+                "    normalisation = HistogramNormalisationResult(",
+                "        None, float(np.sum(display_histogram.values())),",
+                "        bool(weights is not None and np.any(weights < 0)),",
+                "        error='Unit-area density is incompatible with separate categorical flow bins. '",
+                "        'Choose Ignore or Fold instead.',",
+                "    )",
                 "else:",
                 "    within = ((x >= flow_range[0]) & (x <= flow_range[1])) if flow_range is not None and flow_mode == 'ignore' else np.ones(len(x), dtype=bool)",
                 "    relevant_weights = weights[within] if weights is not None else None",
                 "    absolute_total = float(np.sum(np.abs(relevant_weights))) if relevant_weights is not None else float(np.count_nonzero(within))",
                 "    normalisation = normalise_histogram_1d(display_histogram, absolute_weight_sum=absolute_total, has_negative_weights=bool(relevant_weights is not None and np.any(relevant_weights < 0)))",
-                "    if normalisation.error: print('Normalisation warning:', normalisation.error)",
-                "    if normalisation.warning: print('Normalisation note:', normalisation.warning)",
-                "density_enabled = normalisation is not None and normalisation.valid",
+                "density_enabled = normalisation.valid",
                 "plot_histogram = normalisation.histogram if density_enabled else display_histogram",
                 "if density_enabled and not PLOT.labels.get('custom_y'): y_label = 'Normalised density'",
             ]
@@ -506,8 +655,6 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "fit_result = fit_histogram_1d(display_histogram, PLOT.fit_config)",
-                "if not fit_result.success:",
-                "    print(f'ROOT Explorer fit warning: {fit_result.message}')",
             ]
         )
 
@@ -621,7 +768,40 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             "finish_static_axes(axes, PLOT.plot_type, title, PLOT.style)",
             "for warning in warnings:",
             "    print(f'ROOT Explorer warning: {warning}')",
-            "plt.show()",
         ]
     )
+    lines.extend(_result_summary_lines(plan))
+    lines.append("plt.show()")
+    return lines
+
+
+def _result_summary_lines(plan: StaticPlotExportPlan) -> list[str]:
+    """Emit prints of the results the application shows next to the plot."""
+
+    lines: list[str] = []
+    if plan.normalise_unit_area:
+        lines.extend(
+            [
+                "normalisation_bounds = tuple(float(edge) for edge in histogram_1d.axes[0].edges[[0, -1]])",
+                "print_result_section('Unit-area normalisation', normalisation_summary_lines(",
+                "    normalisation, normalisation_bounds, flow_mode))",
+            ]
+        )
+    if plan.spec.plot_type == "1D histogram":
+        lines.extend(
+            [
+                "if flow_summary is not None:",
+                "    print_result_section('Histogram flow', flow_summary_lines(flow_summary, flow_mode))",
+            ]
+        )
+    if plan.has_threshold:
+        lines.append(
+            "print_result_section('Threshold calculator', threshold_summary_lines(threshold_result))"
+        )
+    elif plan.has_quantile:
+        lines.append(
+            "print_result_section('Quantile calculator', quantile_summary_lines(quantile_result))"
+        )
+    if plan.has_fit:
+        lines.append("print_result_section('Histogram fit', fit_summary_lines(fit_result))")
     return lines

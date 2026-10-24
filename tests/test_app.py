@@ -1157,3 +1157,36 @@ def test_event_plot_selectors_use_the_same_axis_labels_as_the_plotter(root_path)
     for axis in ["x", "y", "color"]:
         assert at.selectbox(key=f"event_{axis}_mode").label == f"{axis}: variable type"
     assert at.selectbox(key="event_x_branch").label == "x: branch"
+
+
+@pytest.mark.parametrize("error", [OSError("no source"), ValueError("not bundleable")])
+def test_graph_plot_survives_plot_code_export_failure(monkeypatch, error) -> None:
+    def failing_export(spec):
+        raise error
+
+    monkeypatch.setattr(
+        "root_explorer.plotting.graph_codegen.generate_graph_plot_code", failing_export
+    )
+    at = _load_root_file(make_app_test(), PROJECT_ROOT / "tests" / "data" / "test_objects.root")
+    selector = next(item for item in at.selectbox if item.label == "Object to inspect")
+    selector.select("plain_graph (TGraph)").run()
+    at.button(key="root_object_open").click().run()
+
+    assert not at.exception
+    result = at.session_state["root_graph_result"]
+    assert result["code"] is None
+    assert result["figure"].axes
+    assert any(f"Plot-code export unavailable: {error}" in w.value for w in at.warning)
+    assert any(button.label == "Download PNG" for button in at.get("download_button"))
+
+
+def test_static_plot_code_export_failure_keeps_the_plot(monkeypatch) -> None:
+    from root_explorer.app import plotting
+
+    def failing_export(request):
+        raise OSError("could not get source code")
+
+    monkeypatch.setattr(plotting, "generate_static_plot_code", failing_export)
+    warnings: list[str] = []
+    assert plotting._safe_generate_plot_code(None, warnings) is None  # type: ignore[arg-type]
+    assert warnings == ["Plot-code export unavailable: could not get source code"]
