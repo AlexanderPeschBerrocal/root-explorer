@@ -20,7 +20,7 @@ CACHED_FUNCTIONS = [
     root_io._cached_get_entry_count,
     root_io._cached_get_field_info,
     root_io._cached_read_field,
-    root_io._cached_read_event_field,
+    root_io._cached_read_event_range,
     ranking._cached_event_metric,
     overlay._cached_geometry_scene,
     histogram_viewer._cached_histogram,

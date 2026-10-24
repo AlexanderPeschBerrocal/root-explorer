@@ -12,6 +12,8 @@ import numpy as np
 from ..io.root import (
     read_event_field,
     read_event_field_uncached,
+    read_event_range,
+    read_event_range_uncached,
     read_field,
     read_field_uncached,
 )
@@ -267,7 +269,40 @@ def read_for_scope_uncached(
     return read_event_field_uncached(path, tree_name, branch, event_index)
 
 
-__standalone_source_overrides__ = {"read_for_scope": read_for_scope_uncached}
+def read_per_event_input(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Read the entry range, or one event as a one-entry range with the field's type."""
+
+    if event_index is None:
+        return read_field(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_range(path, tree_name, branch, event_index)
+
+
+def read_per_event_input_uncached(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Standalone-safe equivalent of read_per_event_input without Streamlit caching."""
+
+    if event_index is None:
+        return read_field_uncached(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_range_uncached(path, tree_name, branch, event_index)
+
+
+__standalone_source_overrides__ = {
+    "read_for_scope": read_for_scope_uncached,
+    "read_per_event_input": read_per_event_input_uncached,
+}
 
 
 def branch_values(

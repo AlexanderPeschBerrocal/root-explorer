@@ -6,7 +6,7 @@ from ..analysis.fitting import FitConfig
 from ..io.histograms import read_histogram
 from .codegen import fit_summary_lines, print_result_section
 from .histograms import HistogramPlotSpec, fit_persisted_histogram, render_histogram_data
-from .sourcegen import bundle_python_source, python_source_literal
+from .sourcegen import bundle_python_source, literal_dataclass_types, python_source_literal
 
 
 def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
@@ -24,7 +24,7 @@ def generate_histogram_plot_code(spec: HistogramPlotSpec) -> str:
                 fit_summary_lines,
             ]
         )
-    helpers = bundle_python_source(*roots).rstrip()
+    helpers = bundle_python_source(*roots, *literal_dataclass_types(spec)).rstrip()
     return (
         '"""Standalone ROOT histogram exported by ROOT Explorer."""\n\n'
         f"{helpers}\n\n"

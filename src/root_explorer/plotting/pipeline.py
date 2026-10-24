@@ -42,6 +42,7 @@ from .plots import (
     create_static_figure,
     downsample_arrays,
     render_static_plot,
+    resolve_scatter_color_style,
     select_plot_values,
 )
 
@@ -356,6 +357,12 @@ def render_prepared_static_plot(
     """Render a prepared static plot with the canonical Matplotlib implementation."""
 
     x, y, color = prepared.render_arrays(spec.plot_type)
+    # Resolve the colour range from all points before drawing only a sample.
+    style = (
+        resolve_scatter_color_style(spec.style, prepared.color)
+        if spec.plot_type == "2D scatter"
+        else spec.style
+    )
     figure, axes = create_static_figure(spec.style)
     try:
         warnings = render_static_plot(
@@ -366,7 +373,7 @@ def render_prepared_static_plot(
             y,
             prepared.x_label,
             prepared.y_label,
-            spec.style,
+            style,
             title=prepared.title,
             histogram_1d=(
                 prepared.normalisation_result.histogram

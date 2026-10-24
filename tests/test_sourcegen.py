@@ -150,3 +150,37 @@ def test_bundle_python_source_rejects_unreconstructable_external_callables(
     monkeypatch.setattr(fake_internal_modules, "PATTERN", inspect.getsource, raising=True)
     with pytest.raises(SourceBundleError, match="Cannot reconstruct import"):
         bundle_python_source(fake_internal_modules.uses_pattern)
+
+
+def test_bundle_python_source_ignores_globals_used_only_in_annotations(
+    tmp_path, monkeypatch
+) -> None:
+    (tmp_path / "root_explorer_fake_annotations.py").write_text(
+        textwrap.dedent(
+            """
+            from __future__ import annotations
+
+            from collections.abc import Callable
+
+            Scale = Callable[[float], float]
+
+
+            def doubled(value: float, *factors: Scale) -> Scale:
+                result: Scale = lambda x: 2 * x * value
+                return result
+            """
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        module = importlib.import_module("root_explorer_fake_annotations")
+        # The typing alias appears only in annotations, which the generated
+        # script never evaluates, so it neither needs nor blocks bundling.
+        source = bundle_python_source(module.doubled)
+    finally:
+        sys.modules.pop("root_explorer_fake_annotations", None)
+    assert "\nScale =" not in source
+    namespace: dict[str, object] = {}
+    exec(compile(source, "bundle.py", "exec"), namespace)
+    assert namespace["doubled"](3.0)(1.0) == 6.0

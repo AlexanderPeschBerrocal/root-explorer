@@ -85,7 +85,8 @@ colour selector points this out. Prefer multiplicity or sum when every object
 should stay visible. Colour limits clip the colour mapping rather than
 remove points: values outside the limits use the end colours.
 If only one colour limit is entered for a 2D or 3D scatter plot, the other
-endpoint comes from the minimum or maximum of the plotted colour values. The
+endpoint comes from the minimum or maximum of all selected colour values, also
+when only a sample of the points is drawn. The
 resulting minimum must be smaller than the maximum; otherwise the plot is
 refused with a message that states the automatic range.
 

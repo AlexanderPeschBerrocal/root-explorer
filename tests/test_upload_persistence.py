@@ -107,3 +107,11 @@ def test_uploaded_root_keeps_plot_and_ranking_on_widget_reruns(root_path, monkey
     assert at.session_state["plot_result"]["figure"] is figure
     assert "rank_df" in at.session_state
     assert any("settings have changed" in info.value for info in at.info)
+
+
+def test_upload_suffix_is_sanitised_and_file_is_readable(upload_dir):
+    path = Path(store_uploaded_file(Upload("data.ro ot/../x", b"data")))
+    assert path.parent == upload_dir
+    assert path.suffix == ".root"
+    assert Path(store_uploaded_file(Upload("geometry.gdml", b"<gdml/>"))).suffix == ".gdml"
+    assert path.stat().st_mode & 0o777 == 0o644

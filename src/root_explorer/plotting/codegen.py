@@ -47,9 +47,10 @@ from .plots import (
     draw_kde_2d_overlay,
     draw_scatter_2d,
     finish_static_axes,
+    resolve_scatter_color_style,
     select_plot_values,
 )
-from .sourcegen import bundle_python_source, python_source_literal
+from .sourcegen import bundle_python_source, literal_dataclass_types, python_source_literal
 
 if TYPE_CHECKING:
     from ..app.plotting import PlotRequest
@@ -310,7 +311,7 @@ def build_static_plot_export_plan(spec: StaticPlotSpec) -> StaticPlotExportPlan:
     else:
         roots.append(downsample_arrays)
         if has_color:
-            roots.append(calculate_color_clipping)
+            roots.extend([calculate_color_clipping, resolve_scatter_color_style])
             roots.append(
                 draw_colored_scatter_2d_log if log_color else draw_colored_scatter_2d_linear
             )
@@ -350,7 +351,7 @@ def generate_static_plot_code(request: PlotRequest) -> str:
         raise ValueError(f"Plot-code download is not available for {request.plot_type!r}.")
 
     plan = build_static_plot_export_plan(request.to_static_spec())
-    helpers = bundle_python_source(*plan.helper_roots).rstrip()
+    helpers = bundle_python_source(*plan.helper_roots, *literal_dataclass_types(plan.spec)).rstrip()
     configuration = python_source_literal(plan.spec)
     main_lines = _main_lines(plan)
 
@@ -591,8 +592,11 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
 
     if spec.plot_type == "2D scatter":
         if plan.has_color:
-            lines.append(
-                "colorbar_extend = calculate_color_clipping(color, PLOT.style, weights).extend"
+            lines.extend(
+                [
+                    "colorbar_extend = calculate_color_clipping(color, PLOT.style, weights).extend",
+                    "scatter_style = resolve_scatter_color_style(PLOT.style, color)",
+                ]
             )
         else:
             lines.append("colorbar_extend = 'neither'")
@@ -747,7 +751,7 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
             [
                 f"{renderer}(",
                 "    figure, axes, x, y, color, x_label, y_label,",
-                "    PLOT.labels.get('custom_colorbar') or color_label, PLOT.style,",
+                "    PLOT.labels.get('custom_colorbar') or color_label, scatter_style,",
                 "    colorbar_extend=colorbar_extend,",
                 ")",
             ]

@@ -693,6 +693,12 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if supports_point_color(request.plot_type) and color is not None:
         color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
+    # Resolve a one-sided 3D colour range from all points before sampling them.
+    color_min, color_max = (
+        scatter_color_scale_linear(request.style, color)
+        if request.plot_type == "3D scatter interactive" and color is not None
+        else (None, None)
+    )
     value_count = len(x)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     sampling_note = _sampling_note(len(x), value_count)
@@ -715,9 +721,6 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if request.plot_type == "3D scatter interactive":
         if y is None or z is None:
             raise ValueError("3D scatter requires y and z variables.")
-        color_min, color_max = (
-            scatter_color_scale_linear(request.style) if color is not None else (None, None)
-        )
         figure = build_plotly_3d(
             x,
             y,

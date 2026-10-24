@@ -589,6 +589,22 @@ def scatter_color_scale_linear(
     return _complete_color_limits(cmin, cmax, color)
 
 
+def resolve_scatter_color_style(style: dict[str, Any], color: np.ndarray | None) -> dict[str, Any]:
+    """Complete a one-sided linear colour range from all plotted colour values.
+
+    Scatter plots may draw only a sample of the points, whose extremes can differ
+    from those of the full selection that the colour clipping summary describes.
+    """
+
+    if color is None or style.get("log_color", False):
+        return style
+    cmin, cmax = _scatter_color_limits(style)
+    if (cmin is None) == (cmax is None):
+        return style
+    lower, upper = _complete_color_limits(cmin, cmax, color)
+    return {**style, "color_min_text": repr(lower), "color_max_text": repr(upper)}
+
+
 def scatter_color_scale_log(color: np.ndarray, style: dict[str, Any]) -> LogNorm:
     """Validate and resolve logarithmic 2D-scatter colour normalization."""
 

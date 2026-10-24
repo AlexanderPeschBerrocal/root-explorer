@@ -1220,3 +1220,45 @@ def test_generated_scripts_have_no_undefined_names(tmp_path) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_one_sided_scatter_colour_limit_uses_all_points_when_sampling(root_path) -> None:
+    style = {
+        "fig_width": 8.0,
+        "fig_height": 6.0,
+        "marker_size_2d": 4.0,
+        "opacity_2d": 0.6,
+        "max_points": 1000,
+        "colorscale": "Viridis",
+        "reverse_colorscale": False,
+        "log_color": False,
+        "color_min_text": "",
+        "color_max_text": "",
+        "log_x": False,
+        "log_y": False,
+        "equal_aspect": False,
+        "grid": False,
+    }
+    request = _request(
+        root_path,
+        plot_type="2D scatter",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        y_spec=VariableSpec(mode="branch", branch="Muon_eta"),
+        color_spec=VariableSpec(mode="branch", branch="Muon_energy"),
+        style=style,
+    )
+    full_colour = prepare_static_plot(request.to_static_spec()).color
+    assert full_colour is not None
+    sample = np.sort(full_colour)[:-1]
+    # Draw only a sample that misses the largest colour value, then choose a
+    # minimum between the sample's and the full selection's maxima.
+    style["max_points"] = len(full_colour) - 1
+    style["color_min_text"] = repr(float((sample[-1] + full_colour.max()) / 2))
+    _, canonical_figure, generated_figure = _execute_export(request)
+    try:
+        for figure in (canonical_figure, generated_figure):
+            norm = figure.axes[0].collections[0].norm
+            assert norm.vmax == pytest.approx(float(full_colour.max()))
+    finally:
+        plt.close(canonical_figure)
+        plt.close(generated_figure)

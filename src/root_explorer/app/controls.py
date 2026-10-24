@@ -611,7 +611,8 @@ def fit_controls(
                 fields.append(value)
             values = [
                 _parse_fit_number(fields[0], f"{name} initial value"),
-                # Infinite bounds are valid and equivalent to leaving the field blank.
+                # Infinite bounds are valid and remove a bound, whereas a blank field
+                # keeps the model's default bound on that side.
                 _parse_fit_number(fields[1], f"{name} lower bound", allow_infinite=True),
                 _parse_fit_number(fields[2], f"{name} upper bound", allow_infinite=True),
             ]

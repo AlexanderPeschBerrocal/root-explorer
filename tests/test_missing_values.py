@@ -454,3 +454,22 @@ def test_per_event_reductions_of_crafted_collections(consistency_path) -> None:
     np.testing.assert_array_equal(values(mode="max"), [nan, -inf, 3, 5, -inf, 4])
     np.testing.assert_array_equal(values(mode="min"), [nan, inf, 1, 2, inf, -1])
     np.testing.assert_array_equal(values(mode="nth", index=1), [nan, nan, nan, nan, nan, -1])
+
+
+def test_single_event_reductions_do_not_use_the_entry_range_cache(root_path, monkeypatch) -> None:
+    from root_explorer.io import root as root_io
+
+    range_reads: list[tuple[object, ...]] = []
+    cached_read_field = root_io._cached_read_field
+
+    def recording_read_field(*args):
+        range_reads.append(args)
+        return cached_read_field(*args)
+
+    monkeypatch.setattr(root_io, "_cached_read_field", recording_read_field)
+    for mode in ("multiplicity", "nth", "sum", "mean", "max", "min"):
+        spec = VariableSpec(mode=mode, branch="Muon_pt")
+        for event in range(3):
+            evaluate_variable(spec, str(root_path), "Events", 0, 12, event)
+    # Stepping through events must not evict the Plotter's full-range reads.
+    assert range_reads == []

@@ -479,8 +479,8 @@ def store_uploaded_file(uploaded: UploadedFile) -> str:
     cached_path = stored_paths.get(file_id) if file_id is not None else None
     if cached_path is not None and Path(cached_path).is_file():
         return cached_path
-    suffix = Path(uploaded.name).suffix
-    if not suffix or len(suffix.encode()) > _UPLOAD_SUFFIX_BYTES:
+    suffix = "." + "".join(c for c in Path(uploaded.name).suffix[1:] if c.isalnum())
+    if suffix == "." or len(suffix.encode()) > _UPLOAD_SUFFIX_BYTES:
         suffix = ".root"
     data = uploaded.getbuffer()
     digest = hashlib.sha256(data).hexdigest()[:_UPLOAD_DIGEST_LENGTH]
@@ -495,6 +495,8 @@ def store_uploaded_file(uploaded: UploadedFile) -> str:
             with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as temporary:
                 temporary_path = Path(temporary.name)
                 temporary.write(data)
+            # NamedTemporaryFile is private (0600); publish with ordinary permissions.
+            temporary_path.chmod(0o644)
             try:
                 os.link(temporary_path, path)
             except FileExistsError:

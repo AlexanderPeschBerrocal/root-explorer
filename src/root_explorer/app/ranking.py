@@ -59,7 +59,8 @@ def render_event_selection(context: DataContext) -> int:
             "use absolute values",
             value=False,
             disabled=not uses_values,
-            help=None if uses_values else "Multiplicity counts objects and ignores their values.",
+            key="metric_abs",
+            help="Not used for multiplicity, which counts objects and ignores their values.",
         )
         metric_abs = metric_abs and uses_values
         threshold = None

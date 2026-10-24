@@ -265,3 +265,13 @@ def test_stored_variance_default_follows_later_weight_changes(root_path) -> None
     assert at.checkbox(key="plot_fit_variances").value is False
     assert not at.exception
     assert not any("Session State API" in warning.value for warning in at.warning)
+
+
+def test_ranking_absolute_value_choice_survives_multiplicity(root_path) -> None:
+    at = _app(root_path)
+    at.selectbox(key="metric_mode").select("sum").run()
+    at.checkbox(key="metric_abs").check().run()
+    at.selectbox(key="metric_mode").select("multiplicity").run()
+    assert at.checkbox(key="metric_abs").disabled
+    at.selectbox(key="metric_mode").select("sum").run()
+    assert at.checkbox(key="metric_abs").value is True

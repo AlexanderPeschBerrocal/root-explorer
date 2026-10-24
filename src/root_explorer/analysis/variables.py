@@ -14,7 +14,7 @@ from .arrays import (
     multiplicity_per_event,
     nth_per_event,
     read_aligned_branch_values,
-    read_for_scope,
+    read_per_event_input,
     reduce_per_event,
     safe_float_array,
 )
@@ -55,9 +55,7 @@ def _read_per_event_input(
     distinguishes a missing collection from a missing scalar.
     """
 
-    if event_index is not None:
-        entry_start, entry_stop = event_index, event_index + 1
-    return read_for_scope(path, tree_name, branch, entry_start, entry_stop, None)
+    return read_per_event_input(path, tree_name, branch, entry_start, entry_stop, event_index)
 
 
 def evaluate_multiplicity_variable(

@@ -65,6 +65,32 @@ def python_source_literal(value: Any) -> str:
     )
 
 
+def literal_dataclass_types(value: Any) -> list[type]:
+    """Return the dataclasses whose constructors ``python_source_literal(value)`` emits.
+
+    They must be bundled even when no helper refers to them outside annotations.
+    """
+
+    found: list[type] = []
+
+    def visit(item: Any) -> None:
+        if is_dataclass(item) and not isinstance(item, type):
+            if type(item) not in found:
+                found.append(type(item))
+            for field in fields(item):
+                visit(getattr(item, field.name))
+        elif isinstance(item, dict):
+            for key, entry in item.items():
+                visit(key)
+                visit(entry)
+        elif isinstance(item, (tuple, list, set, frozenset)):
+            for entry in item:
+                visit(entry)
+
+    visit(value)
+    return found
+
+
 def bundle_python_source(
     *roots: Any,
     package_prefix: str = "root_explorer",
@@ -133,6 +159,9 @@ def bundle_python_source(
             visit=visit,
         )
 
+        # Generated scripts use postponed annotations, so a name that appears only
+        # in annotations is bundled when possible but never blocks the export.
+        annotation_only = _annotation_only_names(tree)
         for name in _referenced_global_names(tree, module):
             dependency = module.__dict__[name]
             dependency_module = getattr(dependency, "__module__", "")
@@ -143,6 +172,8 @@ def bundle_python_source(
                 else:
                     import_source = import_map.get(name)
                     if import_source is None:
+                        if name in annotation_only:
+                            continue
                         raise SourceBundleError(
                             f"Cannot reconstruct import for global {name!r} in {module_name!r}."
                         )
@@ -151,6 +182,12 @@ def bundle_python_source(
 
             if isinstance(dependency, ModuleType):
                 import_source = import_map.get(name)
+                if name in annotation_only and (
+                    import_source is None
+                    or _is_internal_import(import_source, package_prefix)
+                    or dependency.__name__.startswith(forbidden_module_prefixes)
+                ):
+                    continue
                 if import_source is None:
                     raise SourceBundleError(
                         f"Cannot reconstruct import for module global {name!r} in {module_name!r}."
@@ -187,6 +224,8 @@ def bundle_python_source(
                     constants.append(f"{name} = {literal}")
                 continue
 
+            if name in annotation_only:
+                continue
             # Anything else would leave an undefined name in the standalone script.
             raise SourceBundleError(
                 f"Export helper {object_name!r} uses global {name!r} of type "
@@ -266,6 +305,27 @@ def _claim_name(
     emitted_names[name] = key
 
 
+def _annotation_nodes(tree: ast.AST) -> set[int]:
+    """Return the ids of nodes inside annotations, which are never evaluated."""
+
+    annotations: list[ast.expr] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            arguments = node.args
+            parameters = [
+                *arguments.posonlyargs,
+                *arguments.args,
+                *arguments.kwonlyargs,
+                *(argument for argument in (arguments.vararg, arguments.kwarg) if argument),
+            ]
+            annotations.extend(p.annotation for p in parameters if p.annotation is not None)
+            if node.returns is not None:
+                annotations.append(node.returns)
+        elif isinstance(node, ast.AnnAssign):
+            annotations.append(node.annotation)
+    return {id(child) for annotation in annotations for child in ast.walk(annotation)}
+
+
 def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
     loaded = {
         node.id
@@ -273,6 +333,15 @@ def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
     }
     return {name for name in loaded if name in module.__dict__ and not hasattr(builtins, name)}
+
+
+def _annotation_only_names(tree: ast.AST) -> set[str]:
+    """Return names that the source loads only inside annotations."""
+
+    in_annotations = _annotation_nodes(tree)
+    names = [node for node in ast.walk(tree) if isinstance(node, ast.Name)]
+    evaluated = {node.id for node in names if id(node) not in in_annotations}
+    return {node.id for node in names if node.id not in evaluated}
 
 
 def _module_import_map(module: ModuleType) -> dict[str, str]:

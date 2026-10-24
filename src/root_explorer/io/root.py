@@ -172,6 +172,9 @@ def remote_backend_message(path: str) -> str | None:
     return None
 
 
+_TRANSPORT_PACKAGES = ("aiohttp", "requests", "fsspec_xrootd", "fsspec-xrootd", "xrootd")
+
+
 @contextmanager
 def explain_missing_remote_backend(path: str) -> Iterator[None]:
     """Turn a missing transport package of a remote ``path`` into a clear error."""
@@ -182,7 +185,9 @@ def explain_missing_remote_backend(path: str) -> Iterator[None]:
         raise
     except ImportError as exc:
         message = remote_backend_message(path) if is_remote_source(path) else None
-        if message is None:
+        # Only relabel errors about a transport package, not unrelated imports.
+        mentioned = f"{exc.name or ''} {exc}".casefold()
+        if message is None or not any(name in mentioned for name in _TRANSPORT_PACKAGES):
             raise
         raise RemoteBackendUnavailableError(message) from exc
 
@@ -558,10 +563,10 @@ def _cached_read_field(
     return read_field_uncached(path, container_name, field_name, entry_start, entry_stop)
 
 
-def read_event_field_uncached(
+def read_event_range_uncached(
     path: str, container_name: str, field_name: str, event_index: int
-) -> Any:
-    """Read one event field without framework-specific caching."""
+) -> ak.Array:
+    """Read one event as a one-entry array, keeping the field's type."""
 
     container = None
     try:
@@ -576,22 +581,36 @@ def read_event_field_uncached(
         raise _field_read_error(
             path, container_name, container, field_name, f"event {event_index}", exc
         ) from exc
-    return arr[0]
+    return arr
 
 
-def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
-    return _cached_read_event_field(
+def read_event_field_uncached(
+    path: str, container_name: str, field_name: str, event_index: int
+) -> Any:
+    """Read one event field without framework-specific caching."""
+
+    return read_event_range_uncached(path, container_name, field_name, event_index)[0]
+
+
+def read_event_range(path: str, container_name: str, field_name: str, event_index: int) -> ak.Array:
+    # Single events have their own cache so that stepping through events does
+    # not evict the full-range reads of the Plotter and ranking.
+    return _cached_read_event_range(
         path, source_version(path), container_name, field_name, event_index
     )
 
 
+def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
+    return read_event_range(path, container_name, field_name, event_index)[0]
+
+
 @st.cache_data(show_spinner=False, max_entries=128)
-def _cached_read_event_field(
+def _cached_read_event_range(
     path: str, version: SourceVersion, container_name: str, field_name: str, event_index: int
-) -> Any:
+) -> ak.Array:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    return read_event_field_uncached(path, container_name, field_name, event_index)
+    return read_event_range_uncached(path, container_name, field_name, event_index)
 
 
 def is_probably_numeric_typename(typename: str) -> bool:

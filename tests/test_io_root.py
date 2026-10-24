@@ -397,3 +397,13 @@ def test_persisted_object_viewers_name_the_missing_remote_backend(monkeypatch) -
         load.clear()
         with pytest.raises(root_io.RemoteBackendUnavailableError, match="aiohttp and requests"):
             load(path, "h", ("remote", path, 0, 0))
+
+
+def test_unrelated_import_errors_of_remote_sources_are_not_reworded(monkeypatch) -> None:
+    def broken(opened_path):
+        raise ImportError("No module named 'cramjam'")
+
+    monkeypatch.setattr(root_io.uproot, "open", broken)
+    with pytest.raises(ImportError, match="cramjam") as error:
+        root_io.open_uproot_source("https://example.org/data.root")
+    assert not isinstance(error.value, root_io.RemoteBackendUnavailableError)
