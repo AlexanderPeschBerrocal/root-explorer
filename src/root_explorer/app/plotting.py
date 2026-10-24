@@ -778,7 +778,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         return {
             "kind": "matplotlib",
             "figure": figure,
-            "code": generate_static_plot_code(request),
+            "code": _safe_generate_plot_code(request, plot_warnings),
             "summary": summary,
             "preview": preview,
             "sampling_note": sampling_note,

@@ -382,3 +382,18 @@ def test_local_import_errors_are_not_reworded(monkeypatch, tmp_path) -> None:
     with pytest.raises(ImportError, match="compression codec missing") as error:
         root_io.open_uproot_source(str(path))
     assert not isinstance(error.value, root_io.RemoteBackendUnavailableError)
+
+
+def test_persisted_object_viewers_name_the_missing_remote_backend(monkeypatch) -> None:
+    from root_explorer.app import graph_viewer, histogram_viewer
+
+    def missing_backend(*args, **kwargs):
+        raise ImportError("No module named 'aiohttp'")
+
+    path = "https://example.org/objects.root"
+    monkeypatch.setattr(histogram_viewer, "read_histogram", missing_backend)
+    monkeypatch.setattr(graph_viewer, "read_graph", missing_backend)
+    for load in (histogram_viewer._cached_histogram, graph_viewer._cached_graph):
+        load.clear()
+        with pytest.raises(root_io.RemoteBackendUnavailableError, match="aiohttp and requests"):
+            load(path, "h", ("remote", path, 0, 0))

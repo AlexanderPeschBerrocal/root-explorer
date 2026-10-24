@@ -53,7 +53,7 @@ def render_field_browser(context: DataContext) -> None:
     column_config = {
         "structure": st.column_config.TextColumn(
             "structure",
-            help="Per-event shape: scalar, fixed-size, jagged, nested/record, or unsupported.",
+            help="Per-event shape: scalar, fixed-size, jagged, nested/record, unknown, or unsupported.",
         ),
         "dtype": st.column_config.TextColumn(
             "dtype",
@@ -298,7 +298,7 @@ def render_help_tab(context: DataContext) -> None:
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
 4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
-5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
+5. Click **Make plot** (shortcut **P**) or **Make event plot** (shortcut **Shift+P**) after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
 6. Titles and axis labels of static plots support math between dollar signs, for example `$p_T$ [GeV]`. Interactive 3D plots show labels literally.
 
 **Field badges, jagged collections, and cuts**
@@ -310,7 +310,7 @@ def render_help_tab(context: DataContext) -> None:
 - Histogram weights support the common HEP case where one event-level {item_name} such as `genWeight` should weight every plotted object from that event. Object-level weight {item_name}s are also supported when they already match the plotted values.
 
 **Detector geometry overlay**
-- Enable **3D detector overlay** in the sidebar and provide a `.gdml` file by path or upload.
+- Turn on **Enable 3D detector overlay** in the sidebar and provide a `.gdml` file by path or upload.
 - Geometry is drawn only on **3D scatter interactive** plots.
 - Use the geometry scale and offset controls if the ROOT coordinates and GDML geometry use different units or origins.
 - Keep the geometry vertex limits modest when exploring large detector descriptions.

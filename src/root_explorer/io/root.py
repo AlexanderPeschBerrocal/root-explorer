@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -171,16 +172,26 @@ def remote_backend_message(path: str) -> str | None:
     return None
 
 
-def open_uproot_source(path: str) -> Any:
-    """Open ``path`` with Uproot, naming the missing backend of a remote source."""
+@contextmanager
+def explain_missing_remote_backend(path: str) -> Iterator[None]:
+    """Turn a missing transport package of a remote ``path`` into a clear error."""
 
     try:
-        return uproot.open(path)
+        yield
+    except RemoteBackendUnavailableError:
+        raise
     except ImportError as exc:
         message = remote_backend_message(path) if is_remote_source(path) else None
         if message is None:
             raise
         raise RemoteBackendUnavailableError(message) from exc
+
+
+def open_uproot_source(path: str) -> Any:
+    """Open ``path`` with Uproot, naming the missing backend of a remote source."""
+
+    with explain_missing_remote_backend(path):
+        return uproot.open(path)
 
 
 def open_root_file(path: str) -> Any:

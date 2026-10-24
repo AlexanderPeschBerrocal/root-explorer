@@ -8,6 +8,7 @@ import numpy as np
 import streamlit as st
 
 from ..io.histograms import PersistedHistogram, UnsupportedHistogramError, read_histogram
+from ..io.root import RemoteBackendUnavailableError, explain_missing_remote_backend
 from ..io.source import SourceVersion, source_version
 from ..plotting.histograms import (
     HistogramPlotSpec,
@@ -35,7 +36,8 @@ def _cached_histogram(
     root_path: str, object_path: str, version: SourceVersion
 ) -> PersistedHistogram:
     """Load one histogram; ``version`` invalidates the cache when the file changes."""
-    return read_histogram(root_path, object_path)
+    with explain_missing_remote_backend(root_path):
+        return read_histogram(root_path, object_path)
 
 
 def render_histogram_controls(
@@ -51,7 +53,13 @@ def render_histogram_controls(
     try:
         version = source_version(root_path)
         data = _cached_histogram(root_path, object_path, version)
-    except (UnsupportedHistogramError, OSError, ValueError, KeyError) as exc:
+    except (
+        UnsupportedHistogramError,
+        RemoteBackendUnavailableError,
+        OSError,
+        ValueError,
+        KeyError,
+    ) as exc:
         discard_plot_result("root_histogram_result")
         st.warning(str(exc))
         return None
@@ -133,7 +141,7 @@ def render_histogram_controls(
             warnings = []
             try:
                 code = generate_histogram_plot_code(spec)
-            except (ValueError, TypeError, RuntimeError) as exc:
+            except (ValueError, TypeError, RuntimeError, OSError) as exc:
                 code = None
                 warnings.append(f"Plot-code export unavailable: {exc}")
             store_plot_result(
