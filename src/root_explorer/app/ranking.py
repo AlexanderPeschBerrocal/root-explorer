@@ -11,6 +11,15 @@ from .results import show_technical_details
 from .state import DataContext
 from .tables import render_dataframe
 
+RANKING_KEYS = ("rank_metric", "rank_settings", "rank_df", "rank_label")
+
+
+def clear_ranking() -> None:
+    """Discard the computed ranking and the table derived from it."""
+
+    for key in RANKING_KEYS:
+        st.session_state.pop(key, None)
+
 
 def render_event_selection(context: DataContext) -> int:
     """Render event index and ranking controls, returning the selected event."""
@@ -45,7 +54,14 @@ def render_event_selection(context: DataContext) -> int:
             ["multiplicity", "sum", "mean", "max", "min", "count_above", "count_below"],
             key="metric_mode",
         )
-        metric_abs = st.checkbox("use absolute values", value=False)
+        uses_values = metric_mode != "multiplicity"
+        metric_abs = st.checkbox(
+            "use absolute values",
+            value=False,
+            disabled=not uses_values,
+            help=None if uses_values else "Multiplicity counts objects and ignores their values.",
+        )
+        metric_abs = metric_abs and uses_values
         threshold = None
         if metric_mode in {"count_above", "count_below"}:
             threshold = st.number_input("threshold", value=0.0)
@@ -55,9 +71,12 @@ def render_event_selection(context: DataContext) -> int:
         )
         descending = st.checkbox("largest first", value=True)
         max_rank_rows = slider_or_number_input("rows", 5, 200, 10, key="rank_rows")
+        # Order and row count only re-sort the computed values; everything else
+        # requires reading the data again.
+        metric_settings = (metric_branch, metric_mode, metric_abs, threshold)
         if st.button("Compute ranking", key="rank_compute"):
             try:
-                events, values = compute_event_metric(
+                st.session_state["rank_metric"] = compute_event_metric(
                     context.root_path,
                     context.event_container_name,
                     metric_branch,
@@ -67,21 +86,24 @@ def render_event_selection(context: DataContext) -> int:
                     threshold,
                     metric_abs,
                 )
-                st.session_state["rank_df"] = metric_dataframe(
-                    events, values, descending, int(max_rank_rows)
-                )
-                metric_input = (
-                    f"|{metric_branch}|"
-                    if metric_abs and metric_mode != "multiplicity"
-                    else metric_branch
-                )
+                st.session_state["rank_settings"] = metric_settings
+                metric_input = f"|{metric_branch}|" if metric_abs else metric_branch
                 st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
             except Exception as exc:
                 # The previous ranking belongs to other settings and must not remain visible.
-                for key in ["rank_df", "rank_label"]:
-                    st.session_state.pop(key, None)
+                clear_ranking()
                 st.error(str(exc) if isinstance(exc, FieldReadError) else f"Ranking failed: {exc}")
                 show_technical_details(exc)
+        if "rank_metric" in st.session_state:
+            events, values = st.session_state["rank_metric"]
+            st.session_state["rank_df"] = metric_dataframe(
+                events, values, descending, int(max_rank_rows)
+            )
+            if st.session_state.get("rank_settings") != metric_settings:
+                st.info(
+                    "The metric settings have changed since this ranking was computed. "
+                    "Click **Compute ranking** to update it."
+                )
         if "rank_df" in st.session_state:
             st.write(f"Metric: **{st.session_state.get('rank_label', 'metric')}**")
             render_dataframe(st.session_state["rank_df"], height=220)

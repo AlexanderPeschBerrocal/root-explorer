@@ -7,14 +7,17 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from root_explorer.app.results import store_uploaded_file
+from root_explorer.app import results
+from root_explorer.app.results import UPLOAD_PATHS_KEY, store_uploaded_file
 from root_explorer.io.source import source_version
 
 
 class Upload:
-    def __init__(self, name, data):
+    def __init__(self, name, data, file_id=None):
         self.name = name
         self.data = data
+        if file_id is not None:
+            self.file_id = file_id
 
     def getbuffer(self):
         return memoryview(self.data)
@@ -35,6 +38,57 @@ def test_upload_is_written_once_and_recreated_if_removed(tmp_path, monkeypatch, 
     path.unlink()
     assert store_uploaded_file(upload) == str(path)
     assert path.read_bytes() == b"original data"
+
+
+@pytest.fixture
+def upload_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr("root_explorer.app.results.tempfile.gettempdir", lambda: str(tmp_path))
+    st.session_state.pop(UPLOAD_PATHS_KEY, None)
+    yield tmp_path / "root_explorer_uploads"
+    st.session_state.pop(UPLOAD_PATHS_KEY, None)
+
+
+@pytest.mark.parametrize("stem", ["a" * 250, "é" * 200])
+def test_long_upload_names_fit_the_filename_limit(upload_dir, stem):
+    path = Path(store_uploaded_file(Upload(f"{stem}.root", b"data")))
+    assert len(path.name.encode()) <= 160
+    assert path.suffix == ".root"
+    assert path.read_bytes() == b"data"
+
+
+def test_upload_is_published_without_hard_link_support(upload_dir, monkeypatch):
+    def no_links(source, destination):
+        raise PermissionError("hard links are not supported")
+
+    monkeypatch.setattr(results.os, "link", no_links)
+    path = Path(store_uploaded_file(Upload("data.root", b"data")))
+    assert path.read_bytes() == b"data"
+    assert list(upload_dir.iterdir()) == [path]
+
+
+def test_upload_is_hashed_once_per_file_id_and_recreated_if_removed(upload_dir, monkeypatch):
+    hashes = []
+    sha256 = results.hashlib.sha256
+
+    def counting_sha256(data):
+        hashes.append(len(data))
+        return sha256(data)
+
+    monkeypatch.setattr(results.hashlib, "sha256", counting_sha256)
+    upload = Upload("data.root", b"data", file_id="upload-1")
+    path = Path(store_uploaded_file(upload))
+    assert store_uploaded_file(upload) == str(path)
+    assert len(hashes) == 1
+
+    path.unlink()
+    assert store_uploaded_file(upload) == str(path)
+    assert path.read_bytes() == b"data"
+    assert len(hashes) == 2
+
+    # A different upload of the same name is hashed separately.
+    other = Path(store_uploaded_file(Upload("data.root", b"other", file_id="upload-2")))
+    assert other != path
+    assert len(hashes) == 3
 
 
 def test_uploaded_root_keeps_plot_and_ranking_on_widget_reruns(root_path, monkeypatch):

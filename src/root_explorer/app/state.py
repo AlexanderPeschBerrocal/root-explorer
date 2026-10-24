@@ -47,7 +47,11 @@ class DataContext:
 
 
 EventDataStatus = Literal[
-    "available", "no_event_containers", "empty_container", "unreadable_container"
+    "available",
+    "no_event_containers",
+    "empty_container",
+    "unreadable_container",
+    "invalid_entry_range",
 ]
 
 

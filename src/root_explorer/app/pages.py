@@ -12,7 +12,7 @@ from ..io.root import filter_root_objects
 from ..io.source import source_version
 from ..models import RootObjectInfo
 from .controls import field_structure_label
-from .results import collection_summary, discard_plot_result
+from .results import collection_summary, discard_plot_result, local_absolute_path
 from .state import DataContext
 
 
@@ -184,15 +184,22 @@ def render_root_objects_browser(
 
         if selected_info is None and candidates:
             candidate_paths = [info.qualified_path for info in candidates]
+            # Opening an object switches to the compact layout. The selector must not
+            # depend on the layout, and it starts at an opened object, so it keeps
+            # naming the object on display.
+            target_identity = (file_name, tuple(candidate_paths))
+            target_key = hashlib.sha256(repr(target_identity).encode("utf-8")).hexdigest()[:16]
+            opened_path = opened[1] if opened is not None else None
             fallback_path = st.selectbox(
                 "Object to inspect",
                 candidate_paths,
+                index=candidate_paths.index(opened_path) if opened_path in candidate_paths else 0,
                 format_func=lambda path: next(
                     f"{info.path} ({info.classname})"
                     for info in candidates
                     if info.qualified_path == path
                 ),
-                key=f"root_object_target_{selection_key}",
+                key=f"root_object_target_{target_key}",
                 help="Use this selector if clicking a row does not select it.",
             )
             selected_info = next(
@@ -239,19 +246,26 @@ def render_root_objects_browser(
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
+    # Exported plot scripts embed the ROOT path, so it must not be relative.
     if opened[2].startswith(("TH1", "TH2", "TH3", "TProfile")):
         from .histogram_viewer import render_histogram_controls, render_histogram_output
 
         with left:
             settings = render_histogram_controls(
-                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+                local_absolute_path(opened[0]),
+                opened[1],
+                opened[2],
+                shortcuts_enabled=shortcuts_enabled,
             )
         with right:
             render_histogram_output(settings)
     else:
         with left:
             settings = render_graph_controls(
-                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+                local_absolute_path(opened[0]),
+                opened[1],
+                opened[2],
+                shortcuts_enabled=shortcuts_enabled,
             )
         with right:
             render_graph_output(settings)

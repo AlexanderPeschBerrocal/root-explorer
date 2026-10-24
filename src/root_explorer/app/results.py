@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import math
 import os
 import tempfile
-from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from ..analysis.fitting import FitResult
 from ..analysis.histograms import HistogramNormalisationResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..io.root import FieldReadError
+from ..io.source import is_remote_source
 from ..models import FieldInfo
 from ..plotting.plots import (
     ColorClippingResult,
@@ -71,6 +73,38 @@ def discard_plot_result(result_key: str) -> None:
     close_plot_result(st.session_state.pop(result_key, None))
 
 
+def settings_equal(left: Any, right: Any) -> bool:
+    """Compare plot settings, treating NaN floats as equal to each other.
+
+    Invalid numeric text fields are stored as NaN. Ordinary equality would then
+    report every comparison as changed, so the outdated-plot notice would remain
+    even after the plot was remade with the same settings. Dataclasses, mappings
+    and sequences are compared recursively, descending only into unequal parts.
+    """
+
+    if left is right or left == right:
+        return True
+    if isinstance(left, float) and isinstance(right, float):
+        return math.isnan(left) and math.isnan(right)
+    if type(left) is not type(right):
+        return False
+    if dataclasses.is_dataclass(left) and not isinstance(left, type):
+        return all(
+            settings_equal(getattr(left, field.name), getattr(right, field.name))
+            for field in dataclasses.fields(left)
+            if field.compare
+        )
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            settings_equal(value, right[key]) for key, value in left.items()
+        )
+    if isinstance(left, list | tuple):
+        return len(left) == len(right) and all(
+            settings_equal(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return False
+
+
 def show_cached_plot_result(
     result_key: str,
     *,
@@ -96,7 +130,9 @@ def show_cached_plot_result(
         st.info(empty_message)
         return
 
-    if current_settings is not None and result.get("settings") != current_settings:
+    if current_settings is not None and not settings_equal(
+        result.get("settings"), current_settings
+    ):
         st.info(
             "The settings have changed since this plot was made. "
             f"Click **{make_plot_label}** or **press {make_plot_shortcut}** to update it."
@@ -412,29 +448,65 @@ def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field")
     return pd.DataFrame(rows)
 
 
+def local_absolute_path(path: str) -> str:
+    """Return ``path`` made absolute unless it names a remote source.
+
+    Exported plot scripts embed the ROOT path, so a path relative to the app's
+    working directory would break when the script runs from elsewhere.
+    """
+
+    return path if is_remote_source(path) else os.path.abspath(path)
+
+
+UPLOAD_PATHS_KEY = "uploaded_file_paths"
+# Byte limits keep stored names well below the common 255-byte filename limit.
+_UPLOAD_STEM_BYTES = 100
+_UPLOAD_SUFFIX_BYTES = 16
+# 128 bits of SHA-256 keep accidental collisions between uploads negligible.
+_UPLOAD_DIGEST_LENGTH = 32
+
+
 def store_uploaded_file(uploaded: UploadedFile) -> str:
     """Publish a content-addressed upload once, preserving its source identity.
 
     Streamlit supplies the same upload on every rerun. Rewriting it would change
     its mtime and invalidate every cached plot/ranking. Publish a complete file
     atomically so concurrent sessions cannot observe a partially written upload.
+    The stored path is remembered per upload, so large files are hashed once.
     """
-    suffix = Path(uploaded.name).suffix or ".root"
+    file_id = getattr(uploaded, "file_id", None)
+    stored_paths: dict[str, str] = st.session_state.setdefault(UPLOAD_PATHS_KEY, {})
+    cached_path = stored_paths.get(file_id) if file_id is not None else None
+    if cached_path is not None and Path(cached_path).is_file():
+        return cached_path
+    suffix = Path(uploaded.name).suffix
+    if not suffix or len(suffix.encode()) > _UPLOAD_SUFFIX_BYTES:
+        suffix = ".root"
     data = uploaded.getbuffer()
-    digest = hashlib.sha256(data).hexdigest()
+    digest = hashlib.sha256(data).hexdigest()[:_UPLOAD_DIGEST_LENGTH]
     temp_dir = Path(tempfile.gettempdir()) / "root_explorer_uploads"
     temp_dir.mkdir(parents=True, exist_ok=True)
-    path = temp_dir / f"{safe_filename(Path(uploaded.name).stem)}_{digest}{suffix}"
+    stem = safe_filename(Path(uploaded.name).stem)
+    stem = stem.encode()[:_UPLOAD_STEM_BYTES].decode(errors="ignore")
+    path = temp_dir / f"{stem}_{digest}{suffix}"
     if not path.exists():
         temporary_path = None
         try:
             with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as temporary:
                 temporary_path = Path(temporary.name)
                 temporary.write(data)
-            with suppress(FileExistsError):
-                # Another session may already have published the identical upload.
+            try:
                 os.link(temporary_path, path)
+            except FileExistsError:
+                # Another session has already published the identical upload.
+                pass
+            except OSError:
+                # Some filesystems do not support hard links. Replacing is also
+                # atomic and, for identical content, harmless if it races.
+                os.replace(temporary_path, path)
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
+    if file_id is not None:
+        stored_paths[file_id] = str(path)
     return str(path)

@@ -99,6 +99,8 @@ def main() -> None:
     with event_tab:
         if context.fields:
             event_index = render_event_selection(context)
-            render_event_plot_tab(context, geometry, event_index)
+            render_event_plot_tab(
+                context, geometry, event_index, shortcuts_enabled=bool(event_tab.open)
+            )
         else:
             st.info("This event container has no supported numeric fields to inspect or rank.")

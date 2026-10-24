@@ -74,6 +74,7 @@ from .controls import (
 )
 from .results import (
     discard_plot_result,
+    local_absolute_path,
     show_cached_plot_result,
     show_technical_details,
     store_plot_result,
@@ -108,7 +109,8 @@ class PlotRequest:
         """Return the shared Streamlit-independent configuration for static plots."""
 
         return StaticPlotSpec(
-            root_path=self.context.root_path,
+            # The exported script may run from another directory.
+            root_path=local_absolute_path(self.context.root_path),
             tree_name=self.context.event_container_name,
             entry_start=self.context.entry_start,
             entry_stop=self.context.entry_stop,
@@ -160,7 +162,13 @@ def render_plot_tab(
         _generate_and_show(request, make_plot, "plot_result", "plot_export")
 
 
-def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_index: int) -> None:
+def render_event_plot_tab(
+    context: DataContext,
+    geometry: GeometryState,
+    event_index: int,
+    *,
+    shortcuts_enabled: bool = True,
+) -> None:
     """Render controls and output for one selected event."""
 
     controls, output = st.columns([0.36, 0.64], gap="large")
@@ -177,6 +185,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
             default_opacity_2d=0.75,
             default_opacity_3d=0.75,
             file_name="root_explorer_event_plot",
+            shortcuts_enabled=shortcuts_enabled,
         )
     with output:
         st.subheader(f"Output: event {event_index}", anchor=False)

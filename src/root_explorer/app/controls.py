@@ -516,6 +516,23 @@ def histogram_weight_selector(
     )
 
 
+def _parse_fit_number(text: str, label: str, *, allow_infinite: bool = False) -> float | None:
+    """Parse an optional fit setting, warning inline about invalid text.
+
+    Invalid text becomes NaN, which the fit rejects with its own message, so a
+    mistyped setting can never silently fall back to an automatic value.
+    """
+
+    if not text.strip():
+        return None
+    value = parse_optional_float(text)
+    if value is None or math.isnan(value) or (not allow_infinite and not math.isfinite(value)):
+        requirement = "a number" if allow_infinite else "a finite number"
+        st.warning(f"{label} must be {requirement}. Correct it before plotting.")
+        return float("nan")
+    return value
+
+
 def fit_controls(
     prefix: str, plot_type: str, *, default_use_variances: bool = False
 ) -> FitConfig | None:
@@ -558,15 +575,10 @@ def fit_controls(
         with right:
             maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max", placeholder="Automatic")
 
-        def parse(value: str) -> float | None:
-            if not value.strip():
-                return None
-            try:
-                return float(value)
-            except ValueError:
-                return float("nan")
-
-        fit_range = (parse(minimum), parse(maximum))
+        fit_range = (
+            _parse_fit_number(minimum, "Fit minimum"),
+            _parse_fit_number(maximum, "Fit maximum"),
+        )
 
     initial = {}
     bounds = {}
@@ -587,16 +599,12 @@ def fit_controls(
                         placeholder=suffix.capitalize(),
                     )
                 fields.append(value)
-
-            def parse_parameter(value: str) -> float | None:
-                if not value.strip():
-                    return None
-                try:
-                    return float(value)
-                except ValueError:
-                    return float("nan")
-
-            values = [parse_parameter(value) for value in fields]
+            values = [
+                _parse_fit_number(fields[0], f"{name} initial value"),
+                # Infinite bounds are valid and equivalent to leaving the field blank.
+                _parse_fit_number(fields[1], f"{name} lower bound", allow_infinite=True),
+                _parse_fit_number(fields[2], f"{name} upper bound", allow_infinite=True),
+            ]
             if values[0] is not None:
                 initial[name] = values[0]
             if values[1] is not None or values[2] is not None:
@@ -646,7 +654,7 @@ def distribution_calculator_controls(
         max_value=100.0,
         value=50.0,
         step=1.0,
-        format="%.3g",
+        format="%.6g",
         key=f"{prefix}_quantile_percentile",
     )
     return None, float(percentile)
@@ -985,10 +993,19 @@ def export_controls(prefix: str, plot_kind: str, *, default_file_name: str) -> d
 
     st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
+    key = f"{prefix}_file_name"
+    default_key = f"{key}_default"
+    previous_default = st.session_state.get(default_key)
+    # A keyed widget ignores later changes to its default, e.g. the event number
+    # of a new event plot. Follow the default unless the user edited the name.
+    if key not in st.session_state or (
+        default_file_name != previous_default and st.session_state[key] == previous_default
+    ):
+        st.session_state[key] = default_file_name
+    st.session_state[default_key] = default_file_name
     controls["file_name"] = st.text_input(
         "Filename",
-        value=default_file_name,
-        key=f"{prefix}_file_name",
+        key=key,
         help="Name of the downloaded file; the file extension is added automatically.",
     )
     if plot_kind == "matplotlib":
