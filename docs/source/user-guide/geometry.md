@@ -20,8 +20,11 @@ plot as Plotly `Mesh3d` traces. Regenerate the plot after changing geometry
 settings. Parsed counts can exceed displayed counts because of filtering and
 drawing limits.
 
-Recognised GDML length units are converted to **millimetres** internally.
-An unrecognised length unit is treated as millimetres with a parser warning.
+Recognised GDML length units (`mm`, `cm`, `m`, `km`, `um`, `nm`, `angstrom`,
+`fermi`, `pc` and their long names such as `millimeter`) are converted to
+**millimetres** internally, and angle units (`rad`, `mrad`, `deg` and their long
+names) to radians. An unrecognised length unit is treated as millimetres, and an
+unrecognised angle unit as radians, with a parser warning.
 Use a geometry scale of **0.1** if the ROOT coordinates are in centimetres,
 or **0.001** for metres. Offsets are applied after scaling and must be in the
 plot coordinates' units. ROOT coordinate units are not detected automatically.
@@ -34,13 +37,14 @@ The parser provides a simplified visualisation, not a complete GDML implementati
 | --- | --- |
 | `box`, `tube`, `cutTube`, `cone` | Converted to triangle meshes; curved surfaces depend on mesh quality |
 | Units | Lengths without a unit are in mm and angles without a unit in radians, as in Geant4 |
-| Nested `physvol` placements | Inline numeric `position` and `rotation` elements and references to definitions are applied. As in Geant4, a placement rotation turns the volume by the inverse of the given rotation |
-| `union` | Combines operand meshes, including the second operand's inline or referenced transform, whose rotation is applied as given, as in Geant4; does not remove interior surfaces as a true Boolean union would |
-| `subtraction`, `intersection` | Approximated by the first operand, with a warning |
-| `positionref`, `rotationref` | Resolved from numeric `position` and `rotation` entries in `define`; unresolved references stop loading with an error |
+| Nested `physvol` placements | Inline numeric `position`, `rotation` and `scale` elements and references to definitions are applied. As in Geant4, a placement rotation turns the volume by the inverse of the given rotation, and a scale (including a reflection such as `z="-1"`) is applied before the rotation |
+| `union` | Combines operand meshes, including the first operand's `firstposition`/`firstrotation` and the second operand's `position`/`rotation` (inline or referenced), whose rotations are applied as given, as in Geant4; does not remove interior surfaces as a true Boolean union would |
+| `subtraction`, `intersection` | Approximated by the first operand, including its `firstposition`/`firstrotation`, with a warning |
+| `positionref`, `rotationref`, `scaleref` and the `first…ref` forms | Resolved from numeric `position`, `rotation` and `scale` entries in `define`; unresolved references stop loading with an error |
 | Constants and expressions in numeric attributes | Not evaluated; unparseable attributes of supported solids and transforms fall back to defaults with warnings |
-| Assemblies, replicas, divisions and parameterised placements | Not expanded as ordinary nested volumes; parser warnings identify these constructs |
-| Scale transforms, external geometry files and first-operand Boolean transforms | Not applied; parser warnings identify these constructs |
+| `assembly` | Expanded: its placements are positioned relative to the assembly's placement, including nested assemblies |
+| Replicas, divisions, parameterised placements (`replicavol`, `divisionvol`, `paramvol`) and physvol `file` references | Not expanded; a parser warning names the construct, and the mother volume is treated as a container |
+| Files that include other files through external XML entities (`<!ENTITY … SYSTEM "…">`) | Not loaded; an error asks you to merge the included files into one GDML file |
 | Other solid types | Skipped with warnings |
 
 An absence of warnings does **not** establish that a geometry is faithful.
@@ -70,9 +74,10 @@ mesh may omit structural detail; it should not be used as authoritative
 detector geometry for quantitative reconstruction.
 
 The parse vertex limit is a hard cap rounded down to complete triangles. A warning
-reports parsing truncation; a warning below a 3D plot reports display truncation.
-Cyclic solid or volume references and excessive volume nesting stop loading with
-an error. Changing mesh quality, inclusion flags or parsing limits marks an
+reports parsing truncation only when an object or triangle was actually left out;
+a warning below a 3D plot reports display truncation.
+Cyclic solid, volume or assembly references and volume nesting deeper than 256
+levels stop loading with an error. Changing mesh quality, inclusion flags or parsing limits marks an
 existing 3D plot as out of date; click **Make plot** to regenerate it.
 
 If you replace a GDML file at the same server path, the geometry is parsed

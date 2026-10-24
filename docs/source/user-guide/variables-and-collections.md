@@ -51,21 +51,21 @@ objects; they do not construct all pairs or match particles between collections.
 Plot axes likewise need matching structures; a scalar axis is not automatically
 repeated for a jagged axis.
 
-| Operation | Definition / convention |
+| Operation (selector label) | Definition / convention |
 | --- | --- |
-| Absolute value | $\lvert a\rvert$ |
-| 3D magnitude | $\sqrt{x^2+y^2+z^2}$ |
-| Transverse radius | $\sqrt{x^2+y^2}$ |
-| Azimuth from x/y | $\operatorname{atan2}(y,x)$, in radians |
-| Pseudorapidity from x/y/z | $\operatorname{asinh}(z/\sqrt{x^2+y^2})$; undefined at zero transverse radius |
-| Massless energy | $p_T\cosh(\eta)$, or $p_T\cosh(y)$ using rapidity |
-| Massive energy from pseudorapidity | $\sqrt{m^2+(p_T\cosh(\eta))^2}$ |
-| Massive energy from rapidity | $\sqrt{m^2+p_T^2}\cosh(y)$ |
-| Invariant mass from E/px/py/pz | $\sqrt{\max(E^2-p_x^2-p_y^2-p_z^2,0)}$; negative mass squared is clipped to zero |
-| Ratio / difference / sum / product | $a/b$, $a-b$, $a+b$, $ab$; division by zero gives `NaN` |
-| Delta phi | Wrapped $\phi_1-\phi_2$ in $(-\pi,\pi]$ |
-| Delta eta | $\eta_1-\eta_2$ |
-| Delta R | $\sqrt{(\Delta\eta)^2+(\Delta\phi)^2}$ using wrapped delta phi |
+| Absolute value (`\|A\|`) | $\lvert a\rvert$ |
+| 3D magnitude (`sqrt(A² + B² + C²)`) | $\sqrt{x^2+y^2+z^2}$ |
+| Transverse radius (`r = sqrt(x² + y²)`) | $\sqrt{x^2+y^2}$ |
+| Azimuth from x/y (`phi = atan2(y, x)`) | $\operatorname{atan2}(y,x)$, in radians |
+| Pseudorapidity from x/y/z (`eta = asinh(z / sqrt(x²+y²))`) | $\operatorname{asinh}(z/\sqrt{x^2+y^2})$; undefined at zero transverse radius |
+| Massless energy (`Energy (massless)`) | $p_T\cosh(\eta)$, or $p_T\cosh(y)$ using rapidity |
+| Massive energy (`Energy (with mass)`), longitudinal coordinate `eta (pseudorapidity)` | $\sqrt{m^2+(p_T\cosh(\eta))^2}$ |
+| Massive energy (`Energy (with mass)`), longitudinal coordinate `y (rapidity)` | $\sqrt{m^2+p_T^2}\cosh(y)$ |
+| Invariant mass from E/px/py/pz (`Invariant mass (single particle)`) | $\sqrt{\max(E^2-p_x^2-p_y^2-p_z^2,0)}$; negative mass squared is clipped to zero |
+| Ratio / difference / sum / product (`A / B`, `A - B`, `A + B`, `A * B`) | $a/b$, $a-b$, $a+b$, $ab$; division by zero gives `NaN` |
+| Delta phi (`delta phi`) | Wrapped $\phi_1-\phi_2$ in $(-\pi,\pi]$ |
+| Delta eta (`delta eta`) | $\eta_1-\eta_2$ |
+| Delta R (`delta R`) | $\sqrt{(\Delta\eta)^2+(\Delta\phi)^2}$ using wrapped delta phi |
 
 Use consistent momentum, mass and energy units; no unit conversion is performed.
 Angles are in radians. The invariant-mass mode operates on the supplied
@@ -99,7 +99,7 @@ Missing values are never replaced by zero.
 
 ## Cuts and weights
 
-Range cuts are combined with logical **AND**, with inclusive lower and upper
+Set **Number of cuts** (up to 20) to add range cuts. Range cuts are combined with logical **AND**, with inclusive lower and upper
 bounds (`minimum <= value <= maximum`). Leave a bound blank for an open end.
 An invalid or non-finite bound, or a minimum greater than the maximum, prevents
 plot generation until corrected; it never silently becomes an open bound.

@@ -17,7 +17,8 @@ After opening a ROOT file and selecting a TTree or RNTuple, use the **Plotter** 
 ROOT Explorer supports **1D histograms**, **2D histograms**, **2D scatter**, and
 **3D scatter interactive**. Interactive three-dimensional scatter plots can be
 combined with a GDML geometry overlay when a suitable geometry file and
-coordinates are available. Some options depend on the selected plot type.
+coordinates are available. Their **Aspect mode** (`data`, `cube` or `auto`) sets
+the proportions of the 3D axes. Some options depend on the selected plot type.
 
 A 1D histogram counts observations in bins (or accumulates weights if weighting is selected). The x-axis represents the selected variable. For jagged particle values, the plotted population may be **objects** rather than **events**; see [Variables and collections](variables-and-collections.md).
 
@@ -28,7 +29,7 @@ A 2D histogram bins paired values on two axes. A scatter plot shows individual p
 1. Choose the plot type.
 2. Select the x variable, plus y and z where required, choosing direct branches or supported derived/reduced modes.
 3. Configure any applicable cuts, weights, bin settings and plot style.
-4. Click **Make plot** to generate the output.
+4. Click **Make plot** (shortcut **P** while the Plotter tab is open) to generate the output.
 
 The **Style** and **Labels** sections, with figure size, axis scales and limits, grid, marker and colour settings, and title and label overrides, are collapsed by default; click a section to open it. Collapsing only hides the controls: their values stay active and are included in downloaded plot code. Everything that changes the plotted data or statistics, such as variables, cuts, weights, binning, normalisation and fits, stays visible.
 
@@ -83,8 +84,10 @@ objects of events whose collection is empty or too short, and a caption below th
 colour selector points this out. Prefer multiplicity or sum when every object
 should stay visible. Colour limits clip the colour mapping rather than
 remove points: values outside the limits use the end colours.
-For a 3D plot with only one colour limit entered, the other endpoint comes from
-the displayed sample. The resulting minimum must be smaller than the maximum.
+If only one colour limit is entered for a 2D or 3D scatter plot, the other
+endpoint comes from the minimum or maximum of the plotted colour values. The
+resulting minimum must be smaller than the maximum; otherwise the plot is
+refused with a message that states the automatic range.
 
 Static plots offer logarithmic scales where applicable. For scatter and
 event-derived 2D histograms, logarithmic coordinate axes require positive

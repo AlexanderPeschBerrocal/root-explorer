@@ -9,6 +9,10 @@ The export controls apply to the **last generated plot**, not to widget
 changes that have not been followed by **Make plot** (or **Make event plot**).
 The **Filename** field sets the name of the downloaded files; ROOT Explorer adds
 the file extension and replaces characters that are unsafe in filenames.
+Its default follows the latest plot: `root_explorer_plot` in the Plotter,
+`root_explorer_event_plot_3` for an event plot of entry 3, and `root_histogram`
+or `root_graph` for stored objects. A name you have typed yourself is kept when
+you make a new plot.
 
 ## Supported formats
 
@@ -35,15 +39,27 @@ configuration. It includes the chosen variables, labels, entry range,
 applicable cuts, binning, histogram flow, normalisation, fitting and KDE
 when those operations are enabled.
 
+When run, the script also prints the numbers the app shows for the enabled
+features before displaying the figure: the unit-area normalisation, the
+histogram flow summary (with manual histogram limits), the threshold and
+quantile calculator results, and the fit model, parameters with uncertainties,
+chi-squared or sum of squared residuals, degrees of freedom and fitted bins (or
+the reason a fit failed). Exports of stored histograms with a fit print the same
+fit summary. Infinite fit bounds are exported as `float('inf')`.
+
 Input paths and non-structural styles can be edited in the generated
 script. Regenerate it after changing plot type, variable modes, optional
 features or logarithmic axis settings; otherwise the script may no
 longer describe the current intended configuration. Inspect and execute
 downloaded analysis code in an appropriate trusted environment.
 
-Downloaded scripts may refer to the original ROOT file path. A path
+Downloaded scripts refer to the original ROOT file path; a relative local path
+is written as the corresponding absolute path on the server. A path
 inside a container or remote service is **not automatically valid**
 on your own computer: update it to a local file accessible to Python.
+Reading an `http(s)://` source from the script additionally requires the
+`aiohttp` and `requests` packages, and a `root://` source requires
+`fsspec-xrootd`.
 Uploads may appear as temporary paths on the server; keep a copy of the
 original ROOT file and replace that path in the script as well.
 
