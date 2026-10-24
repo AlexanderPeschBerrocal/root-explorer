@@ -177,7 +177,27 @@ def parse_rotation(el: ET.Element | None) -> Vec3:
     return (as_float(attrs, "x") * unit, as_float(attrs, "y") * unit, as_float(attrs, "z") * unit)
 
 
-def placement_matrix(physvol: ET.Element) -> Mat4:
+def transform_element(
+    parent: ET.Element, tag: str, definitions: dict[str, ET.Element] | None = None
+) -> ET.Element | None:
+    """Resolve an inline or named transform; never silently ignore a broken reference."""
+    inline = child_by_tag(parent, tag)
+    if inline is not None:
+        return inline
+    reference = child_by_tag(parent, f"{tag}ref")
+    if reference is None:
+        return None
+    name = reference.attrib.get("ref", "")
+    if definitions is None or name not in definitions:
+        raise ValueError(f"Missing GDML {tag} reference: {name}")
+    return definitions[name]
+
+
+def placement_matrix(
+    physvol: ET.Element,
+    positions: dict[str, ET.Element] | None = None,
+    rotations: dict[str, ET.Element] | None = None,
+) -> Mat4:
     """Return the transform that places a daughter volume in its mother.
 
     Like Geant4's GDML reader (G4GDMLReadStructure::PhysvolRead), the placement
@@ -187,8 +207,8 @@ def placement_matrix(physvol: ET.Element) -> Mat4:
     use the rotation as given (see SceneBuilder.solid_mesh).
     """
 
-    pos = parse_position(child_by_tag(physvol, "position"))
-    rx, ry, rz = parse_rotation(child_by_tag(physvol, "rotation"))
+    pos = parse_position(transform_element(physvol, "position", positions))
+    rx, ry, rz = parse_rotation(transform_element(physvol, "rotation", rotations))
     # (Rz Ry Rx)^-1 = Rx(-x) Ry(-y) Rz(-z)
     inverse = matmul(rotate_x(-rx), matmul(rotate_y(-ry), rotate_z(-rz)))
     return matmul(translate(*pos), inverse)
@@ -438,6 +458,9 @@ class SceneBuilder:
         default_factory=dict
     )
     stop_reason: str = ""
+    position_definitions: dict[str, ET.Element] = field(default_factory=dict)
+    rotation_definitions: dict[str, ET.Element] = field(default_factory=dict)
+    active_solids: set[tuple[str, int, str]] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.root = ET.parse(self.gdml_path).getroot()
@@ -449,6 +472,19 @@ class SceneBuilder:
             self.warnings.append(msg)
 
     def parse(self) -> None:
+        definitions = child_by_tag(self.root, "define")
+        if definitions is not None:
+            self.position_definitions = {
+                item.attrib["name"]: item
+                for item in children_by_tag(definitions, "position")
+                if "name" in item.attrib
+            }
+            self.rotation_definitions = {
+                item.attrib["name"]: item
+                for item in children_by_tag(definitions, "rotation")
+                if "name" in item.attrib
+            }
+        self.warn_unsupported_constructs()
         solids_el = child_by_tag(self.root, "solids")
         if solids_el is None:
             raise ValueError("No <solids> section found")
@@ -493,7 +529,51 @@ class SceneBuilder:
                 self.world_name = world_el.attrib.get("ref", "")
         if not self.world_name:
             # Fall back to the last volume if no setup exists.
+            if not self.volumes_by_name:
+                raise ValueError("No supported GDML volumes were found")
             self.world_name = next(reversed(self.volumes_by_name.keys()))
+
+    def warn_unsupported_constructs(self) -> None:
+        """Expose omissions and numeric fallbacks instead of implying full fidelity."""
+        unsupported = {
+            "assembly",
+            "replicavol",
+            "paramvol",
+            "divisionvol",
+            "file",
+            "scale",
+            "scaleref",
+            "firstposition",
+            "firstpositionref",
+            "firstrotation",
+            "firstrotationref",
+        }
+        numeric_tags = {"box", "tube", "cutTube", "cone", "position", "rotation"}
+        for element in self.root.iter():
+            tag = strip_namespace(element.tag)
+            if tag in unsupported:
+                self.warn(
+                    f"Unsupported GDML construct {tag!r}; geometry may be omitted or simplified."
+                )
+            if tag not in numeric_tags:
+                continue
+            for key, value in element.attrib.items():
+                if key == "name":
+                    continue
+                if key in {"unit", "lunit", "aunit"}:
+                    units = ANGLE_UNITS if tag == "rotation" or key == "aunit" else LEN_UNITS
+                    if value not in units:
+                        self.warn(f"Unknown {tag} unit {value!r}; using the default unit.")
+                    continue
+                try:
+                    number = float(value)
+                except ValueError:
+                    self.warn(
+                        f"Unevaluated {tag} attribute {key}={value!r}; using its default value."
+                    )
+                else:
+                    if not math.isfinite(number):
+                        raise ValueError(f"GDML {tag} attribute {key} must be finite")
 
     def select_solid(self, name: str, hint: int = 0) -> SolidDef | None:
         defs = self.solids_by_name.get(name)
@@ -526,11 +606,14 @@ class SceneBuilder:
         key = (solid_ref, hint, self.quality)
         if key in self.mesh_cache:
             return self.mesh_cache[key]
+        if key in self.active_solids:
+            raise ValueError(f"Cyclic GDML solid reference: {solid_ref}")
         solid = self.select_solid(solid_ref, hint)
         if solid is None:
             self.mesh_cache[key] = ([], "missing", solid_ref)
             return self.mesh_cache[key]
         tag = solid.tag
+        self.active_solids.add(key)
         attrs = solid.element.attrib
         if tag == "box":
             tris = make_box(attrs)
@@ -544,7 +627,6 @@ class SceneBuilder:
             first = child_by_tag(solid.element, "first")
             first_ref = first.attrib.get("ref", "") if first is not None else ""
             tris, subtype, _ = self.solid_mesh(first_ref, solid.seq)
-            # Apply the optional transform attached to the first boolean operand if present.
             # For subtraction, this visualizer approximates the result by the minuend mesh.
             if tag != "union":
                 self.warn(
@@ -554,25 +636,43 @@ class SceneBuilder:
                 second = child_by_tag(solid.element, "second")
                 second_ref = second.attrib.get("ref", "") if second is not None else ""
                 tris2, _, _ = self.solid_mesh(second_ref, solid.seq)
-                pos = parse_position(child_by_tag(solid.element, "position"))
-                rot = parse_rotation(child_by_tag(solid.element, "rotation"))
+                pos = parse_position(
+                    transform_element(solid.element, "position", self.position_definitions)
+                )
+                rot = parse_rotation(
+                    transform_element(solid.element, "rotation", self.rotation_definitions)
+                )
                 tris = tris + transform_mesh(tris2, matmul(translate(*pos), euler_xyz(*rot)))
             tag = f"{tag}/{subtype}"
         else:
             tris = []
             self.warn(f"Unsupported solid type {tag!r} for {solid.name}#{solid.seq}")
         self.mesh_cache[key] = (tris, tag, solid.name)
+        self.active_solids.remove(key)
         return self.mesh_cache[key]
 
-    def traverse(self, volume: VolumeDef, matrix: Mat4, path: str, depth: int = 0) -> None:
+    def traverse(
+        self,
+        volume: VolumeDef,
+        matrix: Mat4,
+        path: str,
+        depth: int = 0,
+        ancestors: frozenset[tuple[str, int]] = frozenset(),
+    ) -> None:
+        identity_key = (volume.name, volume.seq)
+        if identity_key in ancestors:
+            raise ValueError(f"Cyclic GDML volume reference: {volume.name}")
+        if depth >= 256:
+            raise ValueError("GDML volume nesting exceeds the supported depth of 256")
+        ancestors = ancestors | {identity_key}
         physvols = children_by_tag(volume.element, "physvol")
         render_this = True
-        if volume.name == self.world_name and not self.include_world:
-            render_this = False
-        if physvols and not self.include_containers:
+        if volume.name == self.world_name:
+            render_this = self.include_world
+        elif physvols and not self.include_containers:
             # GDML container volumes often use air/vacuum and obscure the leaf detector volumes.
             render_this = False
-        if volume.material in {"Galactic", "G4_Galactic"} and not self.include_containers:
+        elif volume.material in {"Galactic", "G4_Galactic"} and not self.include_containers:
             render_this = False
 
         if render_this:
@@ -595,17 +695,19 @@ class SceneBuilder:
             ref = vr.attrib.get("ref", "")
             occ = ref_seen.get(ref, 0)
             ref_seen[ref] = occ + 1
-            child_matrix = matmul(matrix, placement_matrix(pv))
+            child_matrix = matmul(
+                matrix, placement_matrix(pv, self.position_definitions, self.rotation_definitions)
+            )
             child_defs = self.select_volume(ref, occ, ref_totals.get(ref, 1))
             pv_name = pv.attrib.get("name", ref)
             for child in child_defs:
                 child_path = f"{path}/{pv_name}:{child.name}#{child.seq}"
-                self.traverse(child, child_matrix, child_path, depth + 1)
+                self.traverse(child, child_matrix, child_path, depth + 1, ancestors)
                 if (
                     len(self.objects) >= self.max_objects
                     or len(self.positions) // 3 >= self.max_vertices
                 ):
-                    self.stop_reason = f"Stopped at {len(self.objects)} objects / {len(self.positions) // 3} vertices. Increase --max-objects or --max-vertices for more."
+                    self.stop_reason = f"Stopped at {len(self.objects)} objects / {len(self.positions) // 3} vertices. Increase the geometry parse limits for more."
                     return
 
     def add_volume_mesh(self, volume: VolumeDef, matrix: Mat4, path: str) -> None:
@@ -620,6 +722,9 @@ class SceneBuilder:
         local_min = [float("inf"), float("inf"), float("inf")]
         local_max = [float("-inf"), float("-inf"), float("-inf")]
         for tri in tris:
+            if len(self.ids) + 3 > self.max_vertices:
+                self.stop_reason = f"Stopped at {len(self.ids)} vertices. Increase the geometry vertex parse limit for more."
+                break
             for p in tri:
                 tp = transform_point(matrix, p)
                 for k in range(3):

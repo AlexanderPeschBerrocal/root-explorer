@@ -531,6 +531,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
                 "    log_x=bool(PLOT.style.get('log_x', False)),",
                 ")",
                 "histogram_counts = plot_histogram.values()",
+                "if flow_mode == 'separate' and flow_summary is not None:",
+                "    histogram_counts = np.append(histogram_counts, [flow_summary.underflow_sumw, flow_summary.overflow_sumw])",
                 "histogram_edges = histogram_1d.axes[0].edges",
             ]
         )

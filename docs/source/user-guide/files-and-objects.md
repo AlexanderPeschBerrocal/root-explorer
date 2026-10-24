@@ -23,6 +23,11 @@ A typical NanoAOD-like `Events` tree has scalar event branches such as `MET_pt` 
 
 Use the tab containing event-container fields to inspect names, types and per-entry structure. ROOT Explorer distinguishes scalars, fixed-size fields, jagged fields and nested/record structures; not every source type is directly plottable.
 
+Variable selectors exclude fields known to contain strings or record objects.
+If a non-empty container has no supported numeric fields, its metadata and ROOT
+objects remain browseable; the Plotter and Event inspection explain why plotting
+and ranking are unavailable.
+
 ## Browse stored ROOT objects
 
 Use the **ROOT objects** browser to view objects and their directory paths without immediately loading all their contents. Search/filter the catalogue, select an inspectable object and click **Open selected object**. The fallback **Object to inspect** selector can be used when browser row selection is unavailable.

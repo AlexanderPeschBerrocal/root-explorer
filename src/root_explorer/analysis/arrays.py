@@ -183,7 +183,17 @@ def multiplicity_per_event(arr: Any) -> np.ndarray:
             return np.array([], dtype=float)
 
 
+def require_scalar_collection(arr: Any, operation: str) -> None:
+    """Do not turn a reduction of nested vectors into several values per event."""
+    if ak.to_layout(ak.Array(arr)).purelist_depth > 2:
+        raise ArrayShapeMismatchError(
+            f"{operation} requires a scalar or a collection of scalars in each event. "
+            "The selected field contains nested lists; choose a scalar leaf field instead."
+        )
+
+
 def nth_per_event(arr: Any, index: int) -> np.ndarray:
+    require_scalar_collection(arr, "nth object per event")
     try:
         selected = ak.pad_none(arr, index + 1, axis=1)[:, index]
         return np.asarray(ak.to_numpy(ak.fill_none(selected, np.nan))).astype(float)
@@ -195,6 +205,7 @@ def nth_per_event(arr: Any, index: int) -> np.ndarray:
 
 
 def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
+    require_scalar_collection(arr, f"{mode} per event")
     try:
         values = ak.values_astype(arr, np.float64)
         if mode == "sum":

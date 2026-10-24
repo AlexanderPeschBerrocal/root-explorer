@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -55,18 +56,18 @@ def slider_or_number_input(
     widget_column, button_column = st.columns([1, 0.1], vertical_alignment="bottom", gap="small")
     with widget_column:
         widget_key = input_key if typed else key
-        # Pass the default only on first creation to avoid Streamlit's warning about
-        # setting a widget value both as a default and through session state.
-        initial = {} if widget_key in st.session_state else {"value": value}
+        # Keep the widget default constant on every render. Omitting it after
+        # the first render resets the browser slider to its minimum even when
+        # Python-side session state still holds the user's selection.
         widget = st.number_input if typed else st.slider
         result = widget(
             label,
             min_value=min_value,
             max_value=max_value,
+            value=value,
             step=step,
             key=widget_key,
             help=help,
-            **initial,
         )
     with button_column:
         st.button(
@@ -700,10 +701,16 @@ def range_cut_controls(
             )
             lo_value = parse_optional_float(lo)
             hi_value = parse_optional_float(hi)
-            if str(lo).strip() and lo_value is None:
-                st.warning(f"Cut {i + 1} min is not a valid number and will be ignored.")
-            if str(hi).strip() and hi_value is None:
-                st.warning(f"Cut {i + 1} max is not a valid number and will be ignored.")
+            if str(lo).strip() and (lo_value is None or not math.isfinite(lo_value)):
+                st.warning(
+                    f"Cut {i + 1} minimum must be a finite number. Correct it before plotting."
+                )
+                lo_value = float("nan")
+            if str(hi).strip() and (hi_value is None or not math.isfinite(hi_value)):
+                st.warning(
+                    f"Cut {i + 1} maximum must be a finite number. Correct it before plotting."
+                )
+                hi_value = float("nan")
             cut_bounds.append((lo_value, hi_value))
     return cut_specs, cut_bounds
 

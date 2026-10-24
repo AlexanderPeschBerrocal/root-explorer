@@ -79,6 +79,10 @@ def test_slider_settings_can_switch_to_number_input_and_back(root_path) -> None:
     at = _load_root_file(make_app_test(), root_path)
     assert at.slider(key="plot_bins").value == 100
     assert not any(widget.key == "plot_bins_input" for widget in at.number_input)
+    slider_default = list(at.slider(key="plot_bins").proto.default)
+    at.run()
+    assert list(at.slider(key="plot_bins").proto.default) == slider_default
+    assert at.slider(key="plot_bins").value == 100
 
     at.slider(key="plot_bins").set_value(250).run()
     at.button(key="plot_bins_toggle").click().run()

@@ -74,13 +74,19 @@ def calculate_threshold_result(
             weighted=False,
         )
 
-    total_weight = float(np.sum(selected_weights))
-    below_weight = float(np.sum(selected_weights[below]))
-    above_weight = float(np.sum(selected_weights[above]))
-    rounding_tolerance = 8.0 * np.finfo(float).eps * float(np.sum(np.abs(selected_weights)))
-    zero_total_weight = abs(total_weight) <= rounding_tolerance
-    below_fraction = None if zero_total_weight else below_weight / total_weight
-    above_fraction = None if zero_total_weight else above_weight / total_weight
+    scale = float(np.max(np.abs(selected_weights))) if total_count else 0.0
+    relative = selected_weights / scale if scale else selected_weights
+    total = float(np.sum(relative))
+    below_total = float(np.sum(relative[below]))
+    above_total = float(np.sum(relative[above]))
+    with np.errstate(over="ignore"):
+        total_weight = float(np.float64(scale) * total)
+        below_weight = float(np.float64(scale) * below_total)
+        above_weight = float(np.float64(scale) * above_total)
+    rounding_tolerance = 8.0 * np.finfo(float).eps * float(np.sum(np.abs(relative)))
+    zero_total_weight = abs(total) <= rounding_tolerance
+    below_fraction = None if zero_total_weight else below_total / total
+    above_fraction = None if zero_total_weight else above_total / total
     return ThresholdResult(
         threshold=float(threshold),
         total_count=total_count,
@@ -143,7 +149,8 @@ def calculate_quantile_result(
             False,
         )
 
-    total_weight = float(np.sum(selected_weights))
+    with np.errstate(over="ignore"):
+        total_weight = float(np.sum(selected_weights))
     has_negative_weights = bool(np.any(selected_weights < 0))
     if has_negative_weights or total_weight <= 0:
         return QuantileResult(
@@ -155,12 +162,19 @@ def calculate_quantile_result(
             has_negative_weights=has_negative_weights,
         )
 
-    order = np.argsort(selected_values)
-    sorted_values = selected_values[order]
-    sorted_weights = selected_weights[order]
+    # Zero-weight observations carry no probability, including at the endpoints.
+    # Scale before summing so quantiles are independent of the weight units.
+    positive = selected_weights > 0
+    positive_values = selected_values[positive]
+    positive_weights = selected_weights[positive]
+    order = np.argsort(positive_values)
+    sorted_values = positive_values[order]
+    sorted_weights = positive_weights[order] / np.max(positive_weights)
     cumulative = np.cumsum(sorted_weights)
-    target = percentile / 100.0 * total_weight
+    target = percentile / 100.0 * cumulative[-1]
     index = int(np.searchsorted(cumulative, target, side="left"))
+    if percentile == 100:
+        index = len(sorted_values) - 1
     index = min(index, len(sorted_values) - 1)
     return QuantileResult(
         percentile,

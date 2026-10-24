@@ -337,3 +337,72 @@ def test_parse_limits_stop_with_a_warning(tmp_path) -> None:
     scene = _scene(tmp_path, CONTAINERS, max_objects=1)
     assert scene["meta"]["objects"] == 1
     assert any(warning.startswith("Stopped at 1 objects") for warning in scene["meta"]["warnings"])
+
+
+@pytest.mark.parametrize("limit", [3, 10, 35])
+def test_geometry_vertex_limit_is_a_hard_triangle_aligned_cap(tmp_path, limit):
+    scene = _scene(tmp_path, _single('<box name="shape" x="2" y="2" z="2"/>'), max_vertices=limit)
+    assert scene["meta"]["vertices"] == limit - limit % 3
+    assert scene["meta"]["warnings"]
+
+
+def test_world_can_be_enabled_without_enabling_other_containers(tmp_path):
+    scene = _scene(tmp_path, CONTAINERS, include_world=True)
+    assert {obj["volume"] for obj in scene["objects"]} == {"World", "Leaf", "AirGap"}
+
+
+def test_referenced_position_and_rotation_match_inline_placement(tmp_path):
+    text = _single(
+        '<box name="shape" x="2" y="4" z="6"/>',
+        placement='<positionref ref="shift"/><rotationref ref="turn"/>',
+    )
+    text = text.replace(
+        "<solids>",
+        '<define><position name="shift" x="2" unit="cm"/>'
+        '<rotation name="turn" z="90" unit="deg"/></define><solids>',
+    )
+    scene = _scene(tmp_path, text)
+    np.testing.assert_allclose(_bbox(_vertices(scene)), [18, -1, -3, 22, 1, 3], atol=ATOL)
+    assert not scene["meta"]["warnings"]
+
+
+def test_boolean_union_resolves_referenced_transform(tmp_path):
+    text = _single(
+        '<box name="a" x="2" y="2" z="2"/>'
+        '<union name="shape"><first ref="a"/><second ref="a"/><positionref ref="shift"/></union>'
+    )
+    text = text.replace("<solids>", '<define><position name="shift" x="10"/></define><solids>')
+    np.testing.assert_allclose(
+        _bbox(_vertices(_scene(tmp_path, text))), [-1, -1, -1, 11, 1, 1], atol=ATOL
+    )
+
+
+def test_missing_transform_reference_fails_instead_of_misplacing_geometry(tmp_path):
+    with pytest.raises(ValueError, match="Missing GDML position reference"):
+        _scene(
+            tmp_path,
+            _single(
+                '<box name="shape" x="2" y="2" z="2"/>', placement='<positionref ref="absent"/>'
+            ),
+        )
+
+
+def test_cyclic_geometry_references_fail_with_context(tmp_path):
+    text = _single('<box name="shape" x="2" y="2" z="2"/>')
+    with pytest.raises(ValueError, match="Cyclic GDML volume"):
+        _scene(tmp_path, text.replace('<volumeref ref="Shape"/>', '<volumeref ref="World"/>'))
+    with pytest.raises(ValueError, match="Cyclic GDML solid"):
+        _scene(
+            tmp_path,
+            _single('<union name="shape"><first ref="shape"/><second ref="shape"/></union>'),
+        )
+
+
+def test_unsupported_geometry_and_numeric_fallbacks_warn(tmp_path):
+    text = _single(
+        '<box name="shape" x="width" y="2" z="2" lunit="unknown"/>', placement='<scale x="2"/>'
+    )
+    warnings = _scene(tmp_path, text)["meta"]["warnings"]
+    assert any("Unevaluated box attribute" in warning for warning in warnings)
+    assert any("Unknown box unit" in warning for warning in warnings)
+    assert any("Unsupported GDML construct 'scale'" in warning for warning in warnings)

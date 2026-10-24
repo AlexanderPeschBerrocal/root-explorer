@@ -157,3 +157,25 @@ def test_weighted_summary_is_invariant_under_extreme_weight_scaling(scale, weigh
     for key in ("N_eff", "weighted mean", "weighted std"):
         assert actual[key] == pytest.approx(expected[key], nan_ok=True)
     assert actual["sum of weights"] / scale == pytest.approx(expected["sum of weights"])
+
+
+@pytest.mark.parametrize("percentile", [0, 50, 100])
+def test_zero_weight_observations_do_not_set_quantile_endpoints(percentile):
+    result = calculate_quantile_result(
+        np.array([-10.0, 5.0, 100.0]), percentile, np.array([0.0, 1.0, 0.0])
+    )
+    assert result.value == 5.0
+
+
+@pytest.mark.parametrize("scale", [1e-308, 1.0, 1e308])
+@pytest.mark.parametrize(("percentile", "expected"), [(0, 0.0), (50, 10.0), (100, 20.0)])
+def test_weighted_quantiles_are_invariant_to_weight_scale(scale, percentile, expected):
+    result = calculate_quantile_result(np.array([0.0, 10.0, 20.0]), percentile, np.full(3, scale))
+    assert result.value == expected
+
+
+@pytest.mark.parametrize("scale", [1e-308, 1.0, 1e308])
+def test_threshold_fractions_are_invariant_to_weight_scale(scale):
+    result = calculate_threshold_result(np.array([0.0, 1.0]), 0.5, np.full(2, scale))
+    assert result.below_fraction == pytest.approx(0.5)
+    assert result.above_fraction == pytest.approx(0.5)

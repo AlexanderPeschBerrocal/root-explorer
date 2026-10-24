@@ -192,9 +192,6 @@ def make_geometry_plotly_traces(
                 material_rgba[material] = material_color(material)
         shown_objects += 1
         shown_vertices += len(pts)
-        if shown_vertices >= max_vertices:
-            truncated = True
-            break
 
     traces: list[go.BaseTraceType] = []
     for material, chunks in by_material.items():
@@ -280,8 +277,6 @@ def overlay_geometry_on_plotly(
         ),
         wireframe=bool(options.get("wireframe", False)),
     )
-    if not traces:
-        return fig
     new_fig = go.Figure(data=[*traces, *list(fig.data)], layout=fig.layout)
     new_fig.update_layout(legend={"itemsizing": "constant"})
     base_meta = fig.layout.meta if isinstance(fig.layout.meta, dict) else {}

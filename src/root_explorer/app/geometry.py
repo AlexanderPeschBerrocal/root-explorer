@@ -124,6 +124,11 @@ def render_geometry_sidebar() -> GeometryState:
         source=(geometry_path, version),
         options={
             "enabled": True,
+            "quality": quality,
+            "include_containers": bool(include_containers),
+            "include_world": bool(include_world),
+            "parse_max_objects": int(max_objects),
+            "parse_max_vertices": int(max_vertices),
             "materials": selected_materials,
             "opacity": float(opacity),
             "scale": float(scale),

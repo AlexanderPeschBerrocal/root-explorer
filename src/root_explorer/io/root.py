@@ -198,7 +198,8 @@ def get_entry_count(path: str, container_name: str) -> int:
 def _cached_get_entry_count(path: str, version: SourceVersion, container_name: str) -> int:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    return int(uproot.open(path)[container_name].num_entries)
+    with uproot.open(path) as root_file:
+        return int(root_file[container_name].num_entries)
 
 
 def split_collection(field_name: str) -> tuple[str, str]:
@@ -379,44 +380,44 @@ def _cached_get_field_info(
 ) -> list[FieldInfo]:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    f = uproot.open(path)
-    container = f[container_name]
-    field_names = container.keys()
-    try:
-        typenames = dict(container.typenames())
-    except Exception:
-        typenames = {}
-
-    info: list[FieldInfo] = []
-    for name in field_names:
-        description = None
-        structure: FieldStructure = "unknown"
-        dtype = "unknown"
-        fixed_shape: tuple[int, ...] = ()
+    with uproot.open(path) as f:
+        container = f[container_name]
+        field_names = container.keys()
         try:
-            field_object = container[name]
-            typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
-            interpretation = str(getattr(field_object, "interpretation", "RField"))
-            description = source_field_description(field_object, name)
-            structure, dtype, fixed_shape = field_structure_metadata(field_object, typename)
+            typenames = dict(container.typenames())
         except Exception:
-            typename = "unknown"
-            interpretation = "unknown"
-        collection, field = split_collection(name)
-        info.append(
-            FieldInfo(
-                name,
-                typename,
-                interpretation,
-                collection,
-                field,
-                description,
-                structure,
-                dtype,
-                fixed_shape,
+            typenames = {}
+
+        info: list[FieldInfo] = []
+        for name in field_names:
+            description = None
+            structure: FieldStructure = "unknown"
+            dtype = "unknown"
+            fixed_shape: tuple[int, ...] = ()
+            try:
+                field_object = container[name]
+                typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
+                interpretation = str(getattr(field_object, "interpretation", "RField"))
+                description = source_field_description(field_object, name)
+                structure, dtype, fixed_shape = field_structure_metadata(field_object, typename)
+            except Exception:
+                typename = "unknown"
+                interpretation = "unknown"
+            collection, field = split_collection(name)
+            info.append(
+                FieldInfo(
+                    name,
+                    typename,
+                    interpretation,
+                    collection,
+                    field,
+                    description,
+                    structure,
+                    dtype,
+                    fixed_shape,
+                )
             )
-        )
-    return info
+        return info
 
 
 class FieldReadError(OSError):
@@ -467,11 +468,11 @@ def read_field_uncached(
 
     container = None
     try:
-        f = uproot.open(path)
-        container = f[container_name]
-        arr: ak.Array = container[field_name].array(
-            library="ak", entry_start=entry_start, entry_stop=entry_stop
-        )
+        with uproot.open(path) as f:
+            container = f[container_name]
+            arr: ak.Array = container[field_name].array(
+                library="ak", entry_start=entry_start, entry_stop=entry_stop
+            )
     except Exception as exc:
         raise _field_read_error(
             path,
@@ -513,11 +514,13 @@ def read_event_field_uncached(
 
     container = None
     try:
-        f = uproot.open(path)
-        container = f[container_name]
-        arr = container[field_name].array(
-            library="ak", entry_start=event_index, entry_stop=event_index + 1
-        )
+        with uproot.open(path) as f:
+            container = f[container_name]
+            arr = container[field_name].array(
+                library="ak", entry_start=event_index, entry_stop=event_index + 1
+            )
+            if event_index < 0 or len(arr) != 1:
+                raise IndexError(f"Event index {event_index} is outside the container")
     except Exception as exc:
         raise _field_read_error(
             path, container_name, container, field_name, f"event {event_index}", exc
@@ -548,8 +551,17 @@ def is_probably_numeric_typename(typename: str) -> bool:
 
 
 def numeric_fields(field_info: list[FieldInfo]) -> list[str]:
-    numeric = [field.name for field in field_info if is_probably_numeric_typename(field.typename)]
-    return numeric or [field.name for field in field_info]
+    """Prefer schema metadata; never offer known strings or record objects as numbers."""
+    return [
+        field.name
+        for field in field_info
+        if field.structure != "unsupported"
+        and field.dtype != "record"
+        and (
+            is_probably_numeric_typename(field.dtype)
+            or is_probably_numeric_typename(field.typename)
+        )
+    ]
 
 
 def field_choices(fields: list[str], query: str = "") -> list[str]:

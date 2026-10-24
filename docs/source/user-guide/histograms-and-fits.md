@@ -87,6 +87,11 @@ sorted value whose cumulative weight reaches the requested fraction, without
 interpolation. For example, the median of `[0, 10]` is 5 unweighted, but 0 with
 equal positive weights. Weighted quantiles are unavailable if any selected
 weight is negative or the total weight is zero. Empty samples have no quantile.
+Zero-weight observations do not influence a weighted quantile, including its
+0% and 100% endpoints, which are the smallest and largest positively weighted
+values. Quantile and threshold fractions use scaled weights internally to avoid
+overflow from an otherwise harmless change of weight units. Raw sums can still
+exceed floating-point range for extreme inputs.
 
 ## Unit-area density normalisation
 

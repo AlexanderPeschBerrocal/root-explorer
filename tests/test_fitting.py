@@ -163,3 +163,20 @@ def test_weighted_excluded_bin_does_not_affect_auto_initialisation():
     assert a.success and b.success
     for parameter in params:
         assert a.parameters[parameter] == pytest.approx(b.parameters[parameter], rel=1e-6)
+
+
+@pytest.mark.parametrize("unit", [1e-12, 1.0, 1e12])
+def test_exponential_integrals_do_not_depend_on_coordinate_units(unit):
+    edges = np.array([0.0, 0.1, 1.0, 10.0]) * unit
+    # Density rescales inversely to the coordinate unit; bin yields stay fixed.
+    result = model_bin_integrals("Exponential", edges, {"A": 2.0 / unit, "k": -0.3 / unit}, x0=0.0)
+    expected = 2.0 / -0.3 * np.diff(np.exp(-0.3 * edges / unit))
+    np.testing.assert_allclose(result, expected, rtol=1e-12)
+
+
+@pytest.mark.parametrize("slope", [0.0, 1e-320, -1e-320])
+def test_exponential_integrals_have_a_continuous_zero_slope_limit(slope):
+    result = model_bin_integrals(
+        "Exponential", np.array([0.0, 0.01, 1.0]), {"A": 2.0, "k": slope}, x0=0.0
+    )
+    np.testing.assert_allclose(result, [0.02, 1.98], rtol=1e-12)

@@ -149,6 +149,18 @@ def model_density(
     raise ValueError(f"Unsupported fit model: {model}")
 
 
+def _exponential_bin_integrals(
+    left: np.ndarray, right: np.ndarray, amplitude: float, k: float, x0: float
+) -> np.ndarray:
+    """Integrate without treating a dimensionful small slope as exactly zero."""
+    widths = right - left
+    exponent = k * widths
+    factor = np.divide(
+        np.expm1(exponent), exponent, out=np.ones_like(exponent), where=exponent != 0
+    )
+    return np.asarray(amplitude * np.exp(k * (left - x0)) * widths * factor, dtype=float)
+
+
 def model_bin_integrals(
     model: str,
     edges: np.ndarray,
@@ -174,12 +186,7 @@ def model_bin_integrals(
     left, right = edges[:-1], edges[1:]
     amplitude = parameters["A"]
     if model == "Exponential":
-        k = parameters["k"]
-        if abs(k) < 1e-10:
-            return np.asarray(amplitude * (right - left), dtype=float)
-        return np.asarray(
-            amplitude * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k, dtype=float
-        )
+        return _exponential_bin_integrals(left, right, amplitude, parameters["k"], x0)
 
     mu, sigma = parameters["mu"], parameters["sigma"]
     t_left, t_right = (left - mu) / sigma, (right - mu) / sigma
@@ -396,11 +403,8 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         left = fit_edges[:, 0]
         right = fit_edges[:, 1]
         if config.model == "Exponential":
-            k = params_dict["k"]
-            predictions = (
-                params_dict["A"] * (right - left)
-                if abs(k) < 1e-10
-                else params_dict["A"] * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k
+            predictions = _exponential_bin_integrals(
+                left, right, params_dict["A"], params_dict["k"], x0
             )
         else:
             # Two-endpoint arrays are integrated independently, without

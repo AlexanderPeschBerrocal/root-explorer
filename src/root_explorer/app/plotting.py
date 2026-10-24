@@ -45,6 +45,7 @@ from ..plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidCutError,
     InvalidLabelError,
     build_plotly_3d,
     calculate_color_clipping,
@@ -131,6 +132,12 @@ def render_plot_tab(
     context: DataContext, geometry: GeometryState, *, shortcuts_enabled: bool = True
 ) -> None:
     """Render controls and output for plotting the selected entry range."""
+
+    if not context.fields:
+        st.info(
+            "This event container has no supported numeric fields to plot. See its field browser."
+        )
+        return
 
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
@@ -361,6 +368,7 @@ def _generate_and_show(
             InvalidAxisLimitError,
             InvalidAxisScaleError,
             InvalidColorScaleError,
+            InvalidCutError,
             InvalidHistogramRangeError,
             InvalidLabelError,
             SourceUnavailableError,

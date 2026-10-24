@@ -45,3 +45,20 @@ def test_geometry_loader_rejects_non_gdml(tmp_path) -> None:
     bad_path.write_text("not geometry", encoding="utf-8")
     with pytest.raises(ValueError, match=r"Only .gdml files"):
         load_geometry_scene(str(bad_path), "fast", False, False, 10, 1_000)
+
+
+def test_geometry_display_budget_reports_only_actual_truncation(tiny_gdml_path) -> None:
+    scene = load_geometry_scene(str(tiny_gdml_path), "fast", False, False, 10, 1_000)
+    positions, _, _ = decode_geometry_scene(scene)
+    _, exact = make_geometry_plotly_traces(scene, max_vertices=len(positions))
+    assert exact["truncated"] is False
+    assert exact["shown_vertices"] == len(positions)
+
+    base = go.Figure(data=[go.Scatter3d(x=[0], y=[0], z=[0])])
+    empty = overlay_geometry_on_plotly(base, scene, {"enabled": True, "max_vertices": 2})
+    assert len(empty.data) == 1
+    assert empty.layout.meta["geometry_overlay"] == {
+        "truncated": True,
+        "shown_vertices": 0,
+        "shown_objects": 0,
+    }

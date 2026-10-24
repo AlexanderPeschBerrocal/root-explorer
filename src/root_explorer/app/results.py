@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +123,13 @@ def show_cached_plot_result(
 
     if kind == "plotly":
         st.plotly_chart(fig, width="stretch")
+        metadata = fig.layout.meta
+        overlay = metadata.get("geometry_overlay", {}) if isinstance(metadata, dict) else {}
+        if overlay.get("truncated"):
+            st.warning(
+                f"Geometry display was truncated to {overlay['shown_vertices']:,} vertices. "
+                "Increase max geometry vertices to draw to show more."
+            )
     elif kind == "matplotlib":
         st.pyplot(fig, width="stretch")
     else:
@@ -404,11 +413,28 @@ def collection_summary(field_info: list[FieldInfo], *, item_name: str = "field")
 
 
 def store_uploaded_file(uploaded: UploadedFile) -> str:
+    """Publish a content-addressed upload once, preserving its source identity.
+
+    Streamlit supplies the same upload on every rerun. Rewriting it would change
+    its mtime and invalidate every cached plot/ranking. Publish a complete file
+    atomically so concurrent sessions cannot observe a partially written upload.
+    """
     suffix = Path(uploaded.name).suffix or ".root"
-    data = bytes(uploaded.getbuffer())
-    digest = hashlib.sha256(data).hexdigest()[:12]
+    data = uploaded.getbuffer()
+    digest = hashlib.sha256(data).hexdigest()
     temp_dir = Path(tempfile.gettempdir()) / "root_explorer_uploads"
     temp_dir.mkdir(parents=True, exist_ok=True)
     path = temp_dir / f"{safe_filename(Path(uploaded.name).stem)}_{digest}{suffix}"
-    path.write_bytes(data)
+    if not path.exists():
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as temporary:
+                temporary_path = Path(temporary.name)
+                temporary.write(data)
+            with suppress(FileExistsError):
+                # Another session may already have published the identical upload.
+                os.link(temporary_path, path)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
     return str(path)

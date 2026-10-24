@@ -34,6 +34,8 @@ or **Make event plot** to generate the updated overlay.
 **Remote files** (`root://`, `http://`, `https://`) cannot be checked in the same
 way. Their data stays cached until you click **Reload source** below the file
 path, which reads the file again for all users of the application.
+The `root://` protocol additionally requires an optional transport backend;
+see [Installation](installation.md#the-root-explorer-command).
 
 On filesystems with coarse timestamps, a file rewritten within the same
 timestamp interval with exactly the same size may, rarely, not be detected.
@@ -46,9 +48,15 @@ tracked bugs, not intended analysis conventions.
 
 | Situation | Effect | Workaround / tracking |
 | --- | --- | --- |
-| GDML uses referenced transforms or unsupported constructs | Geometry may be misplaced, simplified or omitted; not every omission produces a warning | Check the [GDML support table](user-guide/geometry.md#supported-gdml-subset) and compare with a trusted viewer. [#116](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/116) |
+| GDML uses expressions, unsupported solids or placement constructs | Geometry may be simplified or omitted; parser warnings identify supported checks but do not establish complete fidelity | Check the [GDML support table](user-guide/geometry.md#supported-gdml-subset) and compare with a trusted viewer. [#116](https://github.com/AlexanderPeschBerrocal/root-explorer/issues/116) |
 
 ## Local and hosted constraints
+
+Uploads are stored as content-addressed temporary files on the server. The same
+upload is reused across widget reruns, so changing controls does not invalidate
+its plots or rankings. Different contents receive a different path, even when
+their original filenames match. Uploaded copies currently have no automatic
+expiry or per-session cleanup.
 
 The current Streamlit configuration sets `server.maxUploadSize = 4096`,
 i.e. **4,096 MiB per uploaded file**; this is not a promise that every

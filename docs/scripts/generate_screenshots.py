@@ -48,9 +48,10 @@ def matplotlib_rc(theme: str) -> str:
     """Give figures the same theme as their Streamlit surroundings."""
     if theme not in THEMES:
         raise ValueError(f"Unsupported screenshot theme: {theme}")
-    background = "#0e1117" if theme == "dark" else "#ffffff"
-    foreground = "#fafafa" if theme == "dark" else "#242424"
-    grid = "#606975" if theme == "dark" else "#d0d4da"
+    # matplotlibrc treats unquoted '#' as a comment, including in hex colours.
+    background = '"#0e1117"' if theme == "dark" else '"#ffffff"'
+    foreground = '"#fafafa"' if theme == "dark" else '"#242424"'
+    grid = '"#606975"' if theme == "dark" else '"#d0d4da"'
     return (
         "\n".join(
             (
@@ -286,6 +287,9 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
             plot_button(page).click()
             overview = plot_image(plotter)
             capture(page, out / screenshot_name("overview.png", theme), overview)
+            expect(
+                plotter.get_by_role("group", name="Bins", exact=True).get_by_role("slider")
+            ).to_have_value("100")
 
             # A Gaussian muon pseudorapidity distribution makes a meaningful fit.
             choose_combobox(page, plotter, "x: branch", "Muon_eta")
@@ -301,6 +305,9 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
             fitted = plot_image(plotter)
             expect(fitted).not_to_have_attribute("src", previous_src, timeout=60000)
             capture(page, out / screenshot_name("histogram-fit.png", theme), fitted)
+            expect(
+                plotter.get_by_role("group", name="Bins", exact=True).get_by_role("slider")
+            ).to_have_value("100")
 
             # A different plot type must yield a genuinely new plot rather than
             # capturing the previously cached 1D histogram during a rerun.

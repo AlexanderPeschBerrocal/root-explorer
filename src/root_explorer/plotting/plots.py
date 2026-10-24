@@ -52,6 +52,10 @@ class InvalidLabelError(ValueError):
     """Raised when a user-provided label contains math text that cannot be rendered."""
 
 
+class InvalidCutError(ValueError):
+    """Raised when a selection bound is invalid rather than intentionally blank."""
+
+
 _MATHTEXT_PARSER = MathTextParser("path")
 
 
@@ -449,7 +453,11 @@ def apply_range_cuts(
     n = len(values[0]) if values else len(aligned_cuts[0])
     mask = np.ones(n, dtype=bool)
 
-    for cut, (_, lo, hi) in zip(aligned_cuts, cuts, strict=True):
+    for index, (cut, (_, lo, hi)) in enumerate(zip(aligned_cuts, cuts, strict=True), start=1):
+        if any(bound is not None and not np.isfinite(bound) for bound in (lo, hi)):
+            raise InvalidCutError(f"Cut {index} bounds must be finite numbers or blank.")
+        if lo is not None and hi is not None and lo > hi:
+            raise InvalidCutError(f"Cut {index} minimum must not exceed its maximum.")
         cut_values = cut.astype(float, copy=False)
         mask &= np.isfinite(cut_values)
         if lo is not None:
@@ -559,10 +567,17 @@ def scatter_color_scale_log(color: np.ndarray, style: dict[str, Any]) -> LogNorm
         raise InvalidColorScaleError(
             "Logarithmic color scale requires positive color min and color max."
         )
-    if vmin >= vmax:
+    if vmin > vmax:
         raise InvalidColorScaleError(
             "Logarithmic color scale requires color min to be smaller than color max."
         )
+    if vmin == vmax:
+        # A constant positive colour field is valid. Give its colour bar a
+        # nonzero domain, preserving whichever endpoint the user supplied.
+        if cmin is None:
+            vmin = max(vmin / 1.1, float(np.nextafter(0.0, 1.0)))
+        if cmax is None:
+            vmax = min(vmax * 1.1, float(np.finfo(float).max))
     return LogNorm(vmin=vmin, vmax=vmax)
 
 
@@ -828,10 +843,19 @@ def build_plotly_3d(
     }
     if color is not None:
         marker.update(color=color, colorbar={"title": color_label or "color"})
-        if color_min is not None:
-            marker["cmin"] = color_min
-        if color_max is not None:
-            marker["cmax"] = color_max
+        if color_min is not None or color_max is not None:
+            values = np.asarray(color, dtype=float)
+            values = values[np.isfinite(values)]
+            if not values.size:
+                raise InvalidColorScaleError("Colour limits require finite colour values.")
+            lower = float(np.min(values)) if color_min is None else color_min
+            upper = float(np.max(values)) if color_max is None else color_max
+            if not np.isfinite(lower) or not np.isfinite(upper) or lower >= upper:
+                raise InvalidColorScaleError(
+                    "color min must be smaller than color max, including the automatic bound."
+                )
+            # Plotly ignores a lone endpoint; both bounds are required.
+            marker.update(cmin=lower, cmax=upper, cauto=False)
     fig = go.Figure(data=[go.Scatter3d(x=x, y=y, z=z, mode="markers", marker=marker)])
     fig.update_traces(
         hovertemplate=(
@@ -1243,6 +1267,11 @@ def render_static_plot(
                 density_denominator=density_denominator,
             )
         histogram_counts = np.asarray(histogram_1d.values(), dtype=float)
+        if histogram_flow_mode == "separate" and histogram_flow_summary is not None:
+            histogram_counts = np.append(
+                histogram_counts,
+                [histogram_flow_summary.underflow_sumw, histogram_flow_summary.overflow_sumw],
+            )
         histogram_edges = np.asarray(histogram_1d.axes[0].edges, dtype=float)
         if style.get("show_kde", False):
             kde_x = x

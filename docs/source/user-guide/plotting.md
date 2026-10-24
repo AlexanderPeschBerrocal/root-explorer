@@ -57,6 +57,8 @@ The summary's count, minimum, median, mean, standard deviation and maximum
 describe the finite sample after cuts. They are **unweighted**, including for
 weighted histograms. Histogram ranges, flow settings and axis zoom do not
 change them.
+A separate table reports weighted summaries when histogram weights are selected;
+see [Counts, weights and statistical uncertainty](histograms-and-fits.md#counts-weights-and-statistical-uncertainty).
 
 2D scatter plots report **Pearson** correlation (linear association) and
 **Spearman** correlation (association of ranks, with ties assigned average
@@ -66,7 +68,7 @@ make a coefficient undefined. A correlation alone does not establish a physical
 relationship or capture every nonlinear dependence.
 
 Scatter plots apply the configured point cap using deterministic sampling
-(the default cap is 100,000). The data preview shows at most 500 plotted
+(the default cap is 100,000). In **Event inspection**, the data preview shows at most 500 plotted
 observations. Neither the cloud nor its preview necessarily contains every
 observation represented in the summary and correlation calculations.
 
@@ -81,6 +83,8 @@ objects of events whose collection is empty or too short, and a caption below th
 colour selector points this out. Prefer multiplicity or sum when every object
 should stay visible. Colour limits clip the colour mapping rather than
 remove points: values outside the limits use the end colours.
+For a 3D plot with only one colour limit entered, the other endpoint comes from
+the displayed sample. The resulting minimum must be smaller than the maximum.
 
 Static plots offer logarithmic scales where applicable. For scatter and
 event-derived 2D histograms, logarithmic coordinate axes require positive

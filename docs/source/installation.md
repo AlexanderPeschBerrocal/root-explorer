@@ -77,6 +77,13 @@ root-explorer --server.address 127.0.0.1 file.root  # forward a Streamlit settin
 
 `python -m root_explorer` is equivalent. Further options are passed to Streamlit, using either `--server.address=127.0.0.1` or `--server.address 127.0.0.1`, before or after the ROOT filename; run `root-explorer --help` for an overview. Boolean Streamlit settings also require a value, for example `--server.headless true`. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
 
+Passing a remote URL does not install its transport backend. In particular,
+`root://` access requires the optional `fsspec-xrootd` backend and its XRootD
+dependencies in the **server's Python environment**. These are not included in
+the default installation or Docker image. If that backend is unavailable,
+download the file separately and use a local Path or Upload. Remote servers may
+also require credentials and network access configured on the server.
+
 After changing the package version in a source checkout, reinstall it with `python -m pip install -e .` so that the command and the version shown in the app are up to date.
 
 For development and testing dependencies, install `python -m pip install -e ".[dev,test]"` and consult [Contributing](contributing.md).

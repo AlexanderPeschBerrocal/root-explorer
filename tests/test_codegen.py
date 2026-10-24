@@ -794,6 +794,35 @@ def test_exported_manual_range_flow_matches_canonical(root_path, mode):
         plt.close(generated)
 
 
+def test_log_y_histogram_with_only_separate_flow_matches_export(root_path):
+    request = _request(
+        root_path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 5,
+            "log_y": True,
+            "manual_histogram_limits": True,
+            "hist_x_min_text": "10000",
+            "hist_x_max_text": "20000",
+            "hist_flow_mode": "separate",
+        },
+    )
+    prepared, canonical, exported = _execute_export(request)
+    try:
+        assert prepared.histogram_1d.values().sum() == 0
+        assert prepared.histogram_flow_summary.underflow_entries > 0
+        for figure in (canonical, exported):
+            assert figure.axes[0].get_yscale() == "log"
+            figure.canvas.draw()
+        np.testing.assert_allclose(_histogram_heights(canonical), _histogram_heights(exported))
+    finally:
+        plt.close(canonical)
+        plt.close(exported)
+
+
 @pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])
 @pytest.mark.parametrize("log_y", [False, True])
 def test_exported_positive_log_x_range_ignores_nonpositive_flow_values(root_path, mode, log_y):

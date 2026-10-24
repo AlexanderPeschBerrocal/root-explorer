@@ -1255,3 +1255,48 @@ def test_valid_math_label_renders_without_error() -> None:
         matplotlib_figure_bytes(fig, "png", dpi=72)
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("lower", "upper", "expected"), [(1.0, None, (1.0, 10.0)), (None, 8.0, (2.0, 8.0))]
+)
+def test_plotly_partial_colour_limits_resolve_both_endpoints(lower, upper, expected):
+    figure = build_plotly_3d(
+        [1.0, 2.0],
+        [1.0, 2.0],
+        [1.0, 2.0],
+        "x",
+        "y",
+        "z",
+        color=[2.0, 10.0],
+        color_min=lower,
+        color_max=upper,
+    )
+    marker = figure.data[0].marker
+    assert (marker.cmin, marker.cmax) == expected
+    assert marker.cauto is False
+
+
+def test_constant_positive_scatter_colour_can_use_log_scale():
+    from root_explorer.plotting.plots import draw_colored_scatter_2d_log
+
+    figure, axes = plt.subplots()
+    try:
+        draw_colored_scatter_2d_log(
+            figure,
+            axes,
+            np.array([1.0, 2.0]),
+            np.array([2.0, 3.0]),
+            np.array([5.0, 5.0]),
+            "x",
+            "y",
+            "colour",
+            {"marker_size_2d": 2.0, "opacity_2d": 0.8},
+            colorbar_extend="neither",
+        )
+        figure.canvas.draw()
+        norm = axes.collections[0].norm
+        assert isinstance(norm, LogNorm)
+        assert 0 < norm.vmin < 5 < norm.vmax
+    finally:
+        plt.close(figure)

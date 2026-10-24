@@ -36,6 +36,12 @@ then event-reduction workflow. Event reductions are not offered in the
 single-event plot of **Event inspection**, where a reduction would be one constant
 for the displayed event.
 
+Sum, mean, extrema and nth-object reductions require scalars or a single list of
+scalars per event. Multiply nested lists are rejected with an explanation;
+choose a scalar leaf field instead. Multiplicity counts the outer collection's
+objects. Direct numeric nested values can still be flattened for plotting when
+their structures align.
+
 ## Derived variables
 
 The selectors offer the following derived operations. Inputs must describe
@@ -95,6 +101,8 @@ Missing values are never replaced by zero.
 
 Range cuts are combined with logical **AND**, with inclusive lower and upper
 bounds (`minimum <= value <= maximum`). Leave a bound blank for an open end.
+An invalid or non-finite bound, or a minimum greater than the maximum, prevents
+plot generation until corrected; it never silently becomes an open bound.
 Non-finite cut values fail the cut. Event-level cuts, such as `MET_pt` or a
 per-event reduction such as `max(Muon_pt)`, are repeated for all plotted objects
 in each event, so they keep or reject the objects of an event together. For
@@ -105,8 +113,8 @@ fail the cut. Object-level cuts must match the plotted collection's per-event
 structure. A cut on one particle collection does not
 implicitly select or match objects in a different collection.
 
-After cuts, a common finite-value mask removes observations with non-finite
-coordinates, weights or scatter colours. Histogram ranges and axis limits are
+A common finite-value mask removes observations with non-finite coordinates,
+weights, scatter colours or cut values before applying range cuts. Histogram ranges and axis limits are
 separate controls, not additional physics selections.
 
 For weighted histograms, an event-level `genWeight` can be broadcast to each selected object in that event; object-level weights can be used when they match the plotted observations. Thus a weighted object histogram sums **object contributions with their associated weights**, which need not equal the number of events.

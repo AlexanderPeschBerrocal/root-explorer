@@ -39,6 +39,12 @@ class _FakeTree:
 
 
 class _FakeFile:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
     def __init__(self, tree: _FakeTree) -> None:
         self.tree = tree
 
@@ -311,3 +317,29 @@ def test_root_name_helpers_and_cli_path(monkeypatch) -> None:
 
     monkeypatch.setattr(sys, "argv", ["streamlit_app.py", "input.root", "--server.port", "8501"])
     assert root_io.parse_cli_rootfile() == "input.root"
+
+
+def test_uncached_readers_close_files_even_on_failure(root_path, monkeypatch):
+    original = root_io.uproot.open
+    handles = []
+
+    def record_open(*args, **kwargs):
+        handle = original(*args, **kwargs)
+        handles.append(handle)
+        return handle
+
+    monkeypatch.setattr(root_io.uproot, "open", record_open)
+    root_io.get_entry_count(str(root_path), "Events")
+    root_io.get_field_info(str(root_path), "Events")
+    root_io.read_field_uncached(str(root_path), "Events", "Muon_pt", 0, 2)
+    root_io.read_event_field_uncached(str(root_path), "Events", "Muon_pt", 0)
+    with pytest.raises(root_io.FieldReadError):
+        root_io.read_field_uncached(str(root_path), "Events", "absent", 0, 2)
+    assert len(handles) == 5
+    assert all(handle.file.closed for handle in handles)
+
+
+def test_out_of_range_event_read_has_context(root_path):
+    for index in (-1, 100):
+        with pytest.raises(root_io.FieldReadError, match=f"event {index}"):
+            root_io.read_event_field_uncached(str(root_path), "Events", "Muon_pt", index)
