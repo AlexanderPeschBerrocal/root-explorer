@@ -9,7 +9,7 @@ import inspect
 import math
 import textwrap
 from collections.abc import Callable
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from importlib.util import resolve_name
 from types import ModuleType
 from typing import Any
@@ -33,8 +33,8 @@ def python_source_literal(value: Any) -> str:
         return repr(value)
     if is_dataclass(value) and not isinstance(value, type):
         arguments = ", ".join(
-            f"{field.name}={python_source_literal(getattr(value, field.name))}"
-            for field in fields(value)
+            f"{item_field.name}={python_source_literal(getattr(value, item_field.name))}"
+            for item_field in fields(value)
         )
         return f"{type(value).__name__}({arguments})"
     if isinstance(value, tuple):
@@ -77,8 +77,8 @@ def literal_dataclass_types(value: Any) -> list[type]:
         if is_dataclass(item) and not isinstance(item, type):
             if type(item) not in found:
                 found.append(type(item))
-            for field in fields(item):
-                visit(getattr(item, field.name))
+            for item_field in fields(item):
+                visit(getattr(item, item_field.name))
         elif isinstance(item, dict):
             for key, entry in item.items():
                 visit(key)
@@ -326,32 +326,153 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
     return {id(child) for annotation in annotations for child in ast.walk(annotation)}
 
 
-def _locally_bound_names(tree: ast.AST) -> set[str]:
-    """Return names bound inside the bundled source rather than read from the module."""
+_COMPREHENSION_NODES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+_SCOPE_NODES = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.Lambda,
+    ast.ClassDef,
+    *_COMPREHENSION_NODES,
+)
 
-    bound: set[str] = set()
-    declared_global: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
-            bound.add(node.id)
-        elif isinstance(node, ast.arg):
-            bound.add(node.arg)
+
+@dataclass
+class _Scope:
+    node: ast.AST
+    parent: _Scope | None
+    bound: set[str] = field(default_factory=set)
+    declared_global: set[str] = field(default_factory=set)
+    loads: set[str] = field(default_factory=set)
+
+
+def _function_arguments(arguments: ast.arguments) -> list[ast.arg]:
+    return [
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+        *(argument for argument in (arguments.vararg, arguments.kwarg) if argument),
+    ]
+
+
+def _scope_body(node: ast.AST) -> list[ast.AST]:
+    """Return the parts of a scope node that are evaluated inside that scope."""
+
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return [*_function_arguments(node.args), *node.body]
+    if isinstance(node, ast.Lambda):
+        return [*_function_arguments(node.args), node.body]
+    if isinstance(node, ast.ClassDef):
+        return list(node.body)
+    if isinstance(node, _COMPREHENSION_NODES):
+        elements: list[ast.AST] = (
+            [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
+        )
+        for index, generator in enumerate(node.generators):
+            elements.extend([generator.target, *generator.ifs])
+            if index:
+                elements.append(generator.iter)
+        return elements
+    return list(ast.iter_child_nodes(node))
+
+
+def _enclosing_parts(node: ast.AST) -> list[ast.AST]:
+    """Return the parts of a scope node that are evaluated in the enclosing scope."""
+
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        parts: list[ast.AST] = [*node.decorator_list, *node.args.defaults]
+        parts.extend(default for default in node.args.kw_defaults if default is not None)
+        parts.extend(
+            argument.annotation
+            for argument in _function_arguments(node.args)
+            if argument.annotation is not None
+        )
+        if node.returns is not None:
+            parts.append(node.returns)
+        return parts
+    if isinstance(node, ast.Lambda):
+        return [
+            *node.args.defaults,
+            *(default for default in node.args.kw_defaults if default is not None),
+        ]
+    if isinstance(node, ast.ClassDef):
+        return [*node.decorator_list, *node.bases, *node.keywords]
+    if isinstance(node, _COMPREHENSION_NODES):
+        return [node.generators[0].iter]
+    return []
+
+
+def _collect_scope(scope: _Scope, nodes: list[ast.AST], scopes: list[_Scope]) -> None:
+    """Record the names bound, declared global and loaded directly in ``scope``."""
+
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, _SCOPE_NODES):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                scope.bound.add(node.name)
+            stack.extend(_enclosing_parts(node))
+            child = _Scope(node, scope)
+            scopes.append(child)
+            _collect_scope(child, _scope_body(node), scopes)
+            continue
+        if isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            # An assignment expression in a comprehension binds in the enclosing scope.
+            target_scope = scope
+            while target_scope.parent is not None and isinstance(
+                target_scope.node, _COMPREHENSION_NODES
+            ):
+                target_scope = target_scope.parent
+            target_scope.bound.add(node.target.id)
+            stack.append(node.value)
+            continue
+        if isinstance(node, ast.arg):
+            # Annotations belong to the enclosing scope and are collected there.
+            scope.bound.add(node.arg)
+            continue
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load):
+                scope.loads.add(node.id)
+            else:
+                scope.bound.add(node.id)
         elif isinstance(node, ast.ExceptHandler) and node.name:
-            bound.add(node.name)
+            scope.bound.add(node.name)
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            bound.update((alias.asname or alias.name).split(".", 1)[0] for alias in node.names)
+            scope.bound.update(
+                (alias.asname or alias.name).split(".", 1)[0] for alias in node.names
+            )
         elif isinstance(node, ast.Global):
-            declared_global.update(node.names)
-    return bound - declared_global
+            scope.declared_global.update(node.names)
+        elif isinstance(node, ast.Nonlocal):
+            scope.bound.update(node.names)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            scope.bound.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            scope.bound.add(node.rest)
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _resolves_to_global(scope: _Scope, name: str) -> bool:
+    """Return whether ``name`` loaded in ``scope`` is read from the module globals."""
+
+    current: _Scope | None = scope
+    while current is not None and current.parent is not None:
+        # Names bound in a class body are not visible inside its nested scopes.
+        if current is scope or not isinstance(current.node, ast.ClassDef):
+            if name in current.declared_global:
+                return True
+            if name in current.bound:
+                return False
+        current = current.parent
+    return True
 
 
 def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
-    local = _locally_bound_names(tree)
-    loaded = {
-        node.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id not in local
-    }
+    """Return module globals that the bundled source reads, following Python's scope rules."""
+
+    root = _Scope(tree, None)
+    scopes = [root]
+    _collect_scope(root, _scope_body(tree), scopes)
+    loaded = {name for scope in scopes for name in scope.loads if _resolves_to_global(scope, name)}
     return {name for name in loaded if name in module.__dict__ and not hasattr(builtins, name)}
 
 
