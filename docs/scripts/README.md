@@ -19,6 +19,8 @@ generates **ten PNGs**, five each in light and dark mode, in
 `overview-light.png`). Both themes use a 1440 × 900 CSS-pixel viewport
 captured at 2× device scale (2880 × 1800 PNG pixels) for sharp documentation
 images. This increases pixel density, not nominal PNG DPI metadata.
+Static plots keep Matplotlib's default white style in both themes, as in the
+app; only the Streamlit interface follows the theme.
 
 The app must not already be listening on this port. To use a different free
 port, pass `--port` (e.g. `--port 8752`); the script then polls

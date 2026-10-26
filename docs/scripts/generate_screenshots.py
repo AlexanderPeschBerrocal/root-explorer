@@ -44,32 +44,6 @@ def screenshot_name(name: str, theme: str) -> str:
     return name if theme == "dark" else f"{Path(name).stem}-light.png"
 
 
-def matplotlib_rc(theme: str) -> str:
-    """Give figures the same theme as their Streamlit surroundings."""
-    if theme not in THEMES:
-        raise ValueError(f"Unsupported screenshot theme: {theme}")
-    # matplotlibrc treats unquoted '#' as a comment, including in hex colours.
-    background = '"#0e1117"' if theme == "dark" else '"#ffffff"'
-    foreground = '"#fafafa"' if theme == "dark" else '"#242424"'
-    grid = '"#606975"' if theme == "dark" else '"#d0d4da"'
-    return (
-        "\n".join(
-            (
-                f"figure.facecolor: {background}",
-                f"axes.facecolor: {background}",
-                f"savefig.facecolor: {background}",
-                f"axes.edgecolor: {foreground}",
-                f"axes.labelcolor: {foreground}",
-                f"text.color: {foreground}",
-                f"xtick.color: {foreground}",
-                f"ytick.color: {foreground}",
-                f"grid.color: {grid}",
-            )
-        )
-        + "\n"
-    )
-
-
 def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
     deadline = time.monotonic() + 75
     while time.monotonic() < deadline:
@@ -385,11 +359,11 @@ def main() -> None:
         data = generate(Path(temp) / "synthetic.root")
         themes = THEMES if args.theme == "both" else (args.theme,)
         for theme in themes:
-            # Each theme gets its own Streamlit process and Matplotlib config,
-            # so no settings can leak between the light and dark captures.
+            # Each theme gets its own Streamlit process and an empty Matplotlib
+            # config, so figures use Matplotlib's defaults as in the app, in both
+            # themes, and no local matplotlibrc changes the captures.
             mplconfig = Path(temp) / f"matplotlib-{theme}"
             mplconfig.mkdir()
-            (mplconfig / "matplotlibrc").write_text(matplotlib_rc(theme))
             app = subprocess.Popen(
                 [
                     sys.executable,
