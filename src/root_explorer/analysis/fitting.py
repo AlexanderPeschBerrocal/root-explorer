@@ -1,7 +1,8 @@
 """Binned least-squares fits for canonical one-dimensional histograms.
 
-No assumption of Poisson statistics is made. The caller explicitly selects
-ordinary least squares or the variances retained by hist.Hist.
+The fit itself assumes no Poisson statistics. The caller explicitly selects
+ordinary least squares, the variances retained by hist.Hist, or explicit
+variances such as ROOT's sqrt(N) errors of a persisted histogram without Sumw2.
 """
 
 from __future__ import annotations
@@ -259,7 +260,11 @@ def _default_bounds(name: str, edges: np.ndarray) -> tuple[float, float]:
 
 
 def fit_histogram_1d(
-    histogram: hist.Hist, config: FitConfig, *, variances: np.ndarray | None = None
+    histogram: hist.Hist,
+    config: FitConfig,
+    *,
+    variances: np.ndarray | None = None,
+    count_errors: bool = False,
 ) -> FitResult:
     """Fit an existing histogram without rebinning or invoking Streamlit.
 
@@ -268,10 +273,15 @@ def fit_histogram_1d(
     contribute; excluded bins are reported in FitResult. Explicit visible-bin
     `variances` replace the storage variances, e.g. ROOT's sqrt(N) errors of a
     persisted histogram without Sumw2, so the fit uses the errors drawn.
+    `count_errors` marks such sqrt(N) variances, which are only meaningful for
+    unweighted counts, so the result can say that they were assumed.
     """
+    count_errors = count_errors and config.use_variances
     objective = (
         "Variance-weighted least squares" if config.use_variances else "Ordinary least squares"
     )
+    if count_errors:
+        objective += " with √N errors"
 
     def failed(message: str, *, bins_used: int = 0, bins_excluded: int = 0) -> FitResult:
         return FitResult(
@@ -487,10 +497,18 @@ def fit_histogram_1d(
     except np.linalg.LinAlgError:
         notes.append("Covariance is singular; uncertainties are unavailable.")
 
-    if excluded:
+    if count_errors:
         notes.append(
-            f"{excluded} bin(s) excluded because stored variances were not positive and finite."
+            "The histogram stores no Sumw2, so ROOT's default bin errors √N of the bin "
+            "contents are assumed. They are only meaningful if the bins hold unweighted counts."
         )
+    if excluded:
+        reason = (
+            "their content is not positive, so √N gives no usable error"
+            if count_errors
+            else "stored variances were not positive and finite"
+        )
+        notes.append(f"{excluded} bin(s) excluded because {reason}.")
     return FitResult(
         config.model,
         True,

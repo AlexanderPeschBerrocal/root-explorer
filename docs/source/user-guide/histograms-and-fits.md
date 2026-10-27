@@ -167,8 +167,13 @@ estimates.
 
 For a stored `TH1*` object, the fit uses the same per-bin errors as the drawn
 error bars: its stored `sum(w²)`, or for a histogram saved without `Sumw2`,
-ROOT's default errors $\sqrt{N}$ of the bin contents. Unweighted histograms built
-from event branches store no variances, and no Poisson uncertainties are inferred
+ROOT's default errors $\sqrt{N}$ of the bin contents. The fit result then names
+the objective *with √N errors* and notes the assumption: $\sqrt{N}$ is only a
+meaningful uncertainty if the bins hold unweighted counts, not, for example,
+efficiencies, ratios or normalised shapes, and it is a poor approximation for
+bins with few entries. Empty bins have no usable √N error and are excluded.
+Unweighted histograms built from event branches store no variances, and no
+Poisson uncertainties are inferred
 from their counts: variance-weighted fitting then fails with a warning, so
 disable **Use stored bin variances** to use ordinary least squares.
 

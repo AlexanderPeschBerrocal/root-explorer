@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import hist
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -230,9 +231,17 @@ def test_persisted_histogram_without_sumw2_fits_with_displayed_errors(tmp_path):
     config = FitConfig("Gaussian", use_variances=True)
     result = fit_persisted_histogram(data, config)
     assert result.success, result.message
-    assert result.objective == "Variance-weighted least squares"
-    assert result.bins_excluded == np.count_nonzero(counts == 0)
+    # The fit result names the assumed sqrt(N) errors and why empty bins are excluded.
+    assert result.objective == "Variance-weighted least squares with √N errors"
+    assert "stores no Sumw2" in result.message
+    assert "only meaningful if the bins hold unweighted counts" in result.message
+    assert result.bins_excluded == np.count_nonzero(counts == 0) > 0
+    assert "content is not positive, so √N gives no usable error" in result.message
+    assert "stored variances" not in result.message
     assert result.parameters["mu"] == pytest.approx(0.3, abs=0.05)
+    unweighted = fit_persisted_histogram(data, FitConfig("Gaussian", use_variances=False))
+    assert unweighted.objective == "Ordinary least squares"
+    assert "Sumw2" not in unweighted.message
 
     spec = HistogramPlotSpec(str(path), "plain;1", _style(), {}, fit_config=config)
     source = generate_histogram_plot_code(spec)
@@ -249,5 +258,28 @@ def test_persisted_histogram_without_sumw2_fits_with_displayed_errors(tmp_path):
         )
         assert exported.success
         assert exported.parameters == pytest.approx(result.parameters)
+        assert exported.objective == result.objective
+        assert exported.message == result.message
     finally:
         sys.modules.pop(module.__name__, None)
+
+
+def test_persisted_histogram_with_sumw2_fit_does_not_assume_sqrt_n_errors(tmp_path):
+    from root_explorer.analysis.fitting import FitConfig, model_bin_integrals
+    from root_explorer.plotting.histograms import fit_persisted_histogram
+
+    path = tmp_path / "weighted.root"
+    edges = np.linspace(-5, 5, 41)
+    counts = model_bin_integrals("Gaussian", edges, {"A": 100.0, "mu": 0.3, "sigma": 1.4}, x0=0)
+    weighted = hist.Hist(hist.axis.Variable(edges), storage=hist.storage.Weight())
+    weighted.view().value = counts
+    weighted.view().variance = 0.25 * counts + 1.0
+    with uproot.recreate(path) as file:
+        file["weighted"] = weighted
+    data = read_histogram(str(path), "weighted;1")
+    assert data.histogram.storage_type is hist.storage.Weight
+    result = fit_persisted_histogram(data, FitConfig("Gaussian", use_variances=True))
+    assert result.success, result.message
+    assert result.objective == "Variance-weighted least squares"
+    assert "Sumw2" not in result.message
+    assert "√N" not in result.message

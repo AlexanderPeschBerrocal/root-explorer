@@ -574,7 +574,11 @@ def fit_controls(
     use_variances = st.checkbox(
         "Use stored bin variances (weighted least squares)",
         key=variances_key,
-        help="When disabled, all selected bins receive equal weight. No Poisson model is assumed.",
+        help=(
+            "Weight each bin by its stored variance, sum(w²). A stored histogram without "
+            "Sumw2 uses ROOT's default √N errors, which assume unweighted counts. When "
+            "disabled, all selected bins receive equal weight."
+        ),
     )
     range_enabled = st.checkbox("Custom fit range", key=f"{prefix}_fit_range_enabled")
     fit_range: tuple[float | None, float | None] = (None, None)

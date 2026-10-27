@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import hist
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -46,8 +47,15 @@ def fit_persisted_histogram(data: PersistedHistogram, config: FitConfig) -> FitR
     exposes as count variances of a Double storage.
     """
     errors = histogram_errors(data) if config.use_variances else None
+    # Without Sumw2, Uproot gives a Double storage whose variances are the counts.
+    count_errors = (
+        data.profile_variances is None and data.histogram.storage_type is not hist.storage.Weight
+    )
     return fit_histogram_1d(
-        data.histogram, config, variances=None if errors is None else np.square(errors)
+        data.histogram,
+        config,
+        variances=None if errors is None else np.square(errors),
+        count_errors=count_errors,
     )
 
 
