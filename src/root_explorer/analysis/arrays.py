@@ -12,6 +12,8 @@ import numpy as np
 from ..io.root import (
     read_event_field,
     read_event_field_uncached,
+    read_event_range,
+    read_event_range_uncached,
     read_field,
     read_field_uncached,
 )
@@ -183,7 +185,17 @@ def multiplicity_per_event(arr: Any) -> np.ndarray:
             return np.array([], dtype=float)
 
 
+def require_scalar_collection(arr: Any, operation: str) -> None:
+    """Do not turn a reduction of nested vectors into several values per event."""
+    if ak.to_layout(ak.Array(arr)).purelist_depth > 2:
+        raise ArrayShapeMismatchError(
+            f"{operation} requires a scalar or a collection of scalars in each event. "
+            "The selected field contains nested lists; choose a scalar leaf field instead."
+        )
+
+
 def nth_per_event(arr: Any, index: int) -> np.ndarray:
+    require_scalar_collection(arr, "nth object per event")
     try:
         selected = ak.pad_none(arr, index + 1, axis=1)[:, index]
         return np.asarray(ak.to_numpy(ak.fill_none(selected, np.nan))).astype(float)
@@ -195,6 +207,7 @@ def nth_per_event(arr: Any, index: int) -> np.ndarray:
 
 
 def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
+    require_scalar_collection(arr, f"{mode} per event")
     try:
         values = ak.values_astype(arr, np.float64)
         if mode == "sum":
@@ -208,7 +221,8 @@ def reduce_per_event(arr: Any, mode: str) -> np.ndarray:
         else:
             raise ValueError(mode)
         # Reductions skip missing values inside a collection; a missing collection
-        # gives a missing (NaN) result instead of being treated as empty.
+        # gives a missing (NaN) result instead of being treated as empty. NaN
+        # values propagate through sum and mean but are skipped by max and min.
         return np.asarray(ak.to_numpy(ak.fill_none(out, np.nan))).astype(float)
     except Exception:
         return safe_float_array(to_numpy_flat(arr))
@@ -255,7 +269,40 @@ def read_for_scope_uncached(
     return read_event_field_uncached(path, tree_name, branch, event_index)
 
 
-__standalone_source_overrides__ = {"read_for_scope": read_for_scope_uncached}
+def read_per_event_input(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Read the entry range, or one event as a one-entry range with the field's type."""
+
+    if event_index is None:
+        return read_field(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_range(path, tree_name, branch, event_index)
+
+
+def read_per_event_input_uncached(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Standalone-safe equivalent of read_per_event_input without Streamlit caching."""
+
+    if event_index is None:
+        return read_field_uncached(path, tree_name, branch, entry_start, entry_stop)
+    return read_event_range_uncached(path, tree_name, branch, event_index)
+
+
+__standalone_source_overrides__ = {
+    "read_for_scope": read_for_scope_uncached,
+    "read_per_event_input": read_per_event_input_uncached,
+}
 
 
 def branch_values(

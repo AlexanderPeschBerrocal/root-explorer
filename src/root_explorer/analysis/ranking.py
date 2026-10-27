@@ -9,7 +9,12 @@ import streamlit as st
 
 from ..io.root import read_field
 from ..io.source import SourceVersion, source_version
-from .arrays import multiplicity_per_event, safe_float_array, to_numpy_flat
+from .arrays import (
+    multiplicity_per_event,
+    require_scalar_collection,
+    safe_float_array,
+    to_numpy_flat,
+)
 
 
 def compute_event_metric(
@@ -53,6 +58,7 @@ def _cached_event_metric(
     if mode == "multiplicity":
         values = multiplicity_per_event(arr)
     else:
+        require_scalar_collection(arr, f"Ranking by {mode}")
         vals = ak.values_astype(arr, np.float64)
         if abs_value:
             vals = abs(vals)
@@ -108,4 +114,6 @@ def metric_dataframe(
 ) -> pd.DataFrame:
     mask = np.isfinite(values)
     df = pd.DataFrame({"event": event_indices[mask].astype(int), "metric": values[mask]})
-    return df.sort_values("metric", ascending=not descending).head(max_rows).reset_index(drop=True)
+    # Ties keep ascending event order, so the table is reproducible.
+    ranked = df.sort_values(["metric", "event"], ascending=[not descending, True], kind="mergesort")
+    return ranked.head(max_rows).reset_index(drop=True)

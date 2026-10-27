@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -83,7 +84,7 @@ def get_root_catalogue(path: str) -> tuple[RootObjectInfo, ...]:
 def _cached_get_root_catalogue(path: str, version: SourceVersion) -> tuple[RootObjectInfo, ...]:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    with uproot.open(path) as root_file:
+    with open_uproot_source(path) as root_file:
         return build_root_catalogue(root_file)
 
 
@@ -136,11 +137,78 @@ def event_container_kind_from_info(info: RootObjectInfo) -> str:
     raise TypeError(f"ROOT object is not an event container: {info.classname}")
 
 
-def parse_cli_rootfile() -> str | None:
+def parse_cli_rootfile(argv: Sequence[str] | None = None) -> str | None:
+    """Return the ROOT file passed to the app script, if exactly one was given.
+
+    Several positional arguments are ambiguous, so none of them is pre-selected
+    rather than silently opening an arbitrary one.
+    """
+
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("rootfile", nargs="?")
-    args, _ = parser.parse_known_args()
-    return args.rootfile  # type: ignore[no-any-return]
+    parser.add_argument("rootfiles", nargs="*")
+    args, _ = parser.parse_known_args(argv)
+    rootfiles: list[str] = args.rootfiles
+    return rootfiles[0] if len(rootfiles) == 1 else None
+
+
+class RemoteBackendUnavailableError(ImportError):
+    """Raised when the package needed to read a remote source is not installed."""
+
+
+def remote_backend_message(path: str) -> str | None:
+    """Name what to install to read ``path``, or return ``None`` for local sources."""
+
+    if path.startswith(("http://", "https://")):
+        return (
+            f"Reading http(s):// sources such as `{path}` requires the Python packages "
+            "aiohttp and requests. Install them with `pip install aiohttp requests`."
+        )
+    if path.startswith("root://"):
+        return (
+            f"Reading root:// (XRootD) sources such as `{path}` requires the optional "
+            "Python packages fsspec-xrootd and xrootd. "
+            "Install them with `pip install 'root-explorer[xrootd]'`."
+        )
+    return None
+
+
+_TRANSPORT_PACKAGES = ("aiohttp", "requests", "fsspec_xrootd", "fsspec-xrootd", "xrootd")
+
+
+@contextmanager
+def explain_missing_remote_backend(path: str) -> Iterator[None]:
+    """Turn a missing transport package of a remote ``path`` into a clear error."""
+
+    try:
+        yield
+    except RemoteBackendUnavailableError:
+        raise
+    except ImportError as exc:
+        message = remote_backend_message(path) if is_remote_source(path) else None
+        # Only relabel errors about a transport package, not unrelated imports.
+        mentioned = f"{exc.name or ''} {exc}".casefold()
+        if message is None or not any(name in mentioned for name in _TRANSPORT_PACKAGES):
+            raise
+        raise RemoteBackendUnavailableError(message) from exc
+
+
+def open_uproot_source(path: str) -> Any:
+    """Open ``path`` with Uproot, naming the missing backend of a remote source."""
+
+    with explain_missing_remote_backend(path):
+        return uproot.open(path)
+
+
+def open_uproot_source_standalone(path: str) -> Any:
+    """Standalone-script equivalent of open_uproot_source.
+
+    Outside the app, fsspec's own error already names a missing remote backend.
+    """
+
+    return uproot.open(path)
+
+
+__standalone_source_overrides__ = {"open_uproot_source": open_uproot_source_standalone}
 
 
 def open_root_file(path: str) -> Any:
@@ -157,7 +225,7 @@ def _cached_open_root_file(path: str, version: SourceVersion) -> Any:
     bounded to avoid keeping many superseded files open.
     """
 
-    return uproot.open(path)
+    return open_uproot_source(path)
 
 
 def is_event_container(obj: Any) -> bool:
@@ -198,7 +266,8 @@ def get_entry_count(path: str, container_name: str) -> int:
 def _cached_get_entry_count(path: str, version: SourceVersion, container_name: str) -> int:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    return int(uproot.open(path)[container_name].num_entries)
+    with open_uproot_source(path) as root_file:
+        return int(root_file[container_name].num_entries)
 
 
 def split_collection(field_name: str) -> tuple[str, str]:
@@ -379,44 +448,44 @@ def _cached_get_field_info(
 ) -> list[FieldInfo]:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    f = uproot.open(path)
-    container = f[container_name]
-    field_names = container.keys()
-    try:
-        typenames = dict(container.typenames())
-    except Exception:
-        typenames = {}
-
-    info: list[FieldInfo] = []
-    for name in field_names:
-        description = None
-        structure: FieldStructure = "unknown"
-        dtype = "unknown"
-        fixed_shape: tuple[int, ...] = ()
+    with open_uproot_source(path) as f:
+        container = f[container_name]
+        field_names = container.keys()
         try:
-            field_object = container[name]
-            typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
-            interpretation = str(getattr(field_object, "interpretation", "RField"))
-            description = source_field_description(field_object, name)
-            structure, dtype, fixed_shape = field_structure_metadata(field_object, typename)
+            typenames = dict(container.typenames())
         except Exception:
-            typename = "unknown"
-            interpretation = "unknown"
-        collection, field = split_collection(name)
-        info.append(
-            FieldInfo(
-                name,
-                typename,
-                interpretation,
-                collection,
-                field,
-                description,
-                structure,
-                dtype,
-                fixed_shape,
+            typenames = {}
+
+        info: list[FieldInfo] = []
+        for name in field_names:
+            description = None
+            structure: FieldStructure = "unknown"
+            dtype = "unknown"
+            fixed_shape: tuple[int, ...] = ()
+            try:
+                field_object = container[name]
+                typename = str(typenames.get(name, getattr(field_object, "typename", "unknown")))
+                interpretation = str(getattr(field_object, "interpretation", "RField"))
+                description = source_field_description(field_object, name)
+                structure, dtype, fixed_shape = field_structure_metadata(field_object, typename)
+            except Exception:
+                typename = "unknown"
+                interpretation = "unknown"
+            collection, field = split_collection(name)
+            info.append(
+                FieldInfo(
+                    name,
+                    typename,
+                    interpretation,
+                    collection,
+                    field,
+                    description,
+                    structure,
+                    dtype,
+                    fixed_shape,
+                )
             )
-        )
-    return info
+        return info
 
 
 class FieldReadError(OSError):
@@ -467,11 +536,11 @@ def read_field_uncached(
 
     container = None
     try:
-        f = uproot.open(path)
-        container = f[container_name]
-        arr: ak.Array = container[field_name].array(
-            library="ak", entry_start=entry_start, entry_stop=entry_stop
-        )
+        with open_uproot_source(path) as f:
+            container = f[container_name]
+            arr: ak.Array = container[field_name].array(
+                library="ak", entry_start=entry_start, entry_stop=entry_stop
+            )
     except Exception as exc:
         raise _field_read_error(
             path,
@@ -506,38 +575,54 @@ def _cached_read_field(
     return read_field_uncached(path, container_name, field_name, entry_start, entry_stop)
 
 
+def read_event_range_uncached(
+    path: str, container_name: str, field_name: str, event_index: int
+) -> ak.Array:
+    """Read one event as a one-entry array, keeping the field's type."""
+
+    container = None
+    try:
+        with open_uproot_source(path) as f:
+            container = f[container_name]
+            arr = container[field_name].array(
+                library="ak", entry_start=event_index, entry_stop=event_index + 1
+            )
+            if event_index < 0 or len(arr) != 1:
+                raise IndexError(f"Event index {event_index} is outside the container")
+    except Exception as exc:
+        raise _field_read_error(
+            path, container_name, container, field_name, f"event {event_index}", exc
+        ) from exc
+    return arr
+
+
 def read_event_field_uncached(
     path: str, container_name: str, field_name: str, event_index: int
 ) -> Any:
     """Read one event field without framework-specific caching."""
 
-    container = None
-    try:
-        f = uproot.open(path)
-        container = f[container_name]
-        arr = container[field_name].array(
-            library="ak", entry_start=event_index, entry_stop=event_index + 1
-        )
-    except Exception as exc:
-        raise _field_read_error(
-            path, container_name, container, field_name, f"event {event_index}", exc
-        ) from exc
-    return arr[0]
+    return read_event_range_uncached(path, container_name, field_name, event_index)[0]
 
 
-def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
-    return _cached_read_event_field(
+def read_event_range(path: str, container_name: str, field_name: str, event_index: int) -> ak.Array:
+    # Single events have their own cache so that stepping through events does
+    # not evict the full-range reads of the Plotter and ranking.
+    return _cached_read_event_range(
         path, source_version(path), container_name, field_name, event_index
     )
 
 
+def read_event_field(path: str, container_name: str, field_name: str, event_index: int) -> Any:
+    return read_event_range(path, container_name, field_name, event_index)[0]
+
+
 @st.cache_data(show_spinner=False, max_entries=128)
-def _cached_read_event_field(
+def _cached_read_event_range(
     path: str, version: SourceVersion, container_name: str, field_name: str, event_index: int
-) -> Any:
+) -> ak.Array:
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
-    return read_event_field_uncached(path, container_name, field_name, event_index)
+    return read_event_range_uncached(path, container_name, field_name, event_index)
 
 
 def is_probably_numeric_typename(typename: str) -> bool:
@@ -548,8 +633,17 @@ def is_probably_numeric_typename(typename: str) -> bool:
 
 
 def numeric_fields(field_info: list[FieldInfo]) -> list[str]:
-    numeric = [field.name for field in field_info if is_probably_numeric_typename(field.typename)]
-    return numeric or [field.name for field in field_info]
+    """Prefer schema metadata; never offer known strings or record objects as numbers."""
+    return [
+        field.name
+        for field in field_info
+        if field.structure != "unsupported"
+        and field.dtype != "record"
+        and (
+            is_probably_numeric_typename(field.dtype)
+            or is_probably_numeric_typename(field.typename)
+        )
+    ]
 
 
 def field_choices(fields: list[str], query: str = "") -> list[str]:

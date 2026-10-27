@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
@@ -10,14 +11,12 @@ from ..models import VariableSpec
 from .arrays import (
     branch_values,
     delta_phi,
-    event_to_numpy,
     multiplicity_per_event,
     nth_per_event,
     read_aligned_branch_values,
-    read_for_scope,
+    read_per_event_input,
     reduce_per_event,
     safe_float_array,
-    value_is_scalar,
 )
 
 VariableEvaluator = Callable[
@@ -41,6 +40,24 @@ def evaluate_branch_variable(
     ), branch
 
 
+def _read_per_event_input(
+    path: str,
+    tree_name: str,
+    branch: str,
+    entry_start: int,
+    entry_stop: int | None,
+    event_index: int | None,
+) -> Any:
+    """Read the input of a per-event variable, one event as a one-event range.
+
+    A single event is evaluated by the same functions as a range of events, so
+    both give identical values. Reading a range also keeps the field type, which
+    distinguishes a missing collection from a missing scalar.
+    """
+
+    return read_per_event_input(path, tree_name, branch, entry_start, entry_stop, event_index)
+
+
 def evaluate_multiplicity_variable(
     spec: VariableSpec,
     path: str,
@@ -52,10 +69,8 @@ def evaluate_multiplicity_variable(
     """Evaluate the number of values in one branch per event."""
 
     branch = _required_branch(spec)
-    arr = read_for_scope(path, tree_name, branch, entry_start, entry_stop, event_index)
-    if event_index is None:
-        return multiplicity_per_event(arr), f"N({branch})"
-    return np.array([len(event_to_numpy(arr))], dtype=float), f"N({branch})"
+    arr = _read_per_event_input(path, tree_name, branch, entry_start, entry_stop, event_index)
+    return multiplicity_per_event(arr), f"N({branch})"
 
 
 def evaluate_nth_variable(
@@ -69,13 +84,8 @@ def evaluate_nth_variable(
     """Evaluate one indexed value per event."""
 
     branch = _required_branch(spec)
-    arr = read_for_scope(path, tree_name, branch, entry_start, entry_stop, event_index)
-    label = f"{branch}[{spec.index}]"
-    if event_index is None:
-        return nth_per_event(arr, spec.index), label
-    values = np.asarray(event_to_numpy(arr)).reshape(-1)
-    value = values[spec.index] if len(values) > spec.index else np.nan
-    return np.asarray([value], dtype=float), label
+    arr = _read_per_event_input(path, tree_name, branch, entry_start, entry_stop, event_index)
+    return nth_per_event(arr, spec.index), f"{branch}[{spec.index}]"
 
 
 def evaluate_reduced_variable(
@@ -91,28 +101,8 @@ def evaluate_reduced_variable(
     if spec.mode not in {"sum", "mean", "max", "min"}:
         raise ValueError(f"Unsupported reduction mode: {spec.mode}")
     branch = _required_branch(spec)
-    arr = read_for_scope(path, tree_name, branch, entry_start, entry_stop, event_index)
-    label = f"{spec.mode}({branch})"
-    if event_index is None:
-        return reduce_per_event(arr, spec.mode), label
-
-    if value_is_scalar(arr):
-        # Reducing an event-level scalar returns the scalar itself; a missing
-        # scalar stays missing instead of becoming nansum([nan]) == 0.
-        return safe_float_array(event_to_numpy(arr)).reshape(1), label
-    values = safe_float_array(event_to_numpy(arr))
-    if len(values) == 0:
-        empty_value = 0.0 if spec.mode == "sum" else np.nan
-        return np.array([empty_value], dtype=float), label
-    if spec.mode == "sum":
-        reduced = np.nansum(values)
-    elif spec.mode == "mean":
-        reduced = np.nanmean(values)
-    elif spec.mode == "max":
-        reduced = np.nanmax(values)
-    else:
-        reduced = np.nanmin(values)
-    return np.array([reduced], dtype=float), label
+    arr = _read_per_event_input(path, tree_name, branch, entry_start, entry_stop, event_index)
+    return reduce_per_event(arr, spec.mode), f"{spec.mode}({branch})"
 
 
 def evaluate_absolute_variable(

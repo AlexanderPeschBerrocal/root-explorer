@@ -123,7 +123,7 @@ def test_no_poisson_assumption_for_unweighted_histograms():
         (FitConfig("Gaussian", fit_range=(np.nan, 1)), "Fit range"),
         (FitConfig("Gaussian", fit_range=(0, 0.1)), "Insufficient"),
         (FitConfig("Gaussian", initial_values={"A": -10}), "outside"),
-        (FitConfig("Gaussian", bounds={"sigma": (2, 1)}), "Invalid"),
+        (FitConfig("Gaussian", bounds={"sigma": (2, 1)}), "Bounds for sigma are empty"),
         (FitConfig("unknown"), "Unknown"),
     ],
 )
@@ -163,3 +163,84 @@ def test_weighted_excluded_bin_does_not_affect_auto_initialisation():
     assert a.success and b.success
     for parameter in params:
         assert a.parameters[parameter] == pytest.approx(b.parameters[parameter], rel=1e-6)
+
+
+@pytest.mark.parametrize("unit", [1e-12, 1.0, 1e12])
+def test_exponential_integrals_do_not_depend_on_coordinate_units(unit):
+    edges = np.array([0.0, 0.1, 1.0, 10.0]) * unit
+    # Density rescales inversely to the coordinate unit; bin yields stay fixed.
+    result = model_bin_integrals("Exponential", edges, {"A": 2.0 / unit, "k": -0.3 / unit}, x0=0.0)
+    expected = 2.0 / -0.3 * np.diff(np.exp(-0.3 * edges / unit))
+    np.testing.assert_allclose(result, expected, rtol=1e-12)
+
+
+@pytest.mark.parametrize("slope", [0.0, 1e-320, -1e-320])
+def test_exponential_integrals_have_a_continuous_zero_slope_limit(slope):
+    result = model_bin_integrals(
+        "Exponential", np.array([0.0, 0.01, 1.0]), {"A": 2.0, "k": slope}, x0=0.0
+    )
+    np.testing.assert_allclose(result, [0.02, 1.98], rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("bounds", "parameter", "low", "high"),
+    [
+        ({"sigma": (None, 0.5)}, "sigma", 0.0, 0.5),
+        ({"A": (None, 50.0)}, "A", 0.0, 50.0),
+        ({"alpha": (0.5, None)}, "alpha", 0.5, 100.0),
+    ],
+)
+def test_one_sided_bound_keeps_default_on_unset_side(bounds, parameter, low, high):
+    edges = np.linspace(-5, 5, 41)
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4, "alpha": 1.5, "n": 3.0}
+    model = "Crystal Ball" if parameter == "alpha" else "Gaussian"
+    names = FIT_MODELS[model]
+    values = model_bin_integrals(model, edges, {k: params[k] for k in names}, x0=0)
+    result = fit_histogram_1d(_histogram(edges, values), FitConfig(model, bounds=bounds))
+    assert result.success, result.message
+    assert low < result.parameters[parameter] <= high
+
+
+def test_one_sided_custom_expression_bound_stays_unbounded_on_unset_side():
+    edges = np.linspace(0, 10, 21)
+    centers = (edges[:-1] + edges[1:]) / 2
+    h = _histogram(edges, (-2.0 - 0.1 * centers) * np.diff(edges))
+    result = fit_histogram_1d(
+        h, FitConfig("Custom expression", expression="a + b*x", bounds={"a": (None, 5.0)})
+    )
+    assert result.success, result.message
+    assert result.parameters["a"] == pytest.approx(-2.0, abs=1e-6)
+
+
+def test_explicit_variances_replace_storage_for_unweighted_histograms():
+    edges = np.linspace(-5, 5, 41)
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4}
+    values = np.round(model_bin_integrals("Gaussian", edges, params, x0=0))
+    unweighted = _histogram(edges, values)
+    weighted = _histogram(edges, values, variances=values)
+    config = FitConfig("Gaussian", use_variances=True)
+    explicit = fit_histogram_1d(unweighted, config, variances=values)
+    stored = fit_histogram_1d(weighted, config)
+    assert explicit.success and stored.success, explicit.message
+    assert explicit.objective == "Variance-weighted least squares"
+    assert explicit.bins_excluded == stored.bins_excluded == np.count_nonzero(values == 0)
+    for name in params:
+        assert explicit.parameters[name] == pytest.approx(stored.parameters[name], rel=1e-9)
+    # Without explicit variances, an unweighted histogram is still refused.
+    assert not fit_histogram_1d(unweighted, config).success
+    mismatched = fit_histogram_1d(unweighted, config, variances=values[:-1])
+    assert not mismatched.success
+    assert "do not match" in mismatched.message
+
+
+def test_one_sided_bound_beyond_the_kept_default_explains_the_empty_range():
+    edges = np.linspace(-5, 5, 41)
+    params = {"A": 100.0, "mu": 0.3, "sigma": 1.4, "alpha": 1.5, "n": 3.0}
+    values = model_bin_integrals("Crystal Ball", edges, params, x0=0)
+    h = _histogram(edges, values)
+    result = fit_histogram_1d(h, FitConfig("Crystal Ball", bounds={"alpha": (150.0, None)}))
+    assert not result.success
+    assert "lower 150 is not below upper 100" in result.message
+    assert "enter inf or -inf" in result.message
+    unbounded = fit_histogram_1d(h, FitConfig("Crystal Ball", bounds={"alpha": (150.0, np.inf)}))
+    assert "Bounds for alpha are empty" not in unbounded.message

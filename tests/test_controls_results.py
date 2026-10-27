@@ -150,7 +150,7 @@ def test_collection_summary_and_uploaded_file_storage() -> None:
         "example fields": "pt, eta",
     }
     stored = store_uploaded_file(_Upload())
-    digest = hashlib.sha256(b"test root bytes").hexdigest()[:12]
+    digest = hashlib.sha256(b"test root bytes").hexdigest()[:32]
     assert Path(stored).name == f"unsafe_file_{digest}.root"
     assert Path(stored).read_bytes() == b"test root bytes"
 

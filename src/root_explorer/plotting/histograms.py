@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import hist
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..analysis.fitting import FitConfig
+from ..analysis.fitting import FitConfig, FitResult, fit_histogram_1d
 from ..io.histograms import PersistedHistogram, read_histogram
 from .plots import (
     InvalidAxisScaleError,
@@ -37,6 +38,25 @@ def histogram_errors(data: PersistedHistogram) -> np.ndarray | None:
         return None
     variances = np.asarray(variance, dtype=float)
     return np.asarray(np.sqrt(np.clip(variances, 0, None)), dtype=float)
+
+
+def fit_persisted_histogram(data: PersistedHistogram, config: FitConfig) -> FitResult:
+    """Fit with the same uncertainties that the error bars display.
+
+    ROOT histograms persisted without Sumw2 carry sqrt(N) errors, which Uproot
+    exposes as count variances of a Double storage.
+    """
+    errors = histogram_errors(data) if config.use_variances else None
+    # Without Sumw2, Uproot gives a Double storage whose variances are the counts.
+    count_errors = (
+        data.profile_variances is None and data.histogram.storage_type is not hist.storage.Weight
+    )
+    return fit_histogram_1d(
+        data.histogram,
+        config,
+        variances=None if errors is None else np.square(errors),
+        count_errors=count_errors,
+    )
 
 
 def visible_profile_occupancy(data: PersistedHistogram) -> np.ndarray:
@@ -129,13 +149,11 @@ def render_histogram_data(
 
 def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
     data = read_histogram(spec.root_path, spec.object_path)
-    from ..analysis.fitting import fit_histogram_1d
-
     figure = render_histogram_data(data, spec.style, spec.labels)
     if spec.fit_config is not None:
         from .plots import draw_fit_overlay
 
-        result = fit_histogram_1d(data.histogram, spec.fit_config)
+        result = fit_persisted_histogram(data, spec.fit_config)
         if result.success:
             draw_fit_overlay(figure.axes[0], data.histogram, result)
             figure.tight_layout()

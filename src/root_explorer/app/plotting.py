@@ -45,6 +45,7 @@ from ..plotting.plots import (
     InvalidAxisLimitError,
     InvalidAxisScaleError,
     InvalidColorScaleError,
+    InvalidCutError,
     InvalidLabelError,
     build_plotly_3d,
     calculate_color_clipping,
@@ -73,6 +74,7 @@ from .controls import (
 )
 from .results import (
     discard_plot_result,
+    local_absolute_path,
     show_cached_plot_result,
     show_technical_details,
     store_plot_result,
@@ -107,7 +109,8 @@ class PlotRequest:
         """Return the shared Streamlit-independent configuration for static plots."""
 
         return StaticPlotSpec(
-            root_path=self.context.root_path,
+            # The exported script may run from another directory.
+            root_path=local_absolute_path(self.context.root_path),
             tree_name=self.context.event_container_name,
             entry_start=self.context.entry_start,
             entry_stop=self.context.entry_stop,
@@ -132,6 +135,13 @@ def render_plot_tab(
 ) -> None:
     """Render controls and output for plotting the selected entry range."""
 
+    if not context.fields:
+        st.info(
+            "This event container has no supported numeric fields to plot. See the "
+            f"**{context.data_item_plural.title()} and objects** tab for its fields."
+        )
+        return
+
     controls, output = st.columns([0.36, 0.64], gap="large")
     with controls:
         st.subheader("Plot configuration", anchor=False)
@@ -153,7 +163,13 @@ def render_plot_tab(
         _generate_and_show(request, make_plot, "plot_result", "plot_export")
 
 
-def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_index: int) -> None:
+def render_event_plot_tab(
+    context: DataContext,
+    geometry: GeometryState,
+    event_index: int,
+    *,
+    shortcuts_enabled: bool = True,
+) -> None:
     """Render controls and output for one selected event."""
 
     controls, output = st.columns([0.36, 0.64], gap="large")
@@ -170,6 +186,7 @@ def render_event_plot_tab(context: DataContext, geometry: GeometryState, event_i
             default_opacity_2d=0.75,
             default_opacity_3d=0.75,
             file_name="root_explorer_event_plot",
+            shortcuts_enabled=shortcuts_enabled,
         )
     with output:
         st.subheader(f"Output: event {event_index}", anchor=False)
@@ -361,6 +378,7 @@ def _generate_and_show(
             InvalidAxisLimitError,
             InvalidAxisScaleError,
             InvalidColorScaleError,
+            InvalidCutError,
             InvalidHistogramRangeError,
             InvalidLabelError,
             SourceUnavailableError,
@@ -398,7 +416,8 @@ def _safe_generate_plot_code(request: PlotRequest, warnings: list[str]) -> str |
     """Keep the histogram available even when its standalone export cannot be built."""
     try:
         return generate_static_plot_code(request)
-    except (ValueError, TypeError, RuntimeError) as exc:
+    # SourceBundleError is a ValueError; OSError covers unreadable helper sources.
+    except (ValueError, TypeError, RuntimeError, OSError) as exc:
         warnings.append(f"Plot-code export unavailable: {exc}")
         return None
 
@@ -675,6 +694,12 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if supports_point_color(request.plot_type) and color is not None:
         color_clipping_result = calculate_color_clipping(color, request.style, weights)
 
+    # Resolve a one-sided 3D colour range from all points before sampling them.
+    color_min, color_max = (
+        scatter_color_scale_linear(request.style, color)
+        if request.plot_type == "3D scatter interactive" and color is not None
+        else (None, None)
+    )
     value_count = len(x)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
     sampling_note = _sampling_note(len(x), value_count)
@@ -697,9 +722,6 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if request.plot_type == "3D scatter interactive":
         if y is None or z is None:
             raise ValueError("3D scatter requires y and z variables.")
-        color_min, color_max = (
-            scatter_color_scale_linear(request.style) if color is not None else (None, None)
-        )
         figure = build_plotly_3d(
             x,
             y,
@@ -760,7 +782,7 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         return {
             "kind": "matplotlib",
             "figure": figure,
-            "code": generate_static_plot_code(request),
+            "code": _safe_generate_plot_code(request, plot_warnings),
             "summary": summary,
             "preview": preview,
             "sampling_note": sampling_note,

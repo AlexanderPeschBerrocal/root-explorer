@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from ..io.graphs import read_graph
 from .graphs import GraphPlotSpec, render_graph_data
-from .sourcegen import bundle_python_source, python_source_literal
+from .sourcegen import bundle_python_source, literal_dataclass_types, python_source_literal
 
 
 def generate_graph_plot_code(spec: GraphPlotSpec) -> str:
     """Emit a runnable source-vendored graph script without app imports."""
-    helpers = bundle_python_source(GraphPlotSpec, read_graph, render_graph_data).rstrip()
+    helpers = bundle_python_source(
+        GraphPlotSpec, read_graph, render_graph_data, *literal_dataclass_types(spec)
+    ).rstrip()
     config = python_source_literal(spec)
     return (
         '"""Standalone ROOT graph exported by ROOT Explorer."""\n\n'

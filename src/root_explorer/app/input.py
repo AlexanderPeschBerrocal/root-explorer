@@ -23,7 +23,8 @@ from ..io.source import (
     source_version,
 )
 from ..models import RootObjectInfo
-from .results import discard_plot_result, store_uploaded_file
+from .ranking import clear_ranking
+from .results import discard_plot_result, local_absolute_path, store_uploaded_file
 from .state import DataContext, EventDataStatus, RootFileContext
 
 
@@ -32,7 +33,8 @@ def render_data_input() -> RootFileContext:
 
     A missing or unreadable file stops the run with ``st.stop``. Once the file's
     catalogue is available, the run continues even if the selected event container
-    is empty or unreadable, so the ROOT object browser and geometry remain usable.
+    is empty or unreadable or the read range is invalid, so the ROOT object browser
+    and geometry remain usable.
     """
 
     cli_path = parse_cli_rootfile()
@@ -59,6 +61,9 @@ def render_data_input() -> RootFileContext:
     ):
         st.error(f"File does not exist: {root_path}")
         st.stop()
+    # Read, cache and export a local file under one absolute path, so that a
+    # relative path typed in the box is not cached twice.
+    root_path = local_absolute_path(root_path)
 
     try:
         version = source_version(root_path)
@@ -124,8 +129,7 @@ def render_data_input() -> RootFileContext:
         step=1,
     )
     if entry_stop <= entry_start:
-        st.warning("entry stop must be larger than entry start.")
-        st.stop()
+        return _without_event_data(root_path, catalogue, "invalid_entry_range", container_kind)
 
     try:
         item_plural = "fields" if container_kind == "RNTuple" else "branches"
@@ -158,7 +162,12 @@ def _without_event_data(
 ) -> RootFileContext:
     """Report an unusable event container while keeping the rest of the file available."""
 
-    if status == "empty_container":
+    if status == "invalid_entry_range":
+        st.warning(
+            "entry stop must be larger than entry start. "
+            "You can still browse the other ROOT objects in this file."
+        )
+    elif status == "empty_container":
         st.warning(
             f"The selected {container_kind} has no entries to plot or inspect. "
             "You can still browse the other ROOT objects in this file."
@@ -178,7 +187,8 @@ def clear_data_results() -> None:
 
     for key in ["plot_result", "event_plot_result"]:
         discard_plot_result(key)
-    for key in ["rank_df", "rank_label", "event_index", "data_context"]:
+    clear_ranking()
+    for key in ["event_index", "data_context"]:
         st.session_state.pop(key, None)
 
 

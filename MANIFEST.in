@@ -1,0 +1,4 @@
+include streamlit_app.py
+recursive-include tests *.py *.root
+recursive-include docs/source *.py *.md *.rst *.png *.svg *.css
+recursive-include docs/scripts *.py *.md

@@ -9,7 +9,7 @@ import inspect
 import math
 import textwrap
 from collections.abc import Callable
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from importlib.util import resolve_name
 from types import ModuleType
 from typing import Any
@@ -25,13 +25,16 @@ def python_source_literal(value: Any) -> str:
     if value is None or isinstance(value, (bool, int, str)):
         return repr(value)
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise SourceBundleError("Non-finite floats cannot be serialised as plot configuration.")
+        # repr() would give the undefined names inf and nan.
+        if math.isnan(value):
+            return "float('nan')"
+        if math.isinf(value):
+            return "float('inf')" if value > 0 else "float('-inf')"
         return repr(value)
     if is_dataclass(value) and not isinstance(value, type):
         arguments = ", ".join(
-            f"{field.name}={python_source_literal(getattr(value, field.name))}"
-            for field in fields(value)
+            f"{item_field.name}={python_source_literal(getattr(value, item_field.name))}"
+            for item_field in fields(value)
         )
         return f"{type(value).__name__}({arguments})"
     if isinstance(value, tuple):
@@ -60,6 +63,32 @@ def python_source_literal(value: Any) -> str:
     raise SourceBundleError(
         f"Unsupported configuration value {value!r} of type {type(value).__name__}."
     )
+
+
+def literal_dataclass_types(value: Any) -> list[type]:
+    """Return the dataclasses whose constructors ``python_source_literal(value)`` emits.
+
+    They must be bundled even when no helper refers to them outside annotations.
+    """
+
+    found: list[type] = []
+
+    def visit(item: Any) -> None:
+        if is_dataclass(item) and not isinstance(item, type):
+            if type(item) not in found:
+                found.append(type(item))
+            for item_field in fields(item):
+                visit(getattr(item, item_field.name))
+        elif isinstance(item, dict):
+            for key, entry in item.items():
+                visit(key)
+                visit(entry)
+        elif isinstance(item, (tuple, list, set, frozenset)):
+            for entry in item:
+                visit(entry)
+
+    visit(value)
+    return found
 
 
 def bundle_python_source(
@@ -115,7 +144,11 @@ def bundle_python_source(
             definitions.append(f"{object_name} = {replacement.__name__}")
             return
 
-        source = textwrap.dedent(inspect.getsource(obj))
+        try:
+            source = textwrap.dedent(inspect.getsource(obj))
+        except (OSError, TypeError) as exc:
+            # For example, an installation that ships only bytecode.
+            raise SourceBundleError(f"Cannot inspect the source of {object_name!r}.") from exc
         tree = ast.parse(source)
         import_map = _module_import_map(module)
         source = _vendor_local_internal_imports(
@@ -126,6 +159,9 @@ def bundle_python_source(
             visit=visit,
         )
 
+        # Generated scripts use postponed annotations, so a name that appears only
+        # in annotations is bundled when possible but never blocks the export.
+        annotation_only = _annotation_only_names(tree)
         for name in _referenced_global_names(tree, module):
             dependency = module.__dict__[name]
             dependency_module = getattr(dependency, "__module__", "")
@@ -135,12 +171,23 @@ def bundle_python_source(
                     visit(dependency)
                 else:
                     import_source = import_map.get(name)
-                    if import_source is not None:
-                        imports.add(import_source)
+                    if import_source is None:
+                        if name in annotation_only:
+                            continue
+                        raise SourceBundleError(
+                            f"Cannot reconstruct import for global {name!r} in {module_name!r}."
+                        )
+                    imports.add(import_source)
                 continue
 
             if isinstance(dependency, ModuleType):
                 import_source = import_map.get(name)
+                if name in annotation_only and (
+                    import_source is None
+                    or _is_internal_import(import_source, package_prefix)
+                    or dependency.__name__.startswith(forbidden_module_prefixes)
+                ):
+                    continue
                 if import_source is None:
                     raise SourceBundleError(
                         f"Cannot reconstruct import for module global {name!r} in {module_name!r}."
@@ -152,22 +199,38 @@ def bundle_python_source(
                         f"Export helper {object_name!r} depends on forbidden module "
                         f"{dependency.__name__!r}."
                     )
+                if _is_internal_import(import_source, package_prefix):
+                    raise SourceBundleError(
+                        f"Export helper {object_name!r} imports internal module "
+                        f"{dependency.__name__!r}, which cannot be bundled."
+                    )
                 imports.add(import_source)
                 continue
 
             import_source = import_map.get(name)
-            if import_source is not None:
-                if not _is_internal_import(import_source, package_prefix):
-                    imports.add(import_source)
+            if import_source is not None and not _is_internal_import(import_source, package_prefix):
+                imports.add(import_source)
                 continue
 
+            # Literal constants, whether defined in this module or imported from another
+            # internal module, are emitted under their own name. Keying them by value lets
+            # several modules share one constant while differing values still collide.
             if _is_source_constant(dependency):
-                constant_key = (module_name, name)
+                literal = python_source_literal(dependency)
+                constant_key = (f"constant {literal}", name)
                 if constant_key not in visited:
                     visited.add(constant_key)
                     _claim_name(name, constant_key, emitted_names)
-                    constants.append(f"{name} = {python_source_literal(dependency)}")
+                    constants.append(f"{name} = {literal}")
                 continue
+
+            if name in annotation_only:
+                continue
+            # Anything else would leave an undefined name in the standalone script.
+            raise SourceBundleError(
+                f"Export helper {object_name!r} uses global {name!r} of type "
+                f"{type(dependency).__name__}, which cannot be bundled."
+            )
 
         definitions.append(source.rstrip())
 
@@ -242,13 +305,184 @@ def _claim_name(
     emitted_names[name] = key
 
 
+def _annotation_nodes(tree: ast.AST) -> set[int]:
+    """Return the ids of nodes inside annotations, which are never evaluated."""
+
+    annotations: list[ast.expr] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            arguments = node.args
+            parameters = [
+                *arguments.posonlyargs,
+                *arguments.args,
+                *arguments.kwonlyargs,
+                *(argument for argument in (arguments.vararg, arguments.kwarg) if argument),
+            ]
+            annotations.extend(p.annotation for p in parameters if p.annotation is not None)
+            if node.returns is not None:
+                annotations.append(node.returns)
+        elif isinstance(node, ast.AnnAssign):
+            annotations.append(node.annotation)
+    return {id(child) for annotation in annotations for child in ast.walk(annotation)}
+
+
+_COMPREHENSION_NODES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+_SCOPE_NODES = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.Lambda,
+    ast.ClassDef,
+    *_COMPREHENSION_NODES,
+)
+
+
+@dataclass
+class _Scope:
+    node: ast.AST
+    parent: _Scope | None
+    bound: set[str] = field(default_factory=set)
+    declared_global: set[str] = field(default_factory=set)
+    loads: set[str] = field(default_factory=set)
+
+
+def _function_arguments(arguments: ast.arguments) -> list[ast.arg]:
+    return [
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+        *(argument for argument in (arguments.vararg, arguments.kwarg) if argument),
+    ]
+
+
+def _scope_body(node: ast.AST) -> list[ast.AST]:
+    """Return the parts of a scope node that are evaluated inside that scope."""
+
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return [*_function_arguments(node.args), *node.body]
+    if isinstance(node, ast.Lambda):
+        return [*_function_arguments(node.args), node.body]
+    if isinstance(node, ast.ClassDef):
+        return list(node.body)
+    if isinstance(node, _COMPREHENSION_NODES):
+        elements: list[ast.AST] = (
+            [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
+        )
+        for index, generator in enumerate(node.generators):
+            elements.extend([generator.target, *generator.ifs])
+            if index:
+                elements.append(generator.iter)
+        return elements
+    return list(ast.iter_child_nodes(node))
+
+
+def _enclosing_parts(node: ast.AST) -> list[ast.AST]:
+    """Return the parts of a scope node that are evaluated in the enclosing scope."""
+
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        parts: list[ast.AST] = [*node.decorator_list, *node.args.defaults]
+        parts.extend(default for default in node.args.kw_defaults if default is not None)
+        parts.extend(
+            argument.annotation
+            for argument in _function_arguments(node.args)
+            if argument.annotation is not None
+        )
+        if node.returns is not None:
+            parts.append(node.returns)
+        return parts
+    if isinstance(node, ast.Lambda):
+        return [
+            *node.args.defaults,
+            *(default for default in node.args.kw_defaults if default is not None),
+        ]
+    if isinstance(node, ast.ClassDef):
+        return [*node.decorator_list, *node.bases, *node.keywords]
+    if isinstance(node, _COMPREHENSION_NODES):
+        return [node.generators[0].iter]
+    return []
+
+
+def _collect_scope(scope: _Scope, nodes: list[ast.AST], scopes: list[_Scope]) -> None:
+    """Record the names bound, declared global and loaded directly in ``scope``."""
+
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, _SCOPE_NODES):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                scope.bound.add(node.name)
+            stack.extend(_enclosing_parts(node))
+            child = _Scope(node, scope)
+            scopes.append(child)
+            _collect_scope(child, _scope_body(node), scopes)
+            continue
+        if isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            # An assignment expression in a comprehension binds in the enclosing scope.
+            target_scope = scope
+            while target_scope.parent is not None and isinstance(
+                target_scope.node, _COMPREHENSION_NODES
+            ):
+                target_scope = target_scope.parent
+            target_scope.bound.add(node.target.id)
+            stack.append(node.value)
+            continue
+        if isinstance(node, ast.arg):
+            # Annotations belong to the enclosing scope and are collected there.
+            scope.bound.add(node.arg)
+            continue
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load):
+                scope.loads.add(node.id)
+            else:
+                scope.bound.add(node.id)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            scope.bound.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            scope.bound.update(
+                (alias.asname or alias.name).split(".", 1)[0] for alias in node.names
+            )
+        elif isinstance(node, ast.Global):
+            scope.declared_global.update(node.names)
+        elif isinstance(node, ast.Nonlocal):
+            scope.bound.update(node.names)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            scope.bound.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            scope.bound.add(node.rest)
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _resolves_to_global(scope: _Scope, name: str) -> bool:
+    """Return whether ``name`` loaded in ``scope`` is read from the module globals."""
+
+    current: _Scope | None = scope
+    while current is not None and current.parent is not None:
+        # Names bound in a class body are not visible inside its nested scopes.
+        if current is scope or not isinstance(current.node, ast.ClassDef):
+            if name in current.declared_global:
+                return True
+            if name in current.bound:
+                return False
+        current = current.parent
+    return True
+
+
 def _referenced_global_names(tree: ast.AST, module: ModuleType) -> set[str]:
-    loaded = {
-        node.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-    }
+    """Return module globals that the bundled source reads, following Python's scope rules."""
+
+    root = _Scope(tree, None)
+    scopes = [root]
+    _collect_scope(root, _scope_body(tree), scopes)
+    loaded = {name for scope in scopes for name in scope.loads if _resolves_to_global(scope, name)}
     return {name for name in loaded if name in module.__dict__ and not hasattr(builtins, name)}
+
+
+def _annotation_only_names(tree: ast.AST) -> set[str]:
+    """Return names that the source loads only inside annotations."""
+
+    in_annotations = _annotation_nodes(tree)
+    names = [node for node in ast.walk(tree) if isinstance(node, ast.Name)]
+    evaluated = {node.id for node in names if id(node) not in in_annotations}
+    return {node.id for node in names if node.id not in evaluated}
 
 
 def _module_import_map(module: ModuleType) -> dict[str, str]:

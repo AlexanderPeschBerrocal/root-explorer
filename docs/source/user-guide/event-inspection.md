@@ -21,7 +21,8 @@ objects, allowing you to investigate individual outliers and event topology.
 2. Open **Event inspection**. Use the event-index control to select an event
    inside the chosen range.
 3. Choose an appropriate plot type and coordinate variables (for example,
-   muon $p_T$ and $\eta$) and click **Make event plot**.
+   muon $p_T$ and $\eta$) and click **Make event plot** (shortcut **Shift+P**
+   while the Event inspection tab is open).
 4. Change the selected entry and regenerate the plot to inspect another
    event. Do not mistake a previous plot for a newly selected event.
 
@@ -30,11 +31,13 @@ objects, allowing you to investigate individual outliers and event topology.
 Use the ranking controls in Event inspection to find unusually active
 or interesting events without manually scanning every entry.
 
-1. Select a numerical field, for example `Muon_pt`.
-2. Choose a supported ranking measure, such as multiplicity, sum,
-   extremum or count above a threshold.
-3. Select **largest first** if you want the highest-scoring events.
-4. Click **Compute ranking**, choose an event from the result, and select
+1. Select a numerical field in **metric branch** (**metric field** for an RNTuple),
+   for example `Muon_pt`.
+2. Choose a supported ranking measure in **metric**, such as `multiplicity`,
+   `sum`, `max` or `count_above` a **threshold**.
+3. Keep **largest first** selected for the highest-scoring events, and set the
+   number of **rows** to show (5–200, default 10).
+4. Click **Compute ranking**, choose an event in **jump to event**, and click
    **Use selected event**.
 
 Ranking evaluates the currently selected entry range and is intended
@@ -44,8 +47,9 @@ reduction over particles rather than a scalar per-event value.
 
 Available ranking measures are multiplicity, sum, mean, maximum, minimum,
 count above a threshold and count below a threshold. Threshold counts use
-strict `>` and `<` comparisons. The absolute-value option applies before
-calculating the measure (and has no effect on multiplicity).
+strict `>` and `<` comparisons. The **use absolute values** option applies before
+calculating the measure; it is disabled for multiplicity, which ignores the values.
+Events with equal values are listed in entry order.
 
 An empty collection has multiplicity, sum and threshold counts of zero;
 its mean and extrema are non-finite and excluded from ranking. For a scalar
@@ -53,7 +57,11 @@ field, multiplicity is one, threshold counts are zero or one, and other
 measures use the scalar value, optionally made absolute.
 
 Ranking uses the sidebar's read range but **does not apply Plotter cuts or
-histogram weights**. Recompute it after changing the ranking settings.
+histogram weights**. Changing **largest first** or **rows** updates the table
+immediately. After changing the field, measure, absolute-value option or threshold,
+a notice asks you to click **Compute ranking** again; until then the table shows
+the previous ranking, ordered and truncated by the current **largest first** and
+**rows** settings.
 Selecting a ranked event does not regenerate an event plot automatically:
 click **Make event plot** after **Use selected event**.
 

@@ -44,31 +44,6 @@ def screenshot_name(name: str, theme: str) -> str:
     return name if theme == "dark" else f"{Path(name).stem}-light.png"
 
 
-def matplotlib_rc(theme: str) -> str:
-    """Give figures the same theme as their Streamlit surroundings."""
-    if theme not in THEMES:
-        raise ValueError(f"Unsupported screenshot theme: {theme}")
-    background = "#0e1117" if theme == "dark" else "#ffffff"
-    foreground = "#fafafa" if theme == "dark" else "#242424"
-    grid = "#606975" if theme == "dark" else "#d0d4da"
-    return (
-        "\n".join(
-            (
-                f"figure.facecolor: {background}",
-                f"axes.facecolor: {background}",
-                f"savefig.facecolor: {background}",
-                f"axes.edgecolor: {foreground}",
-                f"axes.labelcolor: {foreground}",
-                f"text.color: {foreground}",
-                f"xtick.color: {foreground}",
-                f"ytick.color: {foreground}",
-                f"grid.color: {grid}",
-            )
-        )
-        + "\n"
-    )
-
-
 def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
     deadline = time.monotonic() + 75
     while time.monotonic() < deadline:
@@ -286,6 +261,9 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
             plot_button(page).click()
             overview = plot_image(plotter)
             capture(page, out / screenshot_name("overview.png", theme), overview)
+            expect(
+                plotter.get_by_role("group", name="Bins", exact=True).get_by_role("slider")
+            ).to_have_value("100")
 
             # A Gaussian muon pseudorapidity distribution makes a meaningful fit.
             choose_combobox(page, plotter, "x: branch", "Muon_eta")
@@ -301,6 +279,9 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
             fitted = plot_image(plotter)
             expect(fitted).not_to_have_attribute("src", previous_src, timeout=60000)
             capture(page, out / screenshot_name("histogram-fit.png", theme), fitted)
+            expect(
+                plotter.get_by_role("group", name="Bins", exact=True).get_by_role("slider")
+            ).to_have_value("100")
 
             # A different plot type must yield a genuinely new plot rather than
             # capturing the previously cached 1D histogram during a rerun.
@@ -349,10 +330,15 @@ def generate_captures(base_url: str, out: Path, data: Path, *, theme: str) -> No
         raise RuntimeError(f"Missing screenshots: {missing}")
 
 
-def main() -> None:
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the command line; the base URL defaults to the app's --port."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=ROOT / "docs/source/_static/screenshots")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8751")
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="URL of the started app (default: http://127.0.0.1:PORT)",
+    )
     parser.add_argument("--port", type=int, default=8751)
     parser.add_argument(
         "--theme",
@@ -360,17 +346,24 @@ def main() -> None:
         default="both",
         help="Capture dark, light, or both themes (default: both)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.base_url is None:
+        args.base_url = f"http://127.0.0.1:{args.port}"
+    return args
+
+
+def main() -> None:
+    args = parse_arguments()
 
     with tempfile.TemporaryDirectory(prefix="root-explorer-docs-") as temp:
         data = generate(Path(temp) / "synthetic.root")
         themes = THEMES if args.theme == "both" else (args.theme,)
         for theme in themes:
-            # Each theme gets its own Streamlit process and Matplotlib config,
-            # so no settings can leak between the light and dark captures.
+            # Each theme gets its own Streamlit process and an empty Matplotlib
+            # config, so figures use Matplotlib's defaults as in the app, in both
+            # themes, and no local matplotlibrc changes the captures.
             mplconfig = Path(temp) / f"matplotlib-{theme}"
             mplconfig.mkdir()
-            (mplconfig / "matplotlibrc").write_text(matplotlib_rc(theme))
             app = subprocess.Popen(
                 [
                     sys.executable,

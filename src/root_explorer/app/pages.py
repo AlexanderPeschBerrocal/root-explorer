@@ -12,7 +12,7 @@ from ..io.root import filter_root_objects
 from ..io.source import source_version
 from ..models import RootObjectInfo
 from .controls import field_structure_label
-from .results import collection_summary, discard_plot_result
+from .results import collection_summary, discard_plot_result, local_absolute_path
 from .state import DataContext
 
 
@@ -53,7 +53,7 @@ def render_field_browser(context: DataContext) -> None:
     column_config = {
         "structure": st.column_config.TextColumn(
             "structure",
-            help="Per-event shape: scalar, fixed-size, jagged, nested/record, or unsupported.",
+            help="Per-event shape: scalar, fixed-size, jagged, nested/record, unknown, or unsupported.",
         ),
         "dtype": st.column_config.TextColumn(
             "dtype",
@@ -184,15 +184,22 @@ def render_root_objects_browser(
 
         if selected_info is None and candidates:
             candidate_paths = [info.qualified_path for info in candidates]
+            # Opening an object switches to the compact layout. The selector must not
+            # depend on the layout, and it starts at an opened object, so it keeps
+            # naming the object on display.
+            target_identity = (file_name, tuple(candidate_paths))
+            target_key = hashlib.sha256(repr(target_identity).encode("utf-8")).hexdigest()[:16]
+            opened_path = opened[1] if opened is not None else None
             fallback_path = st.selectbox(
                 "Object to inspect",
                 candidate_paths,
+                index=candidate_paths.index(opened_path) if opened_path in candidate_paths else 0,
                 format_func=lambda path: next(
                     f"{info.path} ({info.classname})"
                     for info in candidates
                     if info.qualified_path == path
                 ),
-                key=f"root_object_target_{selection_key}",
+                key=f"root_object_target_{target_key}",
                 help="Use this selector if clicking a row does not select it.",
             )
             selected_info = next(
@@ -239,19 +246,26 @@ def render_root_objects_browser(
             st.rerun()
     from .graph_viewer import render_graph_controls, render_graph_output
 
+    # Exported plot scripts embed the ROOT path, so it must not be relative.
     if opened[2].startswith(("TH1", "TH2", "TH3", "TProfile")):
         from .histogram_viewer import render_histogram_controls, render_histogram_output
 
         with left:
             settings = render_histogram_controls(
-                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+                local_absolute_path(opened[0]),
+                opened[1],
+                opened[2],
+                shortcuts_enabled=shortcuts_enabled,
             )
         with right:
             render_histogram_output(settings)
     else:
         with left:
             settings = render_graph_controls(
-                opened[0], opened[1], opened[2], shortcuts_enabled=shortcuts_enabled
+                local_absolute_path(opened[0]),
+                opened[1],
+                opened[2],
+                shortcuts_enabled=shortcuts_enabled,
             )
         with right:
             render_graph_output(settings)
@@ -283,20 +297,20 @@ def render_help_tab(context: DataContext) -> None:
 1. Choose a ROOT file, event container (TTree or RNTuple), and read range in the sidebar. Start with a small range, then increase it once the plot setup looks right.
 2. Use the **Plotter** tab for histogram or scatter plots over the selected entry range.
 3. Use the **Event inspection** tab to inspect one event at a time. The ranking tool can help find events with large multiplicities, sums, extrema, or threshold counts.
-4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive `r`, `phi`, `eta`, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
-5. Click **Make plot** or **Make event plot** after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
+4. Pick variables from the {item_name} selectors. Besides direct {item_name}s, the app can derive absolute values, 3D magnitudes, `r`, `phi`, `eta`, massless and massive energies, single-particle invariant masses, ratios, sums, differences, products, `delta phi`, `delta eta`, and `delta R`.
+5. Click **Make plot** (shortcut **P**) or **Make event plot** (shortcut **Shift+P**) after changing settings. The output area keeps showing the most recently generated plot until you make a new one; a notice says when the settings no longer match the displayed plot.
 6. Titles and axis labels of static plots support math between dollar signs, for example `$p_T$ [GeV]`. Interactive 3D plots show labels literally.
 
 **Field badges, jagged collections, and cuts**
 - Enable **Show {context.data_item_name} details in selectors** below the plot-type selection in the Plotter or Event inspection tab to add name-first badges such as `[scalar] [float32]`, `[fixed 3]`, or `[jagged] [float32]`. These describe the per-event structure and logical data type without loading the full field.
-- `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the field browser.
+- `[nested/record]` identifies structured or multiply nested data, `[unknown]` means the schema does not provide enough information for a safe classification, and `[unsupported]` identifies fields that cannot be plotted directly. All categories and source type details are available in the **{context.data_item_plural.title()} and objects** tab.
 - For object collections, direct {item_name} values are flattened for plotting.
 - In the Plotter, **Multiplicity per event**, **nth object per event**, and per-event reductions such as sum, mean, max, and min are useful for turning jagged collections into one value per event. They are also available for point colours and cuts, where the event's value applies to all of its plotted objects.
 - Range cuts are combined with logical AND and applied simultaneously before plotting.
 - Histogram weights support the common HEP case where one event-level {item_name} such as `genWeight` should weight every plotted object from that event. Object-level weight {item_name}s are also supported when they already match the plotted values.
 
 **Detector geometry overlay**
-- Enable **3D detector overlay** in the sidebar and provide a `.gdml` file by path or upload.
+- Turn on **Enable 3D detector overlay** in the sidebar and provide a `.gdml` file by path or upload.
 - Geometry is drawn only on **3D scatter interactive** plots.
 - Use the geometry scale and offset controls if the ROOT coordinates and GDML geometry use different units or origins.
 - Keep the geometry vertex limits modest when exploring large detector descriptions.

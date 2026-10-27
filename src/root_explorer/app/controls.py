@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -55,18 +56,18 @@ def slider_or_number_input(
     widget_column, button_column = st.columns([1, 0.1], vertical_alignment="bottom", gap="small")
     with widget_column:
         widget_key = input_key if typed else key
-        # Pass the default only on first creation to avoid Streamlit's warning about
-        # setting a widget value both as a default and through session state.
-        initial = {} if widget_key in st.session_state else {"value": value}
+        # Keep the widget default constant on every render. Omitting it after
+        # the first render resets the browser slider to its minimum even when
+        # Python-side session state still holds the user's selection.
         widget = st.number_input if typed else st.slider
         result = widget(
             label,
             min_value=min_value,
             max_value=max_value,
+            value=value,
             step=step,
             key=widget_key,
             help=help,
-            **initial,
         )
     with button_column:
         st.button(
@@ -515,6 +516,23 @@ def histogram_weight_selector(
     )
 
 
+def _parse_fit_number(text: str, label: str, *, allow_infinite: bool = False) -> float | None:
+    """Parse an optional fit setting, warning inline about invalid text.
+
+    Invalid text becomes NaN, which the fit rejects with its own message, so a
+    mistyped setting can never silently fall back to an automatic value.
+    """
+
+    if not text.strip():
+        return None
+    value = parse_optional_float(text)
+    if value is None or math.isnan(value) or (not allow_infinite and not math.isfinite(value)):
+        requirement = "a number" if allow_infinite else "a finite number"
+        st.warning(f"{label} must be {requirement}. Correct it before plotting.")
+        return float("nan")
+    return value
+
+
 def fit_controls(
     prefix: str, plot_type: str, *, default_use_variances: bool = False
 ) -> FitConfig | None:
@@ -542,11 +560,25 @@ def fit_controls(
         except ValueError as exc:
             st.warning(f"Invalid custom fit expression: {exc}")
             names = ()
+    variances_key = f"{prefix}_fit_variances"
+    default_key = f"{variances_key}_default"
+    previous_default = st.session_state.get(default_key)
+    # A keyed checkbox ignores later changes to its default. Follow the weight
+    # selection unless the user changed the checkbox themselves.
+    if variances_key not in st.session_state or (
+        default_use_variances != previous_default
+        and st.session_state[variances_key] == previous_default
+    ):
+        st.session_state[variances_key] = default_use_variances
+    st.session_state[default_key] = default_use_variances
     use_variances = st.checkbox(
         "Use stored bin variances (weighted least squares)",
-        value=default_use_variances,
-        key=f"{prefix}_fit_variances",
-        help="When disabled, all selected bins receive equal weight. No Poisson model is assumed.",
+        key=variances_key,
+        help=(
+            "Weight each bin by its stored variance, sum(w²). A stored histogram without "
+            "Sumw2 uses ROOT's default √N errors, which assume unweighted counts. When "
+            "disabled, all selected bins receive equal weight."
+        ),
     )
     range_enabled = st.checkbox("Custom fit range", key=f"{prefix}_fit_range_enabled")
     fit_range: tuple[float | None, float | None] = (None, None)
@@ -557,15 +589,10 @@ def fit_controls(
         with right:
             maximum = st.text_input("Fit maximum", key=f"{prefix}_fit_max", placeholder="Automatic")
 
-        def parse(value: str) -> float | None:
-            if not value.strip():
-                return None
-            try:
-                return float(value)
-            except ValueError:
-                return float("nan")
-
-        fit_range = (parse(minimum), parse(maximum))
+        fit_range = (
+            _parse_fit_number(minimum, "Fit minimum"),
+            _parse_fit_number(maximum, "Fit maximum"),
+        )
 
     initial = {}
     bounds = {}
@@ -586,16 +613,13 @@ def fit_controls(
                         placeholder=suffix.capitalize(),
                     )
                 fields.append(value)
-
-            def parse_parameter(value: str) -> float | None:
-                if not value.strip():
-                    return None
-                try:
-                    return float(value)
-                except ValueError:
-                    return float("nan")
-
-            values = [parse_parameter(value) for value in fields]
+            values = [
+                _parse_fit_number(fields[0], f"{name} initial value"),
+                # Infinite bounds are valid and remove a bound, whereas a blank field
+                # keeps the model's default bound on that side.
+                _parse_fit_number(fields[1], f"{name} lower bound", allow_infinite=True),
+                _parse_fit_number(fields[2], f"{name} upper bound", allow_infinite=True),
+            ]
             if values[0] is not None:
                 initial[name] = values[0]
             if values[1] is not None or values[2] is not None:
@@ -645,7 +669,7 @@ def distribution_calculator_controls(
         max_value=100.0,
         value=50.0,
         step=1.0,
-        format="%.3g",
+        format="%.6g",
         key=f"{prefix}_quantile_percentile",
     )
     return None, float(percentile)
@@ -700,10 +724,13 @@ def range_cut_controls(
             )
             lo_value = parse_optional_float(lo)
             hi_value = parse_optional_float(hi)
-            if str(lo).strip() and lo_value is None:
-                st.warning(f"Cut {i + 1} min is not a valid number and will be ignored.")
-            if str(hi).strip() and hi_value is None:
-                st.warning(f"Cut {i + 1} max is not a valid number and will be ignored.")
+            # inf and -inf are valid open bounds; unparseable text and nan are not.
+            if str(lo).strip() and (lo_value is None or math.isnan(lo_value)):
+                st.warning(f"Cut {i + 1} minimum must be a number. Correct it before plotting.")
+                lo_value = float("nan")
+            if str(hi).strip() and (hi_value is None or math.isnan(hi_value)):
+                st.warning(f"Cut {i + 1} maximum must be a number. Correct it before plotting.")
+                hi_value = float("nan")
             cut_bounds.append((lo_value, hi_value))
     return cut_specs, cut_bounds
 
@@ -978,10 +1005,19 @@ def export_controls(prefix: str, plot_kind: str, *, default_file_name: str) -> d
 
     st.markdown("### Export", anchors=False)
     controls: dict[str, Any] = {}
+    key = f"{prefix}_file_name"
+    default_key = f"{key}_default"
+    previous_default = st.session_state.get(default_key)
+    # A keyed widget ignores later changes to its default, e.g. the event number
+    # of a new event plot. Follow the default unless the user edited the name.
+    if key not in st.session_state or (
+        default_file_name != previous_default and st.session_state[key] == previous_default
+    ):
+        st.session_state[key] = default_file_name
+    st.session_state[default_key] = default_file_name
     controls["file_name"] = st.text_input(
         "Filename",
-        value=default_file_name,
-        key=f"{prefix}_file_name",
+        key=key,
         help="Name of the downloaded file; the file extension is added automatically.",
     )
     if plot_kind == "matplotlib":

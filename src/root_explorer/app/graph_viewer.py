@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from ..io.graphs import UnsupportedGraphError, read_graph
+from ..io.root import RemoteBackendUnavailableError, explain_missing_remote_backend
 from ..io.source import SourceVersion, source_version
 from ..models import GraphData
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
@@ -23,7 +24,8 @@ from .results import (
 @st.cache_data(show_spinner="Reading graph…", max_entries=16)
 def _cached_graph(root_path: str, object_path: str, version: SourceVersion) -> GraphData:
     """Load one graph; ``version`` invalidates the cache when the file changes."""
-    return read_graph(root_path, object_path)
+    with explain_missing_remote_backend(root_path):
+        return read_graph(root_path, object_path)
 
 
 def _graph_controls(graph: GraphData, object_id: str) -> tuple[dict[str, Any], dict[str, str]]:
@@ -86,7 +88,13 @@ def render_graph_controls(
     try:
         version = source_version(root_path)
         graph = _cached_graph(root_path, object_path, version)
-    except (UnsupportedGraphError, ValueError, OSError, KeyError) as exc:
+    except (
+        UnsupportedGraphError,
+        RemoteBackendUnavailableError,
+        ValueError,
+        OSError,
+        KeyError,
+    ) as exc:
         discard_plot_result("root_graph_result")
         st.warning(str(exc))
         return None
@@ -112,14 +120,20 @@ def render_graph_controls(
                 figure = render_graph_data(graph, spec.style, spec.labels)
             from ..plotting.graph_codegen import generate_graph_plot_code
 
+            warnings = []
+            try:
+                code = generate_graph_plot_code(spec)
+            except (ValueError, TypeError, RuntimeError, OSError) as exc:
+                code = None
+                warnings.append(f"Plot-code export unavailable: {exc}")
             store_plot_result(
                 "root_graph_result",
                 {
                     "kind": "matplotlib",
                     "figure": figure,
-                    "code": generate_graph_plot_code(spec),
+                    "code": code,
                     "file_name": "root_graph",
-                    "warnings": [],
+                    "warnings": warnings,
                     "settings": settings,
                 },
             )

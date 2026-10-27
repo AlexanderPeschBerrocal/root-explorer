@@ -75,3 +75,23 @@ def test_persisted_viewers_report_outdated_plots() -> None:
     assert _notices(at)
     at.button(key="hist_make_plot").click().run()
     assert not _notices(at)
+
+
+def test_geometry_parse_settings_outdate_a_3d_plot(root_path, tiny_gdml_path):
+    at = _app(root_path)
+    at.checkbox(key="geometry_enabled").check().run()
+    at.text_input(key="geometry_path").input(str(tiny_gdml_path)).run()
+    at.selectbox(key="plot_type").select("3D scatter interactive").run()
+    for axis in ("x", "y", "z"):
+        at.selectbox(key=f"{axis}_branch").select("Muon_pt").run()
+    at.button(key="plot_make").click().run()
+    assert not at.exception
+    assert not _notices(at)
+    next(widget for widget in at.selectbox if widget.label == "mesh quality").select("high").run()
+    assert _notices(at)
+    next(widget for widget in at.selectbox if widget.label == "mesh quality").select("medium").run()
+    assert not _notices(at)
+    next(
+        widget for widget in at.checkbox if widget.label == "include container volumes"
+    ).check().run()
+    assert _notices(at)

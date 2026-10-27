@@ -36,6 +36,12 @@ then event-reduction workflow. Event reductions are not offered in the
 single-event plot of **Event inspection**, where a reduction would be one constant
 for the displayed event.
 
+Sum, mean, extrema and nth-object reductions require scalars or a single list of
+scalars per event. Multiply nested lists are rejected with an explanation;
+choose a scalar leaf field instead. Multiplicity counts the outer collection's
+objects. Direct numeric nested values can still be flattened for plotting when
+their structures align.
+
 ## Derived variables
 
 The selectors offer the following derived operations. Inputs must describe
@@ -45,21 +51,21 @@ objects; they do not construct all pairs or match particles between collections.
 Plot axes likewise need matching structures; a scalar axis is not automatically
 repeated for a jagged axis.
 
-| Operation | Definition / convention |
+| Operation (selector label) | Definition / convention |
 | --- | --- |
-| Absolute value | $\lvert a\rvert$ |
-| 3D magnitude | $\sqrt{x^2+y^2+z^2}$ |
-| Transverse radius | $\sqrt{x^2+y^2}$ |
-| Azimuth from x/y | $\operatorname{atan2}(y,x)$, in radians |
-| Pseudorapidity from x/y/z | $\operatorname{asinh}(z/\sqrt{x^2+y^2})$; undefined at zero transverse radius |
-| Massless energy | $p_T\cosh(\eta)$, or $p_T\cosh(y)$ using rapidity |
-| Massive energy from pseudorapidity | $\sqrt{m^2+(p_T\cosh(\eta))^2}$ |
-| Massive energy from rapidity | $\sqrt{m^2+p_T^2}\cosh(y)$ |
-| Invariant mass from E/px/py/pz | $\sqrt{\max(E^2-p_x^2-p_y^2-p_z^2,0)}$; negative mass squared is clipped to zero |
-| Ratio / difference / sum / product | $a/b$, $a-b$, $a+b$, $ab$; division by zero gives `NaN` |
-| Delta phi | Wrapped $\phi_1-\phi_2$ in $(-\pi,\pi]$ |
-| Delta eta | $\eta_1-\eta_2$ |
-| Delta R | $\sqrt{(\Delta\eta)^2+(\Delta\phi)^2}$ using wrapped delta phi |
+| Absolute value (`\|A\|`) | $\lvert a\rvert$ |
+| 3D magnitude (`sqrt(A² + B² + C²)`) | $\sqrt{x^2+y^2+z^2}$ |
+| Transverse radius (`r = sqrt(x² + y²)`) | $\sqrt{x^2+y^2}$ |
+| Azimuth from x/y (`phi = atan2(y, x)`) | $\operatorname{atan2}(y,x)$, in radians |
+| Pseudorapidity from x/y/z (`eta = asinh(z / sqrt(x²+y²))`) | $\operatorname{asinh}(z/\sqrt{x^2+y^2})$; undefined at zero transverse radius |
+| Massless energy (`Energy (massless)`) | $p_T\cosh(\eta)$, or $p_T\cosh(y)$ using rapidity |
+| Massive energy (`Energy (with mass)`), longitudinal coordinate `eta (pseudorapidity)` | $\sqrt{m^2+(p_T\cosh(\eta))^2}$ |
+| Massive energy (`Energy (with mass)`), longitudinal coordinate `y (rapidity)` | $\sqrt{m^2+p_T^2}\cosh(y)$ |
+| Invariant mass from E/px/py/pz (`Invariant mass (single particle)`) | $\sqrt{\max(E^2-p_x^2-p_y^2-p_z^2,0)}$; negative mass squared is clipped to zero |
+| Ratio / difference / sum / product (`A / B`, `A - B`, `A + B`, `A * B`) | $a/b$, $a-b$, $a+b$, $ab$; division by zero gives `NaN` |
+| Delta phi (`delta phi`) | Wrapped $\phi_1-\phi_2$ in $(-\pi,\pi]$ |
+| Delta eta (`delta eta`) | $\eta_1-\eta_2$ |
+| Delta R (`delta R`) | $\sqrt{(\Delta\eta)^2+(\Delta\phi)^2}$ using wrapped delta phi |
 
 Use consistent momentum, mass and energy units; no unit conversion is performed.
 Angles are in radians. The invariant-mass mode operates on the supplied
@@ -93,8 +99,11 @@ Missing values are never replaced by zero.
 
 ## Cuts and weights
 
-Range cuts are combined with logical **AND**, with inclusive lower and upper
+Set **Number of cuts** (up to 20) to add range cuts. Range cuts are combined with logical **AND**, with inclusive lower and upper
 bounds (`minimum <= value <= maximum`). Leave a bound blank for an open end.
+A bound that is not a number (for example a typo or `nan`), or a minimum greater
+than the maximum, prevents plot generation until corrected; it never silently
+becomes an open bound. `inf` and `-inf` are valid and act as open bounds.
 Non-finite cut values fail the cut. Event-level cuts, such as `MET_pt` or a
 per-event reduction such as `max(Muon_pt)`, are repeated for all plotted objects
 in each event, so they keep or reject the objects of an event together. For
@@ -105,8 +114,8 @@ fail the cut. Object-level cuts must match the plotted collection's per-event
 structure. A cut on one particle collection does not
 implicitly select or match objects in a different collection.
 
-After cuts, a common finite-value mask removes observations with non-finite
-coordinates, weights or scatter colours. Histogram ranges and axis limits are
+A common finite-value mask removes observations with non-finite coordinates,
+weights, scatter colours or cut values before applying range cuts. Histogram ranges and axis limits are
 separate controls, not additional physics selections.
 
 For weighted histograms, an event-level `genWeight` can be broadcast to each selected object in that event; object-level weights can be used when they match the plotted observations. Thus a weighted object histogram sums **object contributions with their associated weights**, which need not equal the number of events.

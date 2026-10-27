@@ -365,3 +365,111 @@ def test_3d_scatter_excludes_events_with_missing_x_y_or_z(optional_path) -> None
     at.button(key="plot_make").click().run()
     assert not at.exception
     assert any("No values remain to plot" in warning.value for warning in at.warning)
+
+
+@pytest.fixture
+def consistency_path(tmp_path) -> Path:
+    """Crafted events covering every edge case of a per-event variable."""
+
+    path = tmp_path / "consistency.root"
+    nan = float("nan")
+    with uproot.recreate(path) as root_file:
+        root_file.mkrntuple(
+            "Events",
+            {
+                # Missing collection, empty, None inside, NaN inside, all None, regular.
+                "coll": ak.Array(
+                    [None, [], [1.0, None, 3.0], [2.0, nan, 5.0], [None], [4.0, -1.0]]
+                ),
+                "nested": ak.Array(
+                    [[[1.0, 2.0], [3.0]], [], [[]], None, [[None, 4.0], [nan]], [[5.0], []]]
+                ),
+                "scalar": ak.Array([1.0, None, 3.0, nan, 5.0, 6.0]),
+            },
+        )
+    return path
+
+
+@pytest.mark.parametrize("branch", ["coll", "nested", "scalar"])
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"mode": "multiplicity"},
+        {"mode": "nth", "index": 0},
+        {"mode": "nth", "index": 1},
+        {"mode": "sum"},
+        {"mode": "mean"},
+        {"mode": "max"},
+        {"mode": "min"},
+    ],
+    ids=lambda spec: "-".join(str(value) for value in spec.values()),
+)
+def test_event_inspection_matches_the_per_event_values_of_a_range(
+    consistency_path, branch, spec
+) -> None:
+    n_events = 6
+    if branch == "nested" and spec["mode"] != "multiplicity":
+        # Nested lists cannot be reduced to one value per event in either mode.
+        for event_index in (None, 0):
+            with pytest.raises(ArrayShapeMismatchError, match="nested lists"):
+                evaluate_variable(
+                    VariableSpec(branch=branch, **spec),
+                    str(consistency_path),
+                    "Events",
+                    0,
+                    n_events,
+                    event_index,
+                )
+        return
+    full, full_label = evaluate_variable(
+        VariableSpec(branch=branch, **spec), str(consistency_path), "Events", 0, n_events
+    )
+    assert len(full) == n_events
+    for event_index in range(n_events):
+        single, label = evaluate_variable(
+            VariableSpec(branch=branch, **spec),
+            str(consistency_path),
+            "Events",
+            0,
+            n_events,
+            event_index,
+        )
+        assert label == full_label
+        np.testing.assert_array_equal(single, full[event_index : event_index + 1])
+
+
+def test_per_event_reductions_of_crafted_collections(consistency_path) -> None:
+    def values(**spec) -> list[float]:
+        result, _ = evaluate_variable(
+            VariableSpec(branch="coll", **spec), str(consistency_path), "Events", 0, 6
+        )
+        return np.asarray(result, dtype=float).tolist()
+
+    nan, inf = float("nan"), float("inf")
+    np.testing.assert_array_equal(values(mode="multiplicity"), [nan, 0, 3, 3, 1, 2])
+    # Missing values inside a collection are skipped; NaN values propagate
+    # through sum and mean but are ignored by max and min.
+    np.testing.assert_array_equal(values(mode="sum"), [nan, 0, 4, nan, 0, 3])
+    np.testing.assert_array_equal(values(mode="mean"), [nan, nan, 2, nan, nan, 1.5])
+    np.testing.assert_array_equal(values(mode="max"), [nan, -inf, 3, 5, -inf, 4])
+    np.testing.assert_array_equal(values(mode="min"), [nan, inf, 1, 2, inf, -1])
+    np.testing.assert_array_equal(values(mode="nth", index=1), [nan, nan, nan, nan, nan, -1])
+
+
+def test_single_event_reductions_do_not_use_the_entry_range_cache(root_path, monkeypatch) -> None:
+    from root_explorer.io import root as root_io
+
+    range_reads: list[tuple[object, ...]] = []
+    cached_read_field = root_io._cached_read_field
+
+    def recording_read_field(*args):
+        range_reads.append(args)
+        return cached_read_field(*args)
+
+    monkeypatch.setattr(root_io, "_cached_read_field", recording_read_field)
+    for mode in ("multiplicity", "nth", "sum", "mean", "max", "min"):
+        spec = VariableSpec(mode=mode, branch="Muon_pt")
+        for event in range(3):
+            evaluate_variable(spec, str(root_path), "Events", 0, 12, event)
+    # Stepping through events must not evict the Plotter's full-range reads.
+    assert range_reads == []

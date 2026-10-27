@@ -39,6 +39,12 @@ class _FakeTree:
 
 
 class _FakeFile:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
     def __init__(self, tree: _FakeTree) -> None:
         self.tree = tree
 
@@ -311,3 +317,93 @@ def test_root_name_helpers_and_cli_path(monkeypatch) -> None:
 
     monkeypatch.setattr(sys, "argv", ["streamlit_app.py", "input.root", "--server.port", "8501"])
     assert root_io.parse_cli_rootfile() == "input.root"
+
+
+def test_uncached_readers_close_files_even_on_failure(root_path, monkeypatch):
+    original = root_io.uproot.open
+    handles = []
+
+    def record_open(*args, **kwargs):
+        handle = original(*args, **kwargs)
+        handles.append(handle)
+        return handle
+
+    monkeypatch.setattr(root_io.uproot, "open", record_open)
+    root_io.get_entry_count(str(root_path), "Events")
+    root_io.get_field_info(str(root_path), "Events")
+    root_io.read_field_uncached(str(root_path), "Events", "Muon_pt", 0, 2)
+    root_io.read_event_field_uncached(str(root_path), "Events", "Muon_pt", 0)
+    with pytest.raises(root_io.FieldReadError):
+        root_io.read_field_uncached(str(root_path), "Events", "absent", 0, 2)
+    assert len(handles) == 5
+    assert all(handle.file.closed for handle in handles)
+
+
+def test_out_of_range_event_read_has_context(root_path):
+    for index in (-1, 100):
+        with pytest.raises(root_io.FieldReadError, match=f"event {index}"):
+            root_io.read_event_field_uncached(str(root_path), "Events", "Muon_pt", index)
+
+
+@pytest.mark.parametrize(
+    ("path", "missing", "install"),
+    [
+        ("https://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
+        ("http://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
+        (
+            "root://eos.example.org//store/data.root",
+            "fsspec_xrootd",
+            "pip install 'root-explorer[xrootd]'",
+        ),
+    ],
+)
+def test_missing_remote_backend_names_what_to_install(monkeypatch, path, missing, install) -> None:
+    def missing_backend(opened_path):
+        raise ImportError(f"No module named {missing!r}")
+
+    monkeypatch.setattr(root_io.uproot, "open", missing_backend)
+    with pytest.raises(root_io.RemoteBackendUnavailableError) as error:
+        root_io.get_root_catalogue(path)
+    assert install in str(error.value)
+    assert path in str(error.value)
+    assert isinstance(error.value.__cause__, ImportError)
+
+    with pytest.raises(root_io.FieldReadError, match="requires the"):
+        root_io.read_field_uncached(path, "Events", "x", 0, None)
+
+
+def test_local_import_errors_are_not_reworded(monkeypatch, tmp_path) -> None:
+    def broken(opened_path):
+        raise ImportError("compression codec missing")
+
+    path = tmp_path / "events.root"
+    path.write_bytes(b"")
+    monkeypatch.setattr(root_io.uproot, "open", broken)
+    with pytest.raises(ImportError, match="compression codec missing") as error:
+        root_io.open_uproot_source(str(path))
+    assert not isinstance(error.value, root_io.RemoteBackendUnavailableError)
+
+
+def test_persisted_object_viewers_name_the_missing_remote_backend(monkeypatch) -> None:
+    from root_explorer.app import graph_viewer, histogram_viewer
+
+    def missing_backend(*args, **kwargs):
+        raise ImportError("No module named 'aiohttp'")
+
+    path = "https://example.org/objects.root"
+    monkeypatch.setattr(histogram_viewer, "read_histogram", missing_backend)
+    monkeypatch.setattr(graph_viewer, "read_graph", missing_backend)
+    for load in (histogram_viewer._cached_histogram, graph_viewer._cached_graph):
+        load.clear()
+        with pytest.raises(root_io.RemoteBackendUnavailableError, match="aiohttp and requests"):
+            load(path, "h", ("remote", path, 0, 0))
+
+
+def test_unrelated_import_errors_of_remote_sources_are_not_reworded(monkeypatch) -> None:
+    def broken(opened_path):
+        raise ImportError("No module named 'cramjam'")
+
+    monkeypatch.setattr(root_io.uproot, "open", broken)
+    with pytest.raises(ImportError, match="cramjam") as error:
+        root_io.open_uproot_source("https://example.org/data.root")
+    assert not isinstance(error.value, root_io.RemoteBackendUnavailableError)

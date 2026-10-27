@@ -37,8 +37,8 @@ python -m mypy
 ```
 
 The check covers the complete `src/root_explorer` package. The `dev` extra
-installs the `pandas-stubs` and `scipy-stubs` type stubs. Plotly provides no type
-information and is excluded by a narrow per-module override; prefer precise
+installs the `pandas-stubs` and `scipy-stubs` type stubs. Awkward, Uproot and Plotly
+lack usable type information and are excluded by narrow per-module overrides; prefer precise
 annotations or explicit narrowing over `# type: ignore` comments.
 
 ## Pre-commit hooks

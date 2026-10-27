@@ -27,8 +27,9 @@ count formulas indiscriminately to weighted histograms.
 The summary table above the plot describes the selected sample after cuts and
 finite-value filtering; it is not redefined by histogram range, zoom, or flow
 display settings. Its `n`, `min`, `median`, `mean`, `std` and `max` columns are
-**unweighted**. When a weight branch is selected (weights are available for 1D
-and 2D histograms in the Plotter and in Event inspection), a second table below it
+**unweighted**. When a weight branch is selected with **Use weights** and the
+**Weight branch** (**Weight field** for an RNTuple) selector (weights are available
+for 1D and 2D histograms in the Plotter and in Event inspection), a second table below it
 shows weighted statistics of the plotted values:
 
 - **sum of weights** $\sum_i w_i$;
@@ -87,6 +88,11 @@ sorted value whose cumulative weight reaches the requested fraction, without
 interpolation. For example, the median of `[0, 10]` is 5 unweighted, but 0 with
 equal positive weights. Weighted quantiles are unavailable if any selected
 weight is negative or the total weight is zero. Empty samples have no quantile.
+Zero-weight observations do not influence a weighted quantile, including its
+0% and 100% endpoints, which are the smallest and largest positively weighted
+values. Quantile and threshold fractions use scaled weights internally to avoid
+overflow from an otherwise harmless change of weight units. Raw sums can still
+exceed floating-point range for extreme inputs.
 
 ## Unit-area density normalisation
 
@@ -142,29 +148,50 @@ automatically. `TProfile` and `TProfile2D` bin means must not be treated as yiel
 
 ## Built-in histogram fitting
 
-For a 1D histogram, select **Enable fit** in the histogram fit controls and choose Gaussian,
-Exponential, single-sided Crystal Ball, or double-sided Crystal Ball.
+For a 1D histogram, select **Enable fit** in the histogram fit controls and choose a **Fit model**:
+**Gaussian**, **Exponential**, **Crystal Ball** (single-sided), **Double-sided Crystal Ball**
+or **Custom expression** (see below).
 This is available for histograms built from TTree/RNTuple branches and
 persisted `TH1*` ROOT objects. Fitting of `TProfile` bin means is
 not yet supported.
 
 ROOT Explorer uses **binned least squares**, not a Poisson likelihood.
 Ordinary least squares assigns equal importance to every selected bin.
-You may explicitly enable **Use stored bin variances** to minimise the
-sum of squared residuals divided by each bin's variance (`sum(w²)`).
-Bins with non-finite or non-positive variances are excluded and reported;
-they do not affect starting parameter estimates. If the histogram has no stored
-variances at all, variance-weighted fitting fails with a warning: disable
-**Use stored bin variances** to use ordinary least squares. In particular,
-unweighted event histograms do not store variances for this fit mode. No Poisson
-uncertainties are inferred from their counts.
+**Use stored bin variances (weighted least squares)** instead minimises the
+sum of squared residuals divided by each bin's variance (`sum(w²)`). In the
+Plotter and Event inspection it is enabled by default when a weight branch is
+selected and disabled otherwise; for stored `TH1*` objects it is disabled by
+default. Bins with non-finite or non-positive variances (for example empty
+bins) are excluded and reported; they do not affect starting parameter
+estimates.
+
+For a stored `TH1*` object, the fit uses the same per-bin errors as the drawn
+error bars: its stored `sum(w²)`, or for a histogram saved without `Sumw2`,
+ROOT's default errors $\sqrt{N}$ of the bin contents. The fit result then names
+the objective *with √N errors* and notes the assumption: $\sqrt{N}$ is only a
+meaningful uncertainty if the bins hold unweighted counts, not, for example,
+efficiencies, ratios or normalised shapes, and it is a poor approximation for
+bins with few entries. Empty bins have no usable √N error and are excluded.
+Unweighted histograms built from event branches store no variances, and no
+Poisson uncertainties are inferred
+from their counts: variance-weighted fitting then fails with a warning, so
+disable **Use stored bin variances** to use ordinary least squares.
 
 Predictions are **integrals of the fit model over the original bins**
 rather than evaluations at bin centres. The custom fit interval selects
 whole bins whose centres fall inside it. With **Fold**, flow yields contribute
 through the adjusted edge bins; with **Ignore** or **Show separate bins**, they
 do not contribute. Parameter guesses and physically meaningful default bounds
-are provided automatically; both can be overridden. Fit failures display
+(for example `A ≥ 0`, `sigma > 0`, `alpha` in [0.001, 100] and `n` in
+[1.0001, 10⁴]) are provided automatically; both can be overridden under
+**Override initial parameters and bounds**. If you enter only a lower or only an
+upper bound, the default bound on the other side is kept. An invalid entry in a
+fit range or parameter field is marked with a warning next to the field, and the
+fit then fails with a message while the histogram is still drawn; `inf` and
+`-inf` are accepted as bounds. A one-sided bound that lies beyond the kept default
+(for example `alpha ≥ 150` with the default upper bound 100) leaves no valid range;
+the fit then fails with a message naming both bounds, and entering `inf` for the
+other side removes the default. Fit failures display
 a warning without removing the histogram.
 
 The output table reports parameters and approximate local covariance-based
@@ -193,6 +220,8 @@ at 1 and is unbounded; supply appropriate initial values and bounds for
 non-linear or ill-conditioned fits.
 
 Expressions are validated against a restricted syntax tree before evaluation.
+An expression may contain at most 512 characters, 12 fit parameters, 128 syntax
+elements and a nesting depth of 24; literal exponents are limited to ±64.
 Python statements, imports, attribute access, indexing, and arbitrary function
 calls are forbidden. Custom models are integrated over the original bins using
 fixed-order numerical quadrature, whereas built-in models retain their analytic
@@ -226,8 +255,11 @@ These enclose histogram content by accumulating bins from highest content to
 lowest. They are **not parameter-confidence regions** or fixed numbers of
 Gaussian standard deviations. They use the full binned sample, not the KDE
 subsample. Negative bin contents prevent this calculation; coarse binning and
-ties can merge requested levels or prevent a contour from being drawn. Adjust
-the binning and check warnings when interpreting the overlay.
+ties can merge requested levels or prevent a contour from being drawn. A level
+that encloses only the peak bin or every bin cannot be drawn and is named in a
+warning, for example "Contour levels 10%, 30% cannot be drawn: they enclose only
+the peak bin."; the other levels are still drawn. Adjust the binning and check
+warnings when interpreting the overlay.
 
 ## Standalone plot code
 

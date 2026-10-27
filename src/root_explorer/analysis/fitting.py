@@ -1,7 +1,8 @@
 """Binned least-squares fits for canonical one-dimensional histograms.
 
-No assumption of Poisson statistics is made. The caller explicitly selects
-ordinary least squares or the variances retained by hist.Hist.
+The fit itself assumes no Poisson statistics. The caller explicitly selects
+ordinary least squares, the variances retained by hist.Hist, or explicit
+variances such as ROOT's sqrt(N) errors of a persisted histogram without Sumw2.
 """
 
 from __future__ import annotations
@@ -149,6 +150,18 @@ def model_density(
     raise ValueError(f"Unsupported fit model: {model}")
 
 
+def _exponential_bin_integrals(
+    left: np.ndarray, right: np.ndarray, amplitude: float, k: float, x0: float
+) -> np.ndarray:
+    """Integrate without treating a dimensionful small slope as exactly zero."""
+    widths = right - left
+    exponent = k * widths
+    factor = np.divide(
+        np.expm1(exponent), exponent, out=np.ones_like(exponent), where=exponent != 0
+    )
+    return np.asarray(amplitude * np.exp(k * (left - x0)) * widths * factor, dtype=float)
+
+
 def model_bin_integrals(
     model: str,
     edges: np.ndarray,
@@ -174,12 +187,7 @@ def model_bin_integrals(
     left, right = edges[:-1], edges[1:]
     amplitude = parameters["A"]
     if model == "Exponential":
-        k = parameters["k"]
-        if abs(k) < 1e-10:
-            return np.asarray(amplitude * (right - left), dtype=float)
-        return np.asarray(
-            amplitude * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k, dtype=float
-        )
+        return _exponential_bin_integrals(left, right, amplitude, parameters["k"], x0)
 
     mu, sigma = parameters["mu"], parameters["sigma"]
     t_left, t_right = (left - mu) / sigma, (right - mu) / sigma
@@ -251,16 +259,29 @@ def _default_bounds(name: str, edges: np.ndarray) -> tuple[float, float]:
     return (-np.inf, np.inf)
 
 
-def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
+def fit_histogram_1d(
+    histogram: hist.Hist,
+    config: FitConfig,
+    *,
+    variances: np.ndarray | None = None,
+    count_errors: bool = False,
+) -> FitResult:
     """Fit an existing histogram without rebinning or invoking Streamlit.
 
     Range selection includes full bins whose centres are inside the range.
     With use_variances=True, only bins with finite positive stored variances
-    contribute; excluded bins are reported in FitResult.
+    contribute; excluded bins are reported in FitResult. Explicit visible-bin
+    `variances` replace the storage variances, e.g. ROOT's sqrt(N) errors of a
+    persisted histogram without Sumw2, so the fit uses the errors drawn.
+    `count_errors` marks such sqrt(N) variances, which are only meaningful for
+    unweighted counts, so the result can say that they were assumed.
     """
+    count_errors = count_errors and config.use_variances
     objective = (
         "Variance-weighted least squares" if config.use_variances else "Ordinary least squares"
     )
+    if count_errors:
+        objective += " with √N errors"
 
     def failed(message: str, *, bins_used: int = 0, bins_excluded: int = 0) -> FitResult:
         return FitResult(
@@ -304,14 +325,22 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     centers = (edges[:-1] + edges[1:]) / 2
     selected = (centers >= lower) & (centers <= upper)
     excluded = 0
+    bin_variances = np.ones(len(values))
     if config.use_variances:
-        if histogram.storage_type is not hist.storage.Weight:
-            return failed("Explicit stored sum(w²) variances are unavailable for this histogram.")
-        variances = histogram.variances()
         if variances is None:
-            return failed("This histogram has no stored bin variances.")
-        variances = np.asarray(variances, dtype=float)
-        usable = np.isfinite(variances) & (variances > 0)
+            # Unweighted event histograms carry no explicit sum(w²); hist would
+            # otherwise silently substitute Poisson variances equal to the counts.
+            if histogram.storage_type is not hist.storage.Weight:
+                return failed(
+                    "Explicit stored sum(w²) variances are unavailable for this histogram."
+                )
+            variances = histogram.variances()
+            if variances is None:
+                return failed("This histogram has no stored bin variances.")
+        bin_variances = np.asarray(variances, dtype=float)
+        if bin_variances.shape != values.shape:
+            return failed("Bin variances do not match the histogram bins.")
+        usable = np.isfinite(bin_variances) & (bin_variances > 0)
         excluded = int(np.count_nonzero(selected & ~usable))
         selected &= usable
 
@@ -351,11 +380,19 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     for name in names:
         low, high = (-np.inf, np.inf) if expression is not None else _default_bounds(name, edges)
         if config.bounds and name in config.bounds:
+            # A one-sided override keeps the default on the side left unset.
             override_low, override_high = config.bounds[name]
-            low = -np.inf if override_low is None else float(override_low)
-            high = np.inf if override_high is None else float(override_high)
+            low = low if override_low is None else float(override_low)
+            high = high if override_high is None else float(override_high)
         value = float((config.initial_values or {}).get(name, guesses[name]))
-        if not np.isfinite(value) or np.isnan(low) or np.isnan(high) or low >= high:
+        if not np.isnan(low) and not np.isnan(high) and low >= high:
+            return failed(
+                f"Bounds for {name} are empty: lower {low:g} is not below upper {high:g}. "
+                "A blank bound keeps the model's default; enter inf or -inf to remove it.",
+                bins_used=len(indices),
+                bins_excluded=excluded,
+            )
+        if not np.isfinite(value) or np.isnan(low) or np.isnan(high):
             return failed(
                 f"Invalid initial value or bounds for {name}.",
                 bins_used=len(indices),
@@ -383,11 +420,7 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         lower_bounds.append(low)
         upper_bounds.append(high)
 
-    sigma = (
-        np.sqrt(np.asarray(histogram.variances(), dtype=float)[indices])
-        if config.use_variances
-        else np.ones(len(indices))
-    )
+    sigma = np.sqrt(bin_variances[indices])
 
     def residual(params: np.ndarray) -> np.ndarray:
         params_dict = dict(zip(names, params, strict=True))
@@ -396,11 +429,8 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
         left = fit_edges[:, 0]
         right = fit_edges[:, 1]
         if config.model == "Exponential":
-            k = params_dict["k"]
-            predictions = (
-                params_dict["A"] * (right - left)
-                if abs(k) < 1e-10
-                else params_dict["A"] * np.exp(k * (left - x0)) * np.expm1(k * (right - left)) / k
+            predictions = _exponential_bin_integrals(
+                left, right, params_dict["A"], params_dict["k"], x0
             )
         else:
             # Two-endpoint arrays are integrated independently, without
@@ -467,10 +497,18 @@ def fit_histogram_1d(histogram: hist.Hist, config: FitConfig) -> FitResult:
     except np.linalg.LinAlgError:
         notes.append("Covariance is singular; uncertainties are unavailable.")
 
-    if excluded:
+    if count_errors:
         notes.append(
-            f"{excluded} bin(s) excluded because stored variances were not positive and finite."
+            "The histogram stores no Sumw2, so ROOT's default bin errors √N of the bin "
+            "contents are assumed. They are only meaningful if the bins hold unweighted counts."
         )
+    if excluded:
+        reason = (
+            "their content is not positive, so √N gives no usable error"
+            if count_errors
+            else "stored variances were not positive and finite"
+        )
+        notes.append(f"{excluded} bin(s) excluded because {reason}.")
     return FitResult(
         config.model,
         True,

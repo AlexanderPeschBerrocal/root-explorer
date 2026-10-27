@@ -55,9 +55,11 @@ def streamlit_arguments(argv: Sequence[str] | None = None) -> list[str]:
     parser = _parser()
     tokens = iter(sys.argv[1:] if argv is None else argv)
     normalized = []
+    # Tokens after "--" are positional only, even if they look like options.
+    separated: list[str] = []
     for token in tokens:
         if token == "--":
-            normalized.extend([token, *tokens])
+            separated = list(tokens)
             break
         # Streamlit's --section.setting options all take a value, including
         # boolean settings. Bind split values before argparse can mistake them
@@ -69,6 +71,16 @@ def streamlit_arguments(argv: Sequence[str] | None = None) -> list[str]:
             token = f"{token}={value}"
         normalized.append(token)
     args, streamlit_options = parser.parse_known_args(normalized)
+    # Only one ROOT file can be opened. Streamlit would hand any further positional
+    # argument to the app, which would then open that file instead.
+    for token in streamlit_options:
+        if not token.startswith("-"):
+            parser.error(f"unexpected argument {token!r}; only one ROOT file can be given")
+    if separated:
+        if args.root_file is not None or len(separated) > 1:
+            extra = separated[0] if args.root_file is not None else separated[1]
+            parser.error(f"unexpected argument {extra!r}; only one ROOT file can be given")
+        args.root_file = separated[0]
     arguments = ["run", str(APP_SCRIPT), *DEFAULT_STREAMLIT_OPTIONS]
     if args.port is not None:
         arguments.append(f"--server.port={args.port}")
