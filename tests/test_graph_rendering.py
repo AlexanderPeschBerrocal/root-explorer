@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from root_explorer.models import GraphData
-from root_explorer.plotting.graphs import clipped_error_bar_warnings, render_graph_data
+from root_explorer.plotting.graphs import render_graph_data
 from root_explorer.plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError
 
 matplotlib.use("Agg")
@@ -47,44 +47,14 @@ def test_errors_are_used_when_visible():
     assert fig.axes[0].collections
 
 
-@pytest.mark.parametrize("axis", ["x", "y"])
-def test_log_axis_clips_lower_error_bars_reaching_zero(axis):
-    errors = {
-        f"{axis}err_low": np.array([0.3, 0.1, 0.3]),
-        f"{axis}err_high": np.array([0.1, 0.1, 0.1]),
-    }
-    graph = GraphData(x=np.array([0.3, 0.5, 0.2]), y=np.array([0.3, 0.5, 0.2]), **errors)
-    expected = (
-        f"2 lower {axis} error bar(s) reach zero or below and are cut off "
-        f"at the bottom of the logarithmic {axis}-axis."
-    )
-    assert clipped_error_bar_warnings(graph, style(**{f"log_{axis}": True})) == [expected]
-    assert (
-        clipped_error_bar_warnings(graph, style(**{f"log_{axis}": True}, show_errors=False)) == []
-    )
-    assert clipped_error_bar_warnings(graph, style()) == []
-    with pytest.warns(UserWarning, match="2 lower"):
-        fig = render_graph_data(graph, style(**{f"log_{axis}": True}), {})
-    try:
-        ax = fig.axes[0]
-        fig.canvas.draw()
-        assert (ax.get_xscale() if axis == "x" else ax.get_yscale()) == "log"
-        # The clipped bars do not pull the axis towards zero.
-        lower = (ax.get_xlim() if axis == "x" else ax.get_ylim())[0]
-        assert 0.05 < lower < 0.2
-    finally:
-        plt.close(fig)
-
-
-def test_log_axis_still_rejects_nonpositive_points_with_errors():
+def test_log_axis_rejects_crossing_uncertainty():
     graph = GraphData(
-        x=np.array([1.0, 2.0]),
-        y=np.array([0.0, 0.5]),
-        yerr_low=np.array([0.1, 0.1]),
-        yerr_high=np.array([0.1, 0.1]),
+        x=np.array([1.0]),
+        y=np.array([0.2]),
+        yerr_low=np.array([0.3]),
+        yerr_high=np.array([0.1]),
     )
-    assert clipped_error_bar_warnings(graph, style(log_y=True)) == []
-    with pytest.raises(InvalidAxisScaleError):
+    with pytest.raises(InvalidAxisScaleError, match="uncertainties cross zero"):
         render_graph_data(graph, style(log_y=True), {})
 
 
@@ -94,7 +64,7 @@ def test_log_axis_still_rejects_nonpositive_points_with_errors():
         (
             GraphData(
                 x=np.array([1.0]),
-                y=np.array([-0.2]),
+                y=np.array([0.2]),
                 yerr_low=np.array([0.3]),
                 yerr_high=np.array([0.1]),
             ),

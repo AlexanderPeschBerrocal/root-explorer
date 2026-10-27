@@ -10,12 +10,7 @@ from ..io.graphs import UnsupportedGraphError, read_graph
 from ..io.root import RemoteBackendUnavailableError, explain_missing_remote_backend
 from ..io.source import SourceVersion, source_version
 from ..models import GraphData
-from ..plotting.graphs import (
-    GraphPlotSpec,
-    clipped_error_bar_warnings,
-    nonfinite_coordinate_count,
-    render_graph_data,
-)
+from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
 from ..plotting.plots import InvalidAxisLimitError, InvalidAxisScaleError, validate_plot_labels
 from .controls import slider_or_number_input
 from .results import (
@@ -109,8 +104,6 @@ def render_graph_controls(
         st.warning(f"Omitted {omitted_points} graph point(s) with non-finite coordinates.")
     style, labels = _graph_controls(graph, str(abs(hash((root_path, object_path, version)))))
     settings = (style, labels)
-    for message in clipped_error_bar_warnings(graph, style):
-        st.warning(message)
     # A deliberate Open action triggers the initial plot. A mere row selection does not.
     make_plot = st.button(
         "Make plot",

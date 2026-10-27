@@ -12,6 +12,7 @@ import numpy as np
 from ..io.graphs import read_graph
 from ..models import GraphData
 from .plots import (
+    InvalidAxisScaleError,
     apply_axis_limits,
     apply_log_axis_scales,
     create_static_figure,
@@ -35,28 +36,6 @@ def _error_array(low: np.ndarray | None, high: np.ndarray | None) -> np.ndarray 
 def nonfinite_coordinate_count(graph: GraphData) -> int:
     """Return how many coordinate pairs cannot be represented by Matplotlib."""
     return int(np.count_nonzero(~(np.isfinite(graph.x) & np.isfinite(graph.y))))
-
-
-def clipped_error_bar_warnings(graph: GraphData, style: dict[str, Any]) -> list[str]:
-    """Describe lower error bars that reach zero on a logarithmic axis.
-
-    As in ROOT, such a bar is drawn down to the axis bottom instead of refusing
-    the plot; non-positive coordinates themselves remain invalid on a log axis.
-    """
-    if not bool(style.get("show_errors", True)):
-        return []
-    valid = np.isfinite(graph.x) & np.isfinite(graph.y)
-    messages = []
-    for axis, values, low in (("x", graph.x, graph.xerr_low), ("y", graph.y, graph.yerr_low)):
-        if not bool(style.get(f"log_{axis}", False)) or low is None:
-            continue
-        clipped = int(np.count_nonzero(valid & (values > 0) & (values - low <= 0)))
-        if clipped:
-            messages.append(
-                f"{clipped} lower {axis} error bar(s) reach zero or below and are cut off "
-                f"at the bottom of the logarithmic {axis}-axis."
-            )
-    return messages
 
 
 def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str, str]) -> Any:
@@ -89,9 +68,20 @@ def render_graph_data(graph: GraphData, style: dict[str, Any], labels: dict[str,
     else:
         graph_x, graph_y = graph.x, graph.y
 
-    for message in clipped_error_bar_warnings(graph, style):
-        # Matplotlib clips the nonpositive end of such a bar at the axis bottom.
-        warnings.warn(message, UserWarning, stacklevel=2)
+    if (
+        bool(style.get("log_x", False))
+        and xerr is not None
+        and show_errors
+        and np.any(graph_x - xerr[0] <= 0)
+    ):
+        raise InvalidAxisScaleError("X uncertainties cross zero on a logarithmic x-axis.")
+    if (
+        bool(style.get("log_y", False))
+        and yerr is not None
+        and show_errors
+        and np.any(graph_y - yerr[0] <= 0)
+    ):
+        raise InvalidAxisScaleError("Y uncertainties cross zero on a logarithmic y-axis.")
 
     # Close the figure if plotting, axis validation, or layout fails.
     fig, ax = create_static_figure(style)
