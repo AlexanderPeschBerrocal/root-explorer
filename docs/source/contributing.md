@@ -23,7 +23,7 @@ uv sync --locked --no-default-groups --group typing
 uv run --no-sync mypy
 
 uv sync --locked --no-default-groups --group docs
-uv run --no-sync sphinx -n -W --keep-going -b html docs/source docs/_build/html
+uv run --no-sync python -m sphinx -n -W --keep-going -b html docs/source docs/_build/html
 ```
 
 The standard application environment does not install the optional XRootD
@@ -73,7 +73,7 @@ The publish workflow independently verifies `uv lock --check` and the tag.
 
 ## Documentation and screenshots
 
-Build docs with `uv run --no-sync sphinx -n -W --keep-going -b html
+Build docs with `uv run --no-sync python -m sphinx -n -W --keep-going -b html
 docs/source docs/_build/html` after `uv sync --locked`.
 For screenshots first install Chromium with
 `uv run --no-sync playwright install --with-deps chromium` (Linux requires

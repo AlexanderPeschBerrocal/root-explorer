@@ -23,4 +23,4 @@ jobs:
       - name: Install locked documentation environment
         run: uv sync --locked --no-default-groups --group docs
       - name: Build documentation (nitpicky, warnings as errors)
-        run: uv run --no-sync sphinx -n -W --keep-going -b html docs/source docs/_build/html
+        run: uv run --no-sync python -m sphinx -n -W --keep-going -b html docs/source docs/_build/html

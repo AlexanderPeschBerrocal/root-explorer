@@ -36,11 +36,7 @@ def main() -> None:
         new_version = tomllib.load(file)["project"]["version"]
     with (ROOT / "uv.lock").open("rb") as file:
         lock = tomllib.load(file)
-    locked = [
-        p["version"]
-        for p in lock["package"]
-        if p["name"] == "root-explorer"
-    ]
+    locked = [p["version"] for p in lock["package"] if p["name"] == "root-explorer"]
     if locked != [new_version]:
         raise RuntimeError(f"Version mismatch: project {new_version}, lock {locked}")
     subprocess.run(["git", "add", "pyproject.toml", "uv.lock"], cwd=ROOT, check=True)
