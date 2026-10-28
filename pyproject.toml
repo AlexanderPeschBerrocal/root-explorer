@@ -130,8 +130,8 @@ parse = """(?x)
 """
 serialize = ["{release}.{patch}"]
 
-commit = true
-tag = true
+commit = false
+tag = false
 tag_name = "v{new_version}"
 message = "Release: {new_version}"
 
