@@ -91,9 +91,9 @@ shows an error naming what to install; alternatively, download the file
 separately and use a local Path or Upload. Remote servers may also require
 credentials and network access configured on the server.
 
-After changing the package version or dependencies in a source checkout, reinstall it with `python -m pip install -e .` so that the command and the version shown in the app are up to date.
+After changing the package version or dependencies in a source checkout, use `uv lock` and `uv sync --locked` in a uv-managed environment, or reinstall with `python -m pip install -e .` for pip-managed environments.
 
-For development and testing dependencies, install `python -m pip install -e ".[dev,test]"` and consult [Contributing](contributing.md).
+For development and testing, use `uv sync --locked` and consult [Contributing](contributing.md). Ordinary `pip install -e .` remains supported for users who do not need the locked development environment.
 
 ## Next step
 

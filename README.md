@@ -36,3 +36,20 @@ For Python 3.12 source installation, development, and scientific explanations of
 ## Licence
 
 ROOT Explorer is licensed under the [BSD 3-Clause Licence](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Reproducible development using uv
+
+ROOT Explorer uses a committed `uv.lock` for its development, CI and Docker
+environments. Install [uv](https://docs.astral.sh/uv/) and use:
+
+```bash
+uv sync --locked
+uv run --no-sync pytest
+uv run --no-sync mypy
+uv run --no-sync ruff check .
+```
+
+The lock is updated intentionally with `uv lock --upgrade`, and consistency is
+verified with `uv lock --check`. Public `pip install .` installations still
+resolve compatible versions independently; the lock is not part of public
+package metadata.

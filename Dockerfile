@@ -9,7 +9,7 @@ ENV UV_PYTHON_DOWNLOADS=0 \
 WORKDIR /build
 COPY pyproject.toml uv.lock README.md LICENSE THIRD_PARTY_NOTICES.md ./
 COPY src ./src
-RUN uv sync --locked --no-default-groups --no-editable --no-python-downloads
+RUN uv sync --locked --no-default-groups --no-editable
 
 FROM base AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \

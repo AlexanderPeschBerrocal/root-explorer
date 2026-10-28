@@ -1,162 +1,86 @@
 # Development and contributing
 
-From the repository root, install the package in editable mode with the developer
-tools, including Ruff and pre-commit:
+ROOT Explorer uses [uv](https://docs.astral.sh/uv/) for reproducible development.
+Python 3.12 is the supported interpreter. The committed `uv.lock` is the
+source of resolved dependencies for CI and Docker, while `pyproject.toml`
+maintains broad compatibility requirements for ordinary installations.
 
 ```bash
-pip install -e ".[dev,test]"
+uv sync --locked
+uv run --no-sync pytest
+uv run --no-sync mypy
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
 ```
 
-## Running the tests
-
-Run the test suite from the repository root:
+To reproduce individual CI jobs without installing all development tools:
 
 ```bash
-python -m pytest
+uv sync --locked --no-default-groups --group test
+MPLBACKEND=Agg uv run --no-sync pytest -q --cov=root_explorer --cov-report=term-missing
+
+uv sync --locked --no-default-groups --group typing
+uv run --no-sync mypy
+
+uv sync --locked --no-default-groups --group docs
+uv run --no-sync sphinx -n -W --keep-going -b html docs/source docs/_build/html
 ```
 
-The tests use small synthetic ROOT files, generated during the test run or
-committed in `tests/data`, and require neither external data nor a CERN ROOT
-installation. `tests/test_invariants.py` generates inputs with
-[Hypothesis](https://hypothesis.readthedocs.io/) and compares the results with
-reference calculations written from the documented rules. Its examples are
-derandomised and bounded, so every run checks the same cases; if one fails,
-add the minimal example Hypothesis reports as a regular regression test. Set `MPLBACKEND=Agg` when running on
-a machine without a display, as CI does.
+The standard application environment does not install the optional XRootD
+backend. Users needing it can install `pip install "root-explorer[xrootd]"`;
+in an editable checkout use `uv sync --locked --extra xrootd`. XRootD may
+require additional native libraries.
 
-To reproduce the CI test job, including the coverage report, run:
+## Dependency updates
 
 ```bash
-MPLBACKEND=Agg python -m pytest -q --cov=root_explorer --cov-report=term-missing
+uv lock --check             # Verify that pyproject.toml and lock agree
+uv lock --upgrade           # Intentionally refresh the resolved environment
+uv lock --upgrade-package numpy  # Update one dependency and any required peers
 ```
 
-Type checking uses mypy with the file selection configured in `pyproject.toml`:
-
-```bash
-python -m mypy
-```
-
-The check covers the complete `src/root_explorer` package. The `dev` extra
-installs the `pandas-stubs` and `scipy-stubs` type stubs. Awkward, Uproot and Plotly
-lack usable type information and are excluded by narrow per-module overrides; prefer precise
-annotations or explicit narrowing over `# type: ignore` comments.
+Commit changes to `pyproject.toml` and `uv.lock` together. Dependabot
+opens reviewed weekly PRs for uv, Python base images, GitHub Actions and
+pre-commit. CI validates the lock, tests, documentation, Docker and the
+independent wheel installation. In particular, a lockfile update is **not**
+equivalent to changing the published package's compatibility metadata.
 
 ## Pre-commit hooks
 
-This repository uses [pre-commit](https://pre-commit.com/) to run the Ruff checks
-defined in `.pre-commit-config.yaml`. The configuration pins the Ruff version and
-enables two hooks:
+Install hooks with `uv run --no-sync pre-commit install`, and check all
+files with `uv run --no-sync pre-commit run --all-files`. The external
+ruff-pre-commit hook is retained. When upgrading Ruff, keep its hook revision,
+the `lint` dependency version and `tool.ruff.required-version` aligned.
 
-- `ruff-check` runs the configured lint checks and applies safe fixes.
-- `ruff-format` checks and applies Ruff's formatting.
+## Releasing
 
-Install the hooks once for your local checkout:
+ROOT Explorer uses CalVer `YYYY.M.N` and annotated Git tags. A version
+change must also update `uv.lock` **before** committing and tagging, since
+the lock records the local distribution version.
 
-```bash
-pre-commit install
-```
-
-The hooks run automatically on every commit. To run them manually, for example
-before opening a pull request, check the complete repository with:
+From an up-to-date clean `main` checkout with `uv sync --locked` already run:
 
 ```bash
-pre-commit run --all-files
-```
-
-To run only one hook, use its hook ID:
-
-```bash
-pre-commit run ruff-check --all-files
-pre-commit run ruff-format --all-files
-```
-
-The hooks may modify files because `ruff-check` is configured with `--fix`. Review
-and stage those changes, then run the hooks again or create the commit again.
-
-When changing `.pre-commit-config.yaml`, validate it from the repository root:
-
-```bash
-pre-commit validate-config
-```
-
-If the Ruff revision is updated, keep it synchronized with the Ruff version in
-`pyproject.toml` and `.github/workflows/ruff.yaml` so local hooks and CI use the
-same version. Use `pre-commit autoupdate` only when intentionally updating the
-hook revisions, and review the resulting configuration before committing it.
-
-## Versioning and releases
-
-This project uses calendar versioning (CalVer) in the form `YYYY.M.N`, where
-`YYYY.M` is the year and month of the release and `N` is the release sequence
-within that month (for example, `2026.9.0` or `2026.9.1`). Version changes are
-managed with [bump-my-version](https://callowayproject.github.io/bump-my-version/),
-which updates the package version, creates the release commit, and creates its
-annotated Git tag. The `[project].version` value in `pyproject.toml` is the
-single authoritative version literal; `root_explorer.__version__` is derived
-from the installed distribution metadata. The application must be installed to
-run; there is no separate version literal for running from the source tree.
-
-Installing the project copies the version into the distribution metadata. An
-editable installation keeps the metadata of its last installation, so after
-changing the version, for example with `bump-my-version`, reinstall it:
-
-```bash
-python -m pip install -e .
-```
-
-The **About** menu reads the installed version on every rerun, so a running app
-shows the new version after the reinstall without a restart. `root-explorer
---version` and `root_explorer.__version__` in an already running process update
-after a restart. If the installed and declared versions disagree, `tests/test_version.py`
-fails with a reminder to reinstall. CI performs the same comparison of
-`pyproject.toml`, the installed wheel and `root_explorer.__version__`, and checks
-the version inside the Docker image.
-
-Releases must be created from a clean, up-to-date `main` branch. Before creating
-a release, inspect the configured version and preview the change without modifying
-files:
-
-```bash
-git switch main
-git pull --ff-only
-
-bump-my-version show current_version
-bump-my-version bump patch --dry-run -v
-```
-
-Create the release commit and annotated tag, then push both:
-
-```bash
-bump-my-version bump patch
+uv run --no-sync python scripts/release.py patch
 git push --follow-tags
 ```
 
-Pushing a `vYYYY.M.N` tag triggers the release workflow. Before publishing, the
-workflow verifies that the tag follows the CalVer convention, that the tag version
-matches the authoritative version in `pyproject.toml`, and that the tagged commit
-is contained in `main`.
+Use `release` instead of `patch` for a new calendar release where
+appropriate. The helper invokes `bump-my-version` without committing or
+tagging itself, regenerates the lock, verifies the matching versions, then
+creates a single release commit and annotated tag. It does not push.
+The publish workflow independently verifies `uv lock --check` and the tag.
 
-A successful release publishes the same container image to GHCR with two tags:
+## Documentation and screenshots
 
-- `vYYYY.M.N`: an immutable version-specific release tag;
-- `stable`: a moving tag pointing to the most recent release.
+Build docs with `uv run --no-sync sphinx -n -W --keep-going -b html
+docs/source docs/_build/html` after `uv sync --locked`.
+For screenshots first install Chromium with
+`uv run --no-sync playwright install --with-deps chromium` (Linux requires
+system browser dependencies), then run
+`uv run --no-sync python docs/scripts/generate_screenshots.py --theme both`.
+Screenshots are reviewed before being published into the source tree.
 
-The workflow then creates the corresponding GitHub Release with automatically
-generated release notes. Python wheel or source-distribution artefacts are not
-published as part of this release process.
-
-
-## Documentation development
-
-With Python 3.12 and the repository checked out, install the optional
-documentation dependencies and build HTML locally:
-
-```bash
-python -m pip install -e ".[docs]"
-python -m sphinx -n -W --keep-going -b html docs/source docs/_build/html
-```
-
-Review `docs/_build/html/index.html` and all changed pages in a browser.
-The CI workflow in `.github/workflows/docs.yaml` runs the same strict
-Sphinx build on pull requests to `main`. Screenshots are generated by a
-separate workflow and are not required for every documentation build.
+The synthetic ROOT fixtures and histogram invariant tests require no PyROOT.
+For headless tests, set `MPLBACKEND=Agg`. The app can be started locally
+with `uv run --no-sync root-explorer`; ordinary end users may still use pip.
