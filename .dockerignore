@@ -17,3 +17,6 @@ dist
 *.egg-info
 
 tests
+
+# The Docker build must include the committed uv.lock.
+.uv-cache
