@@ -1,0 +1,32 @@
+# Temporary single-use bootstrap: produce a genuine universal uv.lock on GitHub Actions.
+# Removed immediately after the initial lock has been committed.
+name: Bootstrap uv lock for issue 123
+on:
+  push:
+    branches: [build/123-uv-lock-and-dependabot]
+    paths:
+      - pyproject.toml
+      - .github/workflows/uv-lock-bootstrap.yaml
+permissions:
+  contents: write
+jobs:
+  lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: '3.12'
+      - name: Resolve and commit lock
+        run: |
+          set -euo pipefail
+          uv lock
+          uv lock --check
+          git add uv.lock
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build: generate universal uv.lock for Python 3.12' || exit 0
+          git push origin HEAD:build/123-uv-lock-and-dependabot

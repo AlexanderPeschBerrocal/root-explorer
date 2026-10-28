@@ -35,33 +35,30 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Reads root:// (XRootD) sources.
-xrootd = [
-    "fsspec-xrootd>=0.5.0",
-]
-test = [
-    "hypothesis",
-    "pytest>=8",
-    "pytest-cov",
-]
+# Optional end-user feature; not part of the standard Docker environment.
+xrootd = ["fsspec-xrootd>=0.5.0"]
+
+# Development tools are not public installation extras.
+[dependency-groups]
+test = ["hypothesis", "pytest>=8", "pytest-cov"]
+lint = ["ruff==0.16.5"]
+typing = ["mypy>=1.11", "pandas-stubs", "scipy-stubs"]
+docs = ["myst-parser", "sphinx>=7", "furo"]
+screenshots = ["playwright>=1.55,<2", "pillow"]
+release = ["build==1.6.0", "bump-my-version==1.5.1"]
 dev = [
-    "build==1.6.0",
-    "bump-my-version==1.5.1",
-    "mypy>=1.11",
-    "pandas-stubs",
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typing" },
+    { include-group = "docs" },
+    { include-group = "screenshots" },
+    { include-group = "release" },
     "pre-commit>=3.8",
-    "ruff==0.16.5",
-    "scipy-stubs",
     "watchdog",
 ]
-docs = [
-    "myst-parser",
-    "sphinx>=7",
-    "furo",
-]
-screenshots = [
-    "playwright>=1.55,<2",
-]
+
+[tool.uv]
+required-version = ">=0.13.4"
 
 [project.scripts]
 root-explorer = "root_explorer.cli:main"
