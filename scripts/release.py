@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
