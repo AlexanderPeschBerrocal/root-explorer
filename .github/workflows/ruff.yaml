@@ -24,6 +24,25 @@ jobs:
       - name: Install locked lint environment
         run: uv sync --locked --no-default-groups --group lint
 
+      - name: Ensure pre-commit and locked Ruff versions agree
+        run: |
+          python - <<'PY'
+          import re
+          import tomllib
+          from pathlib import Path
+
+          config = tomllib.loads(Path("pyproject.toml").read_text())
+          lint = config["dependency-groups"]["lint"]
+          pinned = [item.split("==", 1)[1] for item in lint if item.startswith("ruff==")]
+          assert len(pinned) == 1, "Ruff must have exactly one pinned lint version"
+          version = pinned[0]
+          assert config["tool"]["ruff"]["required-version"] == f"=={version}"
+          hooks = Path(".pre-commit-config.yaml").read_text()
+          assert re.search(r"(?m)^\\s*rev: v" + re.escape(version) + r"\\s*$", hooks), (
+              "External Ruff pre-commit revision must match the lint group"
+          )
+          PY
+
       - name: Check formatting
         run: uv run --no-sync ruff format --check .
 
