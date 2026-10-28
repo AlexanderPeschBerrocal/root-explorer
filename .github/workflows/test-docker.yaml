@@ -76,6 +76,36 @@ jobs:
           echo "pyproject.toml: ${expected}, container: ${actual}"
           test "${expected}" = "${actual}"
 
+      - name: Check scientific runtime versions against committed lock
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          import tomllib
+          from pathlib import Path
+          from importlib.metadata import PackageNotFoundError
+
+          lock = tomllib.loads(Path("uv.lock").read_text())
+          packages = lock["package"]
+          for package in (
+              "numpy", "scipy", "awkward", "uproot", "matplotlib",
+              "pandas", "plotly", "hist", "streamlit",
+          ):
+              candidates = {p["version"] for p in packages if p["name"] == package}
+              assert len(candidates) == 1, f"Expected unique locked {package}, got {candidates}"
+              expected = candidates.pop()
+              actual = subprocess.check_output(
+                  [
+                      "docker", "exec", "root-explorer-ci",
+                      "python", "-c",
+                      "from importlib.metadata import version; "
+                      f"print(version({package!r}))",
+                  ],
+                  text=True,
+              ).strip()
+              print(f"{package}: locked={expected}, installed={actual}")
+              assert actual == expected, f"{package}: runtime differs from lock"
+          PY
+
       - name: Stop container
         if: always()
         run: docker rm --force root-explorer-ci || true
