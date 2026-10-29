@@ -24,6 +24,10 @@ FIT_MODELS: dict[str, tuple[str, ...]] = {
     "Double-sided Crystal Ball": ("A", "mu", "sigma", "alpha_L", "n_L", "alpha_R", "n_R"),
 }
 
+# Smallest Jacobian singular value, relative to the largest, still treated as
+# identifiable; set above the sqrt(eps) noise of two-point finite differences.
+_SINGULAR_RTOL = 10 * np.sqrt(np.finfo(float).eps)
+
 
 @dataclass(frozen=True)
 class FitConfig:
@@ -483,15 +487,19 @@ def fit_histogram_1d(
     uncertainties: dict[str, float | None] = dict.fromkeys(parameters)
     notes = []
     try:
-        jac = np.asarray(solution.jac)
-        if np.linalg.matrix_rank(jac) == nparams:
-            inverse = np.linalg.inv(jac.T @ jac)
+        _, singular_values, vt = np.linalg.svd(np.asarray(solution.jac), full_matrices=False)
+        # The finite-difference Jacobian carries relative noise of order sqrt(eps), so
+        # numpy's default rank tolerance would mistake that noise for an identifiable
+        # direction and yield arbitrary or negative variances.
+        if len(singular_values) == nparams and singular_values[-1] > (
+            _SINGULAR_RTOL * singular_values[0]
+        ):
             scale = 1.0 if config.use_variances else statistic / ndof
-            diagonal = np.diag(inverse) * scale
+            diagonal = np.sum((vt / singular_values[:, None]) ** 2, axis=0) * scale
             if np.all(np.isfinite(diagonal)) and np.all(diagonal >= 0):
                 uncertainties = dict(zip(parameters, np.sqrt(diagonal).tolist(), strict=True))
             else:
-                notes.append("Covariance is not finite.")
+                notes.append("Covariance is singular; uncertainties are unavailable.")
         else:
             notes.append("Covariance is singular; uncertainties are unavailable.")
     except np.linalg.LinAlgError:
