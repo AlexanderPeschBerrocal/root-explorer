@@ -45,7 +45,7 @@ lint = ["ruff==0.16.5"]
 typing = ["mypy>=1.11", "pandas-stubs", "scipy-stubs"]
 docs = ["myst-parser", "sphinx>=7", "furo"]
 screenshots = ["playwright>=1.55,<2", "pillow"]
-release = ["build==1.6.0", "bump-my-version==1.5.1"]
+release = ["bump-my-version==1.5.1"]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
