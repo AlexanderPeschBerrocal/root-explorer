@@ -1,21 +1,13 @@
 # .github/workflows/release.yaml
 #
-# Pull requests that touch the release inputs dry-run scripts/release.py for
-# both version parts. "Run workflow" dry-runs the chosen part, or, with mode
-# "publish", additionally pushes the release commit and tag to main and starts
-# the Docker publish workflow.
+# Manual releases only ("Run workflow"): dry-runs the chosen version part via
+# release-dry-run.yaml, and with mode "publish" then pushes the release commit
+# and tag to main and starts the Docker publish workflow. Pull requests run
+# release-dry-run.yaml directly, so this workflow never appears on them.
 
 name: Release
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - pyproject.toml
-      - uv.lock
-      - scripts/release.py
-      - scripts/check_release.py
-      - .github/workflows/release.yaml
   workflow_dispatch:
     inputs:
       part:
@@ -33,71 +25,21 @@ permissions:
   contents: read
 
 concurrency:
-  # Never run two manual releases at once; pull request runs queue per branch.
-  group: ${{ github.event_name == 'workflow_dispatch' && 'release' || format('release-{0}', github.ref) }}
+  # Never run two manual releases at once.
+  group: release
   cancel-in-progress: false
 
 jobs:
   dry-run:
-    name: Dry run (${{ matrix.part }})
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-
-    strategy:
-      fail-fast: false
-      matrix:
-        part: ${{ fromJSON(github.event_name == 'pull_request' && '["patch", "release"]' || format('["{0}"]', inputs.part)) }}
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          # Tags are needed to refuse versions that were already released.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          version: "0.13.6"
-          enable-cache: true
-
-      - name: Release in a throwaway clone without push access
-        env:
-          PART: ${{ matrix.part }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          clone="${RUNNER_TEMP}/release-dry-run"
-          git clone --quiet --no-local --no-checkout "${GITHUB_WORKSPACE}" "${clone}"
-          cd "${clone}"
-          git remote remove origin
-          git switch --quiet -C main "$(git -C "${GITHUB_WORKSPACE}" rev-parse HEAD)"
-          git config user.name "Release dry run"
-          git config user.email "release-dry-run@example.invalid"
-          uv sync --locked --no-default-groups --group release
-
-          current=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-          if [[ "${EVENT}" == pull_request && "${PART}" == release && "${current%.*}" == "$(date -u +%Y.%-m)" ]]; then
-            # This month already has a release: the helper must refuse a
-            # "release" bump without leaving a commit, tag or modified file.
-            start=$(git rev-parse HEAD)
-            if uv run --no-sync python scripts/release.py release; then
-              echo "release.py accepted a second calendar release in the same month"
-              exit 1
-            fi
-            test "$(git rev-parse HEAD)" = "${start}"
-            test -z "$(git status --porcelain)"
-            test -z "$(git tag --points-at HEAD)"
-            echo "release.py correctly refused a second calendar release for ${current%.*}"
-          else
-            uv run --no-sync python scripts/release.py "${PART}"
-            uv run --no-sync python scripts/check_release.py
-          fi
+    name: Release dry run
+    uses: ./.github/workflows/release-dry-run.yaml
+    with:
+      part: ${{ inputs.part }}
 
   publish:
-    name: Publish ${{ inputs.part }} release
+    name: Publish release
     needs: dry-run
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish'
+    if: inputs.mode == 'publish'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 

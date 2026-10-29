@@ -109,15 +109,18 @@ Anyone with write access to the repository can publish a release:
 
 With `publish`, the workflow runs two jobs:
 
-1. **Dry run** creates the release in a throwaway clone without push access
-   and checks it with `scripts/check_release.py`. If this fails, nothing is
-   published.
-2. **Publish** creates the release on the current `main`, checks it again,
+1. **Release dry run** creates the release in a throwaway clone without push
+   access and checks it with `scripts/check_release.py`. If this fails, nothing
+   is published.
+2. **Publish release** creates the release on the current `main`, checks it again,
    pushes the commit and tag together (either both arrive or neither does),
    and then starts the **Publish Docker image** workflow on the new tag. It
    has to start that workflow itself, because pushes made by a workflow do not
    trigger other workflows. The release commit and tag are attributed to the
    user who started the run.
+
+With `dry-run`, only the first job runs, and **Publish release** is shown as
+skipped in that run.
 
 Only one manual Release run executes at a time. A run started meanwhile waits
 for it; GitHub keeps at most one waiting run and cancels older waiting ones.
@@ -143,10 +146,13 @@ that the release commit changes only `pyproject.toml` and `uv.lock`, that the
 version increases and agrees with `uv.lock`, and that the annotated
 `vYYYY.M.N` tag points to the release commit.
 
-- **Automatically:** pull requests that change `pyproject.toml`, `uv.lock`,
-  the release scripts or the Release workflow dry-run both version parts. In
-  a month that already has a release, the `release` part passes when the
-  helper correctly refuses it.
+- **Automatically:** the separate **Release dry run** workflow runs on pull
+  requests that change `pyproject.toml`, `uv.lock`, the release scripts or
+  that workflow, and dry-runs both version parts. In a month that already has
+  a release, the `release` part passes when the helper correctly refuses it.
+  The **Release** workflow itself only runs from the button, so its publish
+  job never appears in pull request checks. The button reuses the same
+  dry-run workflow.
 - **Manually:** run the **Release** workflow with mode `dry-run` on **any
   branch**, selected under *Use workflow from*. No tag is needed. The run uses
   that branch's workflow and scripts, so this tests release changes before
