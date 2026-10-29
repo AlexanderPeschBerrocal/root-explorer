@@ -1,9 +1,11 @@
 # Development and contributing
 
 ROOT Explorer uses [uv](https://docs.astral.sh/uv/) for reproducible development.
-Python 3.12 is the supported interpreter. The committed `uv.lock` is the
-source of resolved dependencies for CI and Docker, while `pyproject.toml`
-maintains broad compatibility requirements for ordinary installations.
+Python 3.12 (3.12.4 or later) is the supported interpreter; CI tests both that
+floor and the `.python-version` release shipped in Docker. The committed
+`uv.lock` is the source of resolved dependencies for CI and Docker, while
+`pyproject.toml` maintains broad compatibility requirements for ordinary
+installations.
 
 ```bash
 uv sync --locked

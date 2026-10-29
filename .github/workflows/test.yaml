@@ -10,16 +10,38 @@ on:
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }}
+    name: Python 3.12 (${{ matrix.python }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        # minimum: the requires-python floor; shipped: .python-version, the
+        # interpreter in the Docker image.
+        python: [minimum, shipped]
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Select the ${{ matrix.python }} interpreter
+        env:
+          SELECTION: ${{ matrix.python }}
+        run: |
+          python3 - <<'PY' >> "${GITHUB_ENV}"
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          if os.environ["SELECTION"] == "minimum":
+              spec = tomllib.loads(Path("pyproject.toml").read_text())["project"]["requires-python"]
+              match = re.search(r">=\s*(\d+\.\d+\.\d+)", spec)
+              assert match, f"requires-python needs an explicit x.y.z floor: {spec}"
+              version = match.group(1)
+          else:
+              version = Path(".python-version").read_text().strip()
+          print(f"UV_PYTHON={version}")
+          PY
 
       - name: Install uv and Python 3.12
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -27,6 +49,12 @@ jobs:
           enable-cache: true
       - name: Install locked test environment
         run: uv sync --locked --no-default-groups --group test
+
+      - name: Check the selected interpreter is used
+        run: |
+          actual=$(.venv/bin/python -c "import platform; print(platform.python_version())")
+          echo "selected: ${UV_PYTHON}, environment: ${actual}"
+          test "${UV_PYTHON}" = "${actual}"
 
       - name: Run test suite
         run: MPLBACKEND=Agg uv run --no-sync pytest -q --cov=root_explorer --cov-report=term-missing

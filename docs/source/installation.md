@@ -50,7 +50,7 @@ docker run --rm -p 8501:8501 root-explorer
 
 ## Alternative: Install from source (Python 3.12)
 
-Source installation is useful for developers and users who prefer a local Python environment. It requires **Python 3.12**, unlike the Docker method.
+Source installation is useful for developers and users who prefer a local Python environment. It requires **Python 3.12.4 or a later 3.12 release**, unlike the Docker method.
 
 ```bash
 git clone https://github.com/AlexanderPeschBerrocal/root-explorer.git
