@@ -13,7 +13,33 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          version: "0.13.6"
           enable-cache: true
+      - name: Ensure every uv pin matches the Docker image
+        # Dependabot does not update setup-uv's version input or the Read the
+        # Docs install, so check them against the uv image in the Dockerfile.
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          expected = re.search(
+              r"^COPY --from=ghcr\.io/astral-sh/uv:(\S+) ", Path("Dockerfile").read_text(), re.M
+          ).group(1)
+          found = {}
+          for workflow in sorted(Path(".github/workflows").glob("*.yaml")):
+              for step in re.split(r"\n\s*- ", workflow.read_text()):
+                  if re.search(r"^\s*uses: astral-sh/setup-uv@", step, re.M):
+                      match = re.search(r'^\s*version: "([^"]+)"', step, re.M)
+                      found.setdefault(workflow.name, []).append(match and match.group(1))
+          found[".readthedocs.yaml"] = re.findall(
+              r"asdf (?:install|global) uv (\S+)", Path(".readthedocs.yaml").read_text()
+          )
+          print(f"Dockerfile: {expected}", *(f"{name}: {pins}" for name, pins in found.items()))
+          assert all(pins and set(pins) == {expected} for pins in found.values()), (
+              "Every setup-uv step and Read the Docs must use the Dockerfile's uv version"
+          )
+          PY
       - name: Validate universal lockfile
         run: uv lock --check
       - name: Build package
