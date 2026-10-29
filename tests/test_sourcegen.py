@@ -229,10 +229,7 @@ def test_bundle_python_source_keeps_globals_shadowed_only_in_other_scopes(
                 def identity(SCALE):
                     return SCALE
 
-                def collect():
-                    return [OFFSET for OFFSET in values]
-
-                shifted = collect()
+                shifted = [OFFSET for OFFSET in values]
                 return [identity(value) * SCALE + OFFSET for value in shifted]
 
 
@@ -251,8 +248,8 @@ def test_bundle_python_source_keeps_globals_shadowed_only_in_other_scopes(
     monkeypatch.syspath_prepend(str(tmp_path))
     try:
         module = importlib.import_module("root_explorer_fake_scopes")
-        # Inner functions, nested comprehensions, other methods and class bodies
-        # bind SCALE or OFFSET locally, but the outer code still reads globals.
+        # Inner functions, comprehensions, other methods and class bodies bind
+        # SCALE or OFFSET locally, but the outer code still reads the globals.
         function_source = bundle_python_source(module.scaled)
         class_source = bundle_python_source(module.Holder)
     finally:
