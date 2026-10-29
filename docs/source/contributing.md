@@ -72,32 +72,118 @@ a Ruff update.
 
 ## Releasing
 
-ROOT Explorer uses CalVer `YYYY.M.N` and annotated Git tags. A version
-change must also update `uv.lock` **before** committing and tagging, since
-the lock records the local distribution version.
+ROOT Explorer uses CalVer `YYYY.M.N` and annotated Git tags. Each calendar
+month's first release has patch number `0` and is created with the version
+part `release`; any further release in the same month uses `patch`. For
+example, after `2026.10.1` the next release is `2026.10.2` (`patch`) in
+October and `2026.11.0` (`release`) in November. A `release` bump in a month
+that already has a release is refused.
 
-From an up-to-date clean `main` checkout with `uv sync --locked` already run:
+A release can be published from the browser with the **Release** workflow or
+from a local checkout. Both use `scripts/release.py`, which runs
+`bump-my-version`, regenerates `uv.lock` (it records the package version), and
+creates one release commit and an annotated tag.
+
+### What a release produces
+
+- A commit `Release: YYYY.M.N` on `main` that changes only the version in
+  `pyproject.toml` and `uv.lock`.
+- An annotated tag `vYYYY.M.N` on that commit.
+- From the **Publish Docker image** workflow, which runs for the tag: checks
+  that the tag matches `pyproject.toml`, that `uv.lock` is up to date and that
+  the commit is on `main`; builds the `linux/amd64` and `linux/arm64` images;
+  pushes `ghcr.io/alexanderpeschberrocal/root-explorer:vYYYY.M.N`; moves the
+  `stable` tag to it; and creates a GitHub Release with generated notes.
+
+### Publishing with the Release button
+
+Anyone with write access to the repository can publish a release:
+
+1. Open the repository's **Actions** tab and select the **Release** workflow.
+2. Choose **Run workflow**.
+3. Under *Use workflow from*, select `main`. Publishing from any other branch
+   fails before anything is changed.
+4. Under *Version part*, select `patch` or `release` as described above.
+5. Under *Mode*, select `publish`. The default, `dry-run`, only checks.
+6. Choose **Run workflow** to start.
+
+With `publish`, the workflow runs two jobs:
+
+1. **Dry run** creates the release in a throwaway clone without push access
+   and checks it with `scripts/check_release.py`. If this fails, nothing is
+   published.
+2. **Publish** creates the release on the current `main`, checks it again,
+   pushes the commit and tag together (either both arrive or neither does),
+   and then starts the **Publish Docker image** workflow on the new tag. It
+   has to start that workflow itself, because pushes made by a workflow do not
+   trigger other workflows. The release commit and tag are attributed to the
+   user who started the run.
+
+Only one manual Release run executes at a time. A run started meanwhile waits
+for it; GitHub keeps at most one waiting run and cancels older waiting ones.
+
+After a successful run, check that:
+
+- the **Publish Docker image** run for the new tag succeeded (Actions tab);
+- the GitHub Release `vYYYY.M.N` exists;
+- the image is available for both platforms, for example with
+  `docker buildx imagetools inspect ghcr.io/alexanderpeschberrocal/root-explorer:vYYYY.M.N`.
+
+Publishing pushes directly to `main`. This works while `main` allows pushes
+from GitHub Actions; if a branch ruleset restricting updates to `main` is
+enabled, add GitHub Actions as a bypass actor or release locally instead. The
+release commit does not start the push-triggered CI workflows on `main`, as
+it only changes the version.
+
+### Dry runs
+
+A dry run checks that a release could be created, without changing the
+repository or publishing anything. `scripts/check_release.py` then verifies
+that the release commit changes only `pyproject.toml` and `uv.lock`, that the
+version increases and agrees with `uv.lock`, and that the annotated
+`vYYYY.M.N` tag points to the release commit.
+
+- **Automatically:** pull requests that change `pyproject.toml`, `uv.lock`,
+  the release scripts or the Release workflow dry-run both version parts. In
+  a month that already has a release, the `release` part passes when the
+  helper correctly refuses it.
+- **Manually:** run the **Release** workflow with mode `dry-run` on **any
+  branch**, selected under *Use workflow from*. No tag is needed. The run uses
+  that branch's workflow and scripts, so this tests release changes before
+  they are merged. The *Run workflow* button appears only once the workflow
+  exists on the default branch.
+
+A Release dry run does not build Docker images. To test the image on a branch,
+run the **Docker** workflow manually on that branch: it builds and tests both
+platforms and compares the installed packages with `uv.lock`, without pushing
+anything. The **Publish Docker image** workflow itself runs only for release
+tags, because it moves `stable` and creates a GitHub Release.
+
+### If a release fails
+
+- *Use 'patch' for another release in the same month*: this month already has
+  a release; run again with the version part `patch`.
+- *Releases can only be published from main*: run again with `main` selected
+  under *Use workflow from*.
+- **The push is rejected**, for example because `main` changed during the run
+  or the tag already exists: nothing was pushed. Run the workflow again.
+- **Publish Docker image fails** after the push: the release commit and tag
+  are already on `main`. Fix the cause, then use *Re-run failed jobs* on that
+  run, or start **Publish Docker image** manually with the tag `vYYYY.M.N`
+  selected under *Use workflow from*. Do not create a new release for the
+  same version.
+
+### Releasing locally
+
+From an up-to-date, clean `main` checkout with `uv sync --locked` already run:
 
 ```bash
-uv run --no-sync python scripts/release.py patch
+uv run --no-sync python scripts/release.py patch   # or: release
 git push --follow-tags
 ```
 
-Use `release` instead of `patch` for the first release of a new calendar
-month; the helper refuses a `release` bump in a month that already has a
-release. It invokes `bump-my-version` without committing or tagging itself,
-regenerates the lock, verifies the matching versions, then creates a single
-release commit and annotated tag. It does not push.
-The publish workflow independently verifies `uv lock --check` and the tag.
-
-The **Release** GitHub Actions workflow offers the same from the browser:
-choose *Run workflow* on `main`, the version part, and a mode. `dry-run`
-creates the release in a throwaway clone without push access and checks it
-with `scripts/check_release.py`; `publish` does the same dry run first, then
-creates the release on `main`, pushes the commit and tag atomically as the
-user who started the run, and starts the Docker publish workflow for the tag.
-Pull requests that change `pyproject.toml`, `uv.lock` or the release scripts
-dry-run both parts automatically.
+The helper does not push, so the commit and tag can be reviewed first. Pushing
+the tag starts the **Publish Docker image** workflow directly.
 
 ## Documentation and screenshots
 

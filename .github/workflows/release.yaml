@@ -19,12 +19,12 @@ on:
   workflow_dispatch:
     inputs:
       part:
-        description: "patch: another release this month; release: first release of a new month"
+        description: "Version part (patch: another release this month; release: first release of a new month)"
         type: choice
         options: [patch, release]
         default: patch
       mode:
-        description: "dry-run only checks; publish pushes the release to main and publishes the image"
+        description: "Mode (dry-run: check only; publish: release on main and publish the Docker image)"
         type: choice
         options: [dry-run, publish]
         default: dry-run
