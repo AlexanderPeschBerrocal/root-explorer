@@ -7,6 +7,9 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+build-constraints = [{ name = "setuptools", specifier = "==84.2.1" }]
+
 [[package]]
 name = "accessible-pygments"
 version = "0.0.5"

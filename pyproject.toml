@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77.0.3", "wheel"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -59,6 +59,9 @@ dev = [
 
 [tool.uv]
 required-version = ">=0.13.4"
+# Pin the build backend for uv builds (Docker, CI, docs) so that rebuilding a
+# release uses the same tooling; pip installations keep [build-system] ranges.
+build-constraint-dependencies = ["setuptools==84.2.1"]
 
 [project.scripts]
 root-explorer = "root_explorer.cli:main"
