@@ -25,6 +25,7 @@ updates:
       actions:
         patterns: ["*"]
     open-pull-requests-limit: 3
+  # Ruff runs as a local hook from uv.lock; this covers future external hooks.
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:

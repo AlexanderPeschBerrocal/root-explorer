@@ -54,9 +54,11 @@ workflow checks; update both together when the base image changes.
 ## Pre-commit hooks
 
 Install hooks with `uv run --no-sync pre-commit install`, and check all
-files with `uv run --no-sync pre-commit run --all-files`. The external
-ruff-pre-commit hook is retained. When upgrading Ruff, keep its hook revision,
-the `lint` dependency version and `tool.ruff.required-version` aligned.
+files with `uv run --no-sync pre-commit run --all-files`. The Ruff hooks run
+the Ruff installed in the project environment, so the `ruff==` pin in the
+`lint` dependency group (and `uv.lock`) is the only place its version is
+set; Dependabot updates both together. Run `uv sync --locked` after pulling
+a Ruff update.
 
 ## Releasing
 
