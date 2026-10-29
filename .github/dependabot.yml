@@ -12,6 +12,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Only Python 3.12 is supported; accept patch releases of the base image.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     open-pull-requests-limit: 3
   - package-ecosystem: "github-actions"
     directory: "/"
