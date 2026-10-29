@@ -6,6 +6,9 @@ on:
   push:
     tags:
       - "v*"
+  # The release workflow pushes tags with GITHUB_TOKEN, which does not trigger
+  # the push event, so it starts this workflow on the new tag instead.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,6 +28,11 @@ jobs:
       - name: Validate release tag and package version
         shell: bash
         run: |
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "Publishing requires a release tag, not the ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[1-9][0-9]{3}\.([1-9]|1[0-2])\.[0-9]+$ ]]; then
             echo "Invalid release tag: ${GITHUB_REF_NAME}"
             echo "Expected CalVer tag of the form vYYYY.M.N, for example v2026.9.1"

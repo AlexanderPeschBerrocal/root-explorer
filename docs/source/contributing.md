@@ -82,11 +82,21 @@ uv run --no-sync python scripts/release.py patch
 git push --follow-tags
 ```
 
-Use `release` instead of `patch` for a new calendar release where
-appropriate. The helper invokes `bump-my-version` without committing or
-tagging itself, regenerates the lock, verifies the matching versions, then
-creates a single release commit and annotated tag. It does not push.
+Use `release` instead of `patch` for the first release of a new calendar
+month; the helper refuses a `release` bump in a month that already has a
+release. It invokes `bump-my-version` without committing or tagging itself,
+regenerates the lock, verifies the matching versions, then creates a single
+release commit and annotated tag. It does not push.
 The publish workflow independently verifies `uv lock --check` and the tag.
+
+The **Release** GitHub Actions workflow offers the same from the browser:
+choose *Run workflow* on `main`, the version part, and a mode. `dry-run`
+creates the release in a throwaway clone without push access and checks it
+with `scripts/check_release.py`; `publish` does the same dry run first, then
+creates the release on `main`, pushes the commit and tag atomically as the
+user who started the run, and starts the Docker publish workflow for the tag.
+Pull requests that change `pyproject.toml`, `uv.lock` or the release scripts
+dry-run both parts automatically.
 
 ## Documentation and screenshots
 
