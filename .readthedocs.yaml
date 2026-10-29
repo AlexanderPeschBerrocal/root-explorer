@@ -6,14 +6,18 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+  jobs:
+    # The native "method: uv" install can neither enforce the lock nor skip
+    # the default dev group, so install the locked docs environment directly.
+    pre_create_environment:
+      - asdf plugin add uv
+      - asdf install uv latest
+      - asdf global uv latest
+    create_environment:
+      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
+    install:
+      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --locked --no-default-groups --group docs
 
 sphinx:
   configuration: docs/source/conf.py
   fail_on_warning: true
-
-python:
-  install:
-    - method: uv
-      command: sync
-      groups:
-        - docs
