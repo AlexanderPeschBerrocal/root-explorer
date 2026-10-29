@@ -76,6 +76,15 @@ jobs:
           echo "pyproject.toml: ${expected}, container: ${actual}"
           test "${expected}" = "${actual}"
 
+      - name: Check container Python matches the CI interpreter
+        # CI installs the interpreter named in .python-version; it must be the
+        # one shipped in the image, so base-image updates must also update it.
+        run: |
+          expected=$(cat .python-version)
+          actual=$(docker exec root-explorer-ci python -c "import platform; print(platform.python_version())")
+          echo ".python-version: ${expected}, container: ${actual}"
+          test "${expected}" = "${actual}"
+
       - name: Check scientific runtime versions against committed lock
         run: |
           python3 - <<'PY'

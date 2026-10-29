@@ -45,6 +45,10 @@ pre-commit. CI validates the lock, tests, documentation, Docker and the
 independent wheel installation. In particular, a lockfile update is **not**
 equivalent to changing the published package's compatibility metadata.
 
+`.python-version` pins the exact interpreter that uv uses locally and in CI.
+It must match the Python version of the Docker base image, which the Docker
+workflow checks; update both together when the base image changes.
+
 ## Pre-commit hooks
 
 Install hooks with `uv run --no-sync pre-commit install`, and check all

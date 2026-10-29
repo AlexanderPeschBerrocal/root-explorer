@@ -13,7 +13,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: "3.12"
           enable-cache: true
       - name: Validate universal lockfile
         run: uv lock --check
@@ -21,7 +20,7 @@ jobs:
         run: uv build
       - name: Install wheel against unlocked metadata in an isolated environment
         run: |
-          uv venv /tmp/root-explorer-wheel --python 3.12
+          uv venv /tmp/root-explorer-wheel
           uv pip install --python /tmp/root-explorer-wheel/bin/python dist/*.whl
           uv pip check --python /tmp/root-explorer-wheel/bin/python
       - name: Verify installed wheel and CLI from outside the checkout
