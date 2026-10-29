@@ -56,9 +56,10 @@ equivalent to changing the published package's compatibility metadata.
 It must match the Python version of the Docker base image, which the Docker
 workflow checks; update both together when the base image changes.
 
-uv itself is pinned to the same version in the Dockerfile's uv image, every
-`setup-uv` step and `.readthedocs.yaml`. Dependabot does not update these, so
-change them together; the build workflow fails if they differ.
+uv itself is pinned to the same version in the Dockerfile's digest-pinned uv
+image, every `setup-uv` step and `.readthedocs.yaml`. Dependabot updates only
+the Dockerfile image, so update the other pins in the same pull request; the
+build workflow fails while they differ.
 
 ## Pre-commit hooks
 

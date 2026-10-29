@@ -2,12 +2,16 @@
 # Keep .python-version at this Python release; the Docker workflow checks it.
 FROM python:3.12.15-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a2a3a14bcbe37dee6f0e3bbc70 AS base
 
+# The uv used to install the lock, pinned by digest like the base image. Keep
+# setup-uv and .readthedocs.yaml at this version; the build workflow checks it.
+FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+
 
 # ----- Build stage -----------------------------------------------------------
 FROM base AS builder
 
 # uv is only needed to install the lock; it is not copied into the runtime.
-COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /usr/local/bin/
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 # Use the base image's Python, install into an isolated virtual environment,
 # copy files instead of hard-linking from the uv cache, and precompile

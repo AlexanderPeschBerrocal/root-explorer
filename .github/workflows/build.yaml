@@ -26,15 +26,17 @@ jobs:
           enable-cache: true
 
       - name: Ensure every uv pin matches the Docker image
-        # Dependabot does not update setup-uv's version input or the Read the
-        # Docs install, so check them against the uv image in the Dockerfile.
+        # Dependabot updates the uv image in the Dockerfile but not setup-uv's
+        # version input or the Read the Docs install, so check them against it.
         run: |
           python3 - <<'PY'
           import re
           from pathlib import Path
 
           expected = re.search(
-              r"^COPY --from=ghcr\.io/astral-sh/uv:(\S+) ", Path("Dockerfile").read_text(), re.M
+              r"^FROM ghcr\.io/astral-sh/uv:([^@\s]+)@sha256:[0-9a-f]{64} AS uv$",
+              Path("Dockerfile").read_text(),
+              re.M,
           ).group(1)
           found = {}
           for workflow in sorted(Path(".github/workflows").glob("*.yaml")):
