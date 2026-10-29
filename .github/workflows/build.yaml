@@ -1,20 +1,30 @@
+# .github/workflows/build.yaml
+
 name: Build
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.13.6"
           enable-cache: true
+
       - name: Ensure every uv pin matches the Docker image
         # Dependabot does not update setup-uv's version input or the Read the
         # Docs install, so check them against the uv image in the Dockerfile.
@@ -40,16 +50,26 @@ jobs:
               "Every setup-uv step and Read the Docs must use the Dockerfile's uv version"
           )
           PY
+
       - name: Validate universal lockfile
+        # Fails when uv.lock no longer matches the dependencies in pyproject.toml.
         run: uv lock --check
+
       - name: Build package
         run: uv build
+
       - name: Install wheel against unlocked metadata in an isolated environment
+        # Package consumers do not get uv.lock: resolve the wheel's own
+        # dependency ranges from scratch and check they are mutually compatible.
         run: |
           uv venv /tmp/root-explorer-wheel
           uv pip install --python /tmp/root-explorer-wheel/bin/python dist/*.whl
           uv pip check --python /tmp/root-explorer-wheel/bin/python
+
       - name: Verify installed wheel and CLI from outside the checkout
+        # Compare the authoritative [project].version with the installed wheel metadata
+        # and the runtime version, not only two reads of the same metadata. Running
+        # from /tmp ensures the wheel, not the source checkout, is imported.
         run: |
           cd /tmp
           /tmp/root-explorer-wheel/bin/python - <<'PY'
