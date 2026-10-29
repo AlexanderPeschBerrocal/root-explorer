@@ -38,7 +38,7 @@ jobs:
           version = pinned[0]
           assert config["tool"]["ruff"]["required-version"] == f"=={version}"
           hooks = Path(".pre-commit-config.yaml").read_text()
-          assert re.search(r"(?m)^\\s*rev: v" + re.escape(version) + r"\\s*$", hooks), (
+          assert re.search(r"(?m)^\s*rev: v" + re.escape(version) + r"\s*$", hooks), (
               "External Ruff pre-commit revision must match the lint group"
           )
           PY
