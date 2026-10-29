@@ -1,6 +1,6 @@
 """Create one atomic CalVer release commit with a matching uv.lock and annotated tag.
 
-Run from a clean main checkout: uv run --no-sync --group release python scripts/release.py patch
+Run from a clean main checkout after uv sync --locked: uv run --no-sync python scripts/release.py patch
 The script intentionally does not push; review before git push --follow-tags.
 """
 

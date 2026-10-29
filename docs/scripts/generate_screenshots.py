@@ -1,6 +1,6 @@
 """Capture reproducible, legible screenshots of actual Streamlit plot output.
 
-Requires the optional `.[screenshots]` extras and Playwright Chromium.
+Requires the `screenshots` dependency group and Playwright Chromium.
 Never overwrite a reviewed image from CI: GitHub Actions uploads only artefacts.
 """
 

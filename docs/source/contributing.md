@@ -15,6 +15,11 @@ uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
 ```
 
+Without uv, pip 25.1 or newer installs the same dependency groups, resolved
+from `pyproject.toml` rather than the lock, for example
+`python -m pip install -e . --group dev`. The pre-commit hooks and the release
+helper still call uv and use the project's `.venv`.
+
 To reproduce individual CI jobs without installing all development tools:
 
 ```bash
