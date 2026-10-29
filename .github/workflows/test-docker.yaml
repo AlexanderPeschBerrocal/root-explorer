@@ -85,34 +85,51 @@ jobs:
           echo ".python-version: ${expected}, container: ${actual}"
           test "${expected}" = "${actual}"
 
-      - name: Check scientific runtime versions against committed lock
-        run: |
-          python3 - <<'PY'
-          import subprocess
-          import tomllib
-          from pathlib import Path
-          from importlib.metadata import PackageNotFoundError
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.6"
 
-          lock = tomllib.loads(Path("uv.lock").read_text())
-          packages = lock["package"]
-          for package in (
-              "numpy", "scipy", "awkward", "uproot", "matplotlib",
-              "pandas", "plotly", "hist", "streamlit",
-          ):
-              candidates = {p["version"] for p in packages if p["name"] == package}
-              assert len(candidates) == 1, f"Expected unique locked {package}, got {candidates}"
-              expected = candidates.pop()
-              actual = subprocess.check_output(
-                  [
-                      "docker", "exec", "root-explorer-ci",
-                      "python", "-c",
-                      "from importlib.metadata import version; "
-                      f"print(version({package!r}))",
-                  ],
-                  text=True,
-              ).strip()
-              print(f"{package}: locked={expected}, installed={actual}")
-              assert actual == expected, f"{package}: runtime differs from lock"
+      - name: Check the complete runtime environment against the committed lock
+        # Every locked runtime package that applies to this platform must be
+        # installed at its locked version, and nothing else may be installed.
+        # Markers are evaluated inside the container, for its own platform.
+        run: |
+          uv export --locked --no-default-groups --no-emit-project --no-hashes \
+            --no-header --no-annotate --format requirements-txt \
+            --output-file "${RUNNER_TEMP}/locked.txt" > /dev/null
+          docker cp "${RUNNER_TEMP}/locked.txt" root-explorer-ci:/tmp/locked.txt
+          docker exec -i root-explorer-ci python - /tmp/locked.txt <<'PY'
+          import sys
+          from importlib.metadata import distributions
+
+          from packaging.requirements import Requirement
+          from packaging.utils import canonicalize_name
+          from packaging.version import Version
+
+          expected = {}
+          with open(sys.argv[1]) as file:
+              for line in filter(None, map(str.strip, file)):
+                  requirement = Requirement(line)
+                  if requirement.marker is None or requirement.marker.evaluate():
+                      (spec,) = requirement.specifier
+                      expected[canonicalize_name(requirement.name)] = spec.version
+          installed = {canonicalize_name(d.metadata["Name"]): d.version for d in distributions()}
+          # The application's own version is checked against pyproject.toml above.
+          installed.pop("root-explorer")
+
+          problems = [
+              *(f"missing: {name}=={expected[name]}" for name in expected.keys() - installed.keys()),
+              *(f"not locked: {name}=={installed[name]}" for name in installed.keys() - expected.keys()),
+              *(
+                  f"{name}: locked {expected[name]}, installed {installed[name]}"
+                  for name in expected.keys() & installed.keys()
+                  if Version(expected[name]) != Version(installed[name])
+              ),
+          ]
+          print(f"{len(installed)} installed distributions, {len(expected)} locked for this platform")
+          if problems:
+              sys.exit("Runtime environment differs from uv.lock:\n" + "\n".join(sorted(problems)))
           PY
 
       - name: Stop container
