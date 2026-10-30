@@ -30,7 +30,7 @@ dependencies = [
     "plotly",
     "requests",
     "scipy",
-    "streamlit~=1.62.0",
+    "streamlit>=1.62,<1.67",
     "uproot>=5.7.0",
 ]
 
@@ -41,11 +41,11 @@ xrootd = ["fsspec-xrootd>=0.5.0"]
 # Development tools are not public installation extras.
 [dependency-groups]
 test = ["hypothesis", "pytest>=8", "pytest-cov"]
-lint = ["ruff==0.16.5"]
+lint = ["ruff==0.17.3"]
 typing = ["mypy>=1.11", "pandas-stubs", "scipy-stubs"]
 docs = ["myst-parser", "sphinx>=7", "furo"]
 screenshots = ["playwright>=1.55,<2", "pillow"]
-release = ["bump-my-version==1.5.1"]
+release = ["bump-my-version==1.6.7"]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
