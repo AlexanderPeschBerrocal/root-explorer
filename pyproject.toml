@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77.0.3", "wheel"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,7 +13,7 @@ authors = [
 readme = "README.md"
 license = "BSD-3-Clause"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12.4,<3.13"
 keywords = ["ROOT", "HEP", "TTrees", "RNTuples", "Streamlit"]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
@@ -35,33 +35,33 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Reads root:// (XRootD) sources.
-xrootd = [
-    "fsspec-xrootd>=0.5.0",
-]
-test = [
-    "hypothesis",
-    "pytest>=8",
-    "pytest-cov",
-]
+# Optional end-user feature; not part of the standard Docker environment.
+xrootd = ["fsspec-xrootd>=0.5.0"]
+
+# Development tools are not public installation extras.
+[dependency-groups]
+test = ["hypothesis", "pytest>=8", "pytest-cov"]
+lint = ["ruff==0.16.5"]
+typing = ["mypy>=1.11", "pandas-stubs", "scipy-stubs"]
+docs = ["myst-parser", "sphinx>=7", "furo"]
+screenshots = ["playwright>=1.55,<2", "pillow"]
+release = ["bump-my-version==1.5.1"]
 dev = [
-    "build==1.6.0",
-    "bump-my-version==1.5.1",
-    "mypy>=1.11",
-    "pandas-stubs",
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typing" },
+    { include-group = "docs" },
+    { include-group = "screenshots" },
+    { include-group = "release" },
     "pre-commit>=3.8",
-    "ruff==0.16.5",
-    "scipy-stubs",
     "watchdog",
 ]
-docs = [
-    "myst-parser",
-    "sphinx>=7",
-    "furo",
-]
-screenshots = [
-    "playwright>=1.55,<2",
-]
+
+[tool.uv]
+required-version = ">=0.13.4"
+# Pin the build backend for uv builds (Docker, CI, docs) so that rebuilding a
+# release uses the same tooling; pip installations keep [build-system] ranges.
+build-constraint-dependencies = ["setuptools==84.2.1"]
 
 [project.scripts]
 root-explorer = "root_explorer.cli:main"
@@ -98,7 +98,6 @@ module = ["plotly.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
-required-version = "==0.16.5"
 line-length = 100
 
 [tool.ruff.lint]
@@ -133,8 +132,8 @@ parse = """(?x)
 """
 serialize = ["{release}.{patch}"]
 
-commit = true
-tag = true
+commit = false
+tag = false
 tag_name = "v{new_version}"
 message = "Release: {new_version}"
 

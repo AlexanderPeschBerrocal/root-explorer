@@ -50,7 +50,7 @@ docker run --rm -p 8501:8501 root-explorer
 
 ## Alternative: Install from source (Python 3.12)
 
-Source installation is useful for developers and users who prefer a local Python environment. It requires **Python 3.12**, unlike the Docker method.
+Source installation is useful for developers and users who prefer a local Python environment. It requires **Python 3.12.4 or a later 3.12 release**, unlike the Docker method.
 
 ```bash
 git clone https://github.com/AlexanderPeschBerrocal/root-explorer.git
@@ -91,9 +91,9 @@ shows an error naming what to install; alternatively, download the file
 separately and use a local Path or Upload. Remote servers may also require
 credentials and network access configured on the server.
 
-After changing the package version or dependencies in a source checkout, reinstall it with `python -m pip install -e .` so that the command and the version shown in the app are up to date.
+After changing the package version or dependencies in a source checkout, use `uv lock` and `uv sync --locked` in a uv-managed environment, or reinstall with `python -m pip install -e .` for pip-managed environments.
 
-For development and testing dependencies, install `python -m pip install -e ".[dev,test]"` and consult [Contributing](contributing.md).
+For development and testing, use `uv sync --locked` and consult [Contributing](contributing.md). Ordinary `pip install -e .` remains supported for users who do not need the locked development environment.
 
 ## Next step
 

@@ -1,0 +1,96 @@
+# .github/workflows/release.yaml
+#
+# Manual releases only ("Run workflow"): dry-runs the chosen version part via
+# release-dry-run.yaml, and with mode "publish" then pushes the release commit
+# and tag to main and starts the Docker publish workflow. Pull requests run
+# release-dry-run.yaml directly, so this workflow never appears on them.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: "Version part (patch: another release this month; release: first release of a new month)"
+        type: choice
+        options: [patch, release]
+        default: patch
+      mode:
+        description: "Mode (dry-run: check only; publish: release on main and publish the Docker image)"
+        type: choice
+        options: [dry-run, publish]
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never run two manual releases at once.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  dry-run:
+    name: Release dry run
+    uses: ./.github/workflows/release-dry-run.yaml
+    with:
+      part: ${{ inputs.part }}
+
+  publish:
+    name: Publish release
+    needs: dry-run
+    if: inputs.mode == 'publish'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    permissions:
+      contents: write # push the release commit and tag
+      actions: write # start the Docker publish workflow
+
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Releases can only be published from main, not ${GITHUB_REF}."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.6"
+          enable-cache: true
+
+      - name: Create and verify the release commit and tag
+        id: release
+        env:
+          PART: ${{ inputs.part }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          # Attribute the release commit and tag to whoever started the run.
+          git config user.name "${ACTOR}"
+          git config user.email "${ACTOR_ID}+${ACTOR}@users.noreply.github.com"
+          uv sync --locked --no-default-groups --group release
+          uv run --no-sync python scripts/release.py "${PART}"
+          uv run --no-sync python scripts/check_release.py
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Push the release commit and tag atomically
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        # Either both land or neither does, for example if main moved meanwhile.
+        run: git push --atomic origin HEAD:refs/heads/main "refs/tags/v${VERSION}"
+
+      - name: Start the Docker publish workflow for the new tag
+        # Pushes made with GITHUB_TOKEN do not trigger other workflows, so the
+        # tag-triggered publish workflow is started explicitly on the tag.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: gh workflow run publish-docker.yaml --ref "v${VERSION}"

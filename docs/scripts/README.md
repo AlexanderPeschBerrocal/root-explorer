@@ -4,12 +4,12 @@ Screenshots are actual Chromium captures of the locally running Streamlit app
 using deterministic, completely synthetic NanoAOD-like test data; no external
 ROOT data, CMS collaboration files, PyROOT, or production server are required.
 
-Use Python 3.12 and run from the repository root:
+Run from the repository root with the locked `screenshots` dependency group:
 
 ```bash
-python -m pip install -e ".[screenshots]"
-python -m playwright install chromium
-python docs/scripts/generate_screenshots.py
+uv sync --locked --no-default-groups --group screenshots
+uv run --no-sync playwright install chromium
+uv run --no-sync python docs/scripts/generate_screenshots.py
 ```
 
 The command launches and stops its own Streamlit instance on port 8751 and
@@ -25,7 +25,7 @@ app; only the Streamlit interface follows the theme.
 The app must not already be listening on this port. To use a different free
 port, pass `--port` (e.g. `--port 8752`); the script then polls
 `http://127.0.0.1:8752`. `--base-url` overrides the polled address if needed.
-Run `python docs/scripts/generate_screenshots.py --theme light` to regenerate
+Run `uv run --no-sync python docs/scripts/generate_screenshots.py --theme light` to regenerate
 only the light screenshots (or `--theme dark` for dark only).
 
 The separate `Documentation screenshots` GitHub Actions workflow runs on
