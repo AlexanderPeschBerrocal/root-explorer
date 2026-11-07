@@ -20,10 +20,14 @@ REMOTE_PREFIXES = ("root://", "http://", "https://")
 # Settings from the repository's .streamlit/config.toml. Streamlit only reads that
 # file from the current directory, so the launcher passes them explicitly; options
 # given on the command line come later and take precedence.
+# Listening on loopback keeps the app private to this machine; users who want to
+# share it on a network pass --server.address explicitly.
 DEFAULT_STREAMLIT_OPTIONS = (
+    "--server.address=127.0.0.1",
     "--server.maxUploadSize=4096",
     "--browser.gatherUsageStats=false",
     "--client.toolbarMode=minimal",
+    "--client.showErrorDetails=type",
 )
 
 
@@ -32,7 +36,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="root-explorer",
         allow_abbrev=False,
         description="Launch ROOT Explorer, optionally with a ROOT file pre-selected.",
-        epilog="Further options, for example --server.address=0.0.0.0, are passed to Streamlit.",
+        epilog="Further options, for example --server.maxUploadSize=200, are passed to Streamlit.",
     )
     parser.add_argument(
         "root_file",

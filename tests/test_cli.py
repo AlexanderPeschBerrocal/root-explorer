@@ -51,6 +51,26 @@ def test_without_file_only_defaults_are_passed() -> None:
     assert "--" not in arguments
 
 
+def test_defaults_listen_on_loopback_and_hide_tracebacks() -> None:
+    arguments = cli.streamlit_arguments([])
+    assert "--server.address=127.0.0.1" in arguments
+    assert "--client.showErrorDetails=type" in arguments
+
+
+def test_forwarded_server_address_overrides_the_loopback_default() -> None:
+    arguments = cli.streamlit_arguments(["--server.address", "0.0.0.0"])
+    # Streamlit uses the last value given for an option.
+    assert arguments.index("--server.address=0.0.0.0") > arguments.index(
+        "--server.address=127.0.0.1"
+    )
+
+
+def test_repository_config_matches_the_launcher_defaults() -> None:
+    config = tomllib.loads((PROJECT_ROOT / ".streamlit" / "config.toml").read_text())
+    assert config["server"]["address"] == "127.0.0.1"
+    assert config["client"]["showErrorDetails"] == "type"
+
+
 def test_relative_file_is_resolved_against_the_working_directory(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     arguments = cli.streamlit_arguments(["data/events.root"])

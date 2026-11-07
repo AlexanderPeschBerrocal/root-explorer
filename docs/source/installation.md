@@ -7,19 +7,21 @@
 Install [Docker](https://docs.docker.com/get-started/get-docker/) and start ROOT Explorer using the published stable image:
 
 ```bash
-docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
+docker run --rm -p 127.0.0.1:8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
 ```
 
 Open **[http://localhost:8501](http://localhost:8501)** in your browser. In the sidebar choose **Upload** to select a ROOT file from your computer. You can immediately follow [Your first plot](getting-started.md); no repository checkout is required.
 
 Stop the container with `Ctrl+C` in the terminal. The `stable` tag moves with releases; pin a **versioned image tag** for reproducible deployments.
 
+**Network access:** `-p 127.0.0.1:8501:8501` makes the app reachable only from your own computer. ROOT Explorer has no login, and anyone who can open it can read files with the container's permissions, so publish the port more widely (for example `-p 8501:8501`) only on a network you trust, and see [Deployment](deployment.md) before sharing an instance with others. The container itself listens on all of its interfaces; only the host-side `-p` setting needs to change.
+
 ### Reading files from the host filesystem
 
 Use a **read-only bind mount** if you want to load files by path instead of uploading them:
 
 ```bash
-docker run --rm -p 8501:8501 \
+docker run --rm -p 127.0.0.1:8501:8501 \
   --mount type=bind,source="/absolute/path/to/data",target=/data,readonly \
   ghcr.io/alexanderpeschberrocal/root-explorer:stable
 ```
@@ -45,7 +47,7 @@ To build a container from the repository instead of pulling the published image:
 git clone https://github.com/AlexanderPeschBerrocal/root-explorer.git
 cd root-explorer
 docker build -t root-explorer .
-docker run --rm -p 8501:8501 root-explorer
+docker run --rm -p 127.0.0.1:8501:8501 root-explorer
 ```
 
 ## Alternative: Install from source (Python 3.12)
@@ -72,13 +74,13 @@ root-explorer                         # start without a file
 root-explorer path/to/file.root       # open a file on start-up
 root-explorer file.root --port 8600   # use another port
 root-explorer file.root --no-browser  # do not open a browser window
-root-explorer --server.address 127.0.0.1 file.root  # forward a Streamlit setting
+root-explorer --server.maxUploadSize 200 file.root  # forward a Streamlit setting
 ```
 
 Only one ROOT file can be given; additional file arguments, also after `--`,
 are rejected with an error.
 
-`python -m root_explorer` is equivalent. Further options are passed to Streamlit, using either `--server.address=127.0.0.1` or `--server.address 127.0.0.1`, before or after the ROOT filename; run `root-explorer --help` for an overview. Boolean Streamlit settings also require a value, for example `--server.headless true`. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
+`python -m root_explorer` is equivalent. Further options are passed to Streamlit, using either `--server.maxUploadSize=200` or `--server.maxUploadSize 200`, before or after the ROOT filename; run `root-explorer --help` for an overview. Boolean Streamlit settings also require a value, for example `--server.headless true`. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. It listens only on `127.0.0.1`, so the app is reachable from your own computer only; to share it on a trusted network, pass `--server.address 0.0.0.0` (see the network note above). Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
 
 `http://` and `https://` sources work with the default installation and the
 Docker image, which include the required `aiohttp` and `requests` packages.

@@ -24,7 +24,7 @@
 Run the published Docker image:
 
 ```bash
-docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
+docker run --rm -p 127.0.0.1:8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
 ```
 
 Open [http://localhost:8501](http://localhost:8501). Use **Upload** to select a ROOT file from your computer. For local paths and reproducible deployments, consult [installation and Docker](docs/source/installation.md). A versioned image tag is recommended in production.
