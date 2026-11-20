@@ -6,8 +6,8 @@ from typing import Any
 
 import streamlit as st
 
-from ..io.graphs import UnsupportedGraphError, read_graph
-from ..io.root import RemoteBackendUnavailableError, explain_missing_remote_backend
+from ..io.graphs import InvalidGraphDataError, UnsupportedGraphError, read_graph
+from ..io.root import ObjectReadError, RemoteBackendUnavailableError, object_read_errors
 from ..io.source import SourceVersion, source_version
 from ..models import GraphData
 from ..plotting.graphs import GraphPlotSpec, nonfinite_coordinate_count, render_graph_data
@@ -17,6 +17,7 @@ from .results import (
     close_plot_result,
     discard_plot_result,
     show_cached_plot_result,
+    show_technical_details,
     store_plot_result,
 )
 
@@ -24,7 +25,9 @@ from .results import (
 @st.cache_data(show_spinner="Reading graph…", max_entries=16)
 def _cached_graph(root_path: str, object_path: str, version: SourceVersion) -> GraphData:
     """Load one graph; ``version`` invalidates the cache when the file changes."""
-    with explain_missing_remote_backend(root_path):
+    with object_read_errors(
+        root_path, object_path, "graph", keep=(UnsupportedGraphError, InvalidGraphDataError)
+    ):
         return read_graph(root_path, object_path)
 
 
@@ -97,6 +100,8 @@ def render_graph_controls(
     ) as exc:
         discard_plot_result("root_graph_result")
         st.warning(str(exc))
+        if isinstance(exc, ObjectReadError):
+            show_technical_details(exc)
         return None
     st.caption(f"Points: {len(graph.x):,}")
     omitted_points = nonfinite_coordinate_count(graph)

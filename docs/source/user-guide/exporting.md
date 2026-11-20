@@ -59,9 +59,9 @@ Downloaded scripts refer to the original ROOT file path; a relative local path
 is written as the corresponding absolute path on the server. A path
 inside a container or remote service is **not automatically valid**
 on your own computer: update it to a local file accessible to Python.
-Reading an `http(s)://` source from the script additionally requires the
-`aiohttp` and `requests` packages, and a `root://` source requires
-`fsspec-xrootd`.
+Reading an `http(s)://` source from the script needs no additional packages;
+as in the application, the server must support HTTP range requests and an
+unresponsive server times out. A `root://` source requires `fsspec-xrootd`.
 Uploads may appear as temporary paths on the server; keep a copy of the
 original ROOT file and replace that path in the script as well.
 

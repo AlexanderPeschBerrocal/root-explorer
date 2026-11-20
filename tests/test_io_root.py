@@ -358,7 +358,7 @@ def test_out_of_range_event_read_has_context(root_path):
     ],
 )
 def test_missing_remote_backend_names_what_to_install(monkeypatch, path, missing, install) -> None:
-    def missing_backend(opened_path):
+    def missing_backend(opened_path, **options):
         raise ImportError(f"No module named {missing!r}")
 
     monkeypatch.setattr(root_io.uproot, "open", missing_backend)
@@ -400,7 +400,7 @@ def test_persisted_object_viewers_name_the_missing_remote_backend(monkeypatch) -
 
 
 def test_unrelated_import_errors_of_remote_sources_are_not_reworded(monkeypatch) -> None:
-    def broken(opened_path):
+    def broken(opened_path, **options):
         raise ImportError("No module named 'cramjam'")
 
     monkeypatch.setattr(root_io.uproot, "open", broken)

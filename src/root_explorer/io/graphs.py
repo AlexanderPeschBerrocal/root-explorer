@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-import uproot
 
 from ..models import GraphData
+from .root import open_uproot_source
 
 SUPPORTED_GRAPH_CLASSES = frozenset({"TGraph", "TGraphErrors", "TGraphAsymmErrors"})
 
@@ -106,5 +106,5 @@ def graph_data_from_object(graph: Any) -> GraphData:
 
 def read_graph(root_path: str, object_path: str) -> GraphData:
     """Load only the selected graph; object_path may include directories and cycle."""
-    with uproot.open(root_path) as root_file:
+    with open_uproot_source(root_path) as root_file:
         return graph_data_from_object(root_file[object_path])

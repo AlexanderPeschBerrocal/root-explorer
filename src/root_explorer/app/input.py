@@ -15,6 +15,7 @@ from ..io.root import (
     get_root_catalogue,
     numeric_fields,
     parse_cli_rootfile,
+    read_error_reason,
 )
 from ..io.source import (
     SourceUnavailableError,
@@ -85,7 +86,7 @@ def render_data_input() -> RootFileContext:
         with st.spinner("Reading the ROOT file catalogue…"):
             catalogue = get_root_catalogue(root_path)
     except Exception as exc:
-        st.error(f"Could not open ROOT file: {exc}")
+        st.error(f"Could not open ROOT file: {read_error_reason(exc)}")
         st.stop()
 
     available_container_infos = event_container_infos(catalogue)
@@ -174,7 +175,8 @@ def _without_event_data(
         )
     else:
         st.error(
-            f"Could not read the selected {container_kind}: {error}. "
+            f"Could not read the selected {container_kind}: "
+            f"{read_error_reason(error) if error is not None else 'unknown error'}. "
             "You can still browse the other ROOT objects in this file."
         )
     return RootFileContext(
