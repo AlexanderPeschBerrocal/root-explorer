@@ -7,7 +7,7 @@ This tutorial shows how to produce a histogram of synthetic muon transverse mome
 The easiest route is **Docker**, without a local Python installation:
 
 ```bash
-docker run --rm -p 8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
+docker run --rm -p 127.0.0.1:8501:8501 ghcr.io/alexanderpeschberrocal/root-explorer:stable
 ```
 
 Open [http://localhost:8501](http://localhost:8501) in your browser. See [Installation](installation.md) for host-directory mounts, versioned image tags, and the optional Python source setup.

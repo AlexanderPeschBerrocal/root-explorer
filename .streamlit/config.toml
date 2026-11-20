@@ -1,4 +1,6 @@
 [server]
+# Docker overrides this with --server.address=0.0.0.0 inside the container.
+address = "127.0.0.1"
 runOnSave = true
 maxUploadSize = 4096
 
@@ -7,3 +9,4 @@ gatherUsageStats = false
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = "type"
