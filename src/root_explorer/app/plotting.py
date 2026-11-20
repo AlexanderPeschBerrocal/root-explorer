@@ -24,6 +24,7 @@ from ..analysis.arrays import (
 )
 from ..analysis.fitting import FitConfig, fit_histogram_1d
 from ..analysis.histograms import InvalidHistogramRangeError
+from ..analysis.precision import integer_precision_warnings
 from ..analysis.statistics import (
     calculate_quantile_result,
     calculate_threshold_result,
@@ -362,6 +363,7 @@ def _generate_and_show(
     request: PlotRequest, make_plot: bool, result_key: str, download_key: str
 ) -> None:
     if make_plot:
+        stored = False
         try:
             if request.plot_type in STATIC_PLOT_TYPES:
                 # Static plots report their individual steps themselves.
@@ -369,8 +371,13 @@ def _generate_and_show(
             else:
                 with st.spinner("Reading data and building the 3D plot…", show_time=True):
                     result = _build_plot_result(request)
+            result["warnings"] = [
+                *_integer_precision_warnings(request),
+                *result.get("warnings", []),
+            ]
             result["settings"] = _plot_settings(request)
             store_plot_result(result_key, result)
+            stored = True
         except ArrayShapeMismatchError as exc:
             discard_plot_result(result_key)
             st.warning(str(exc))
@@ -397,6 +404,11 @@ def _generate_and_show(
             prefix = "Event plot" if request.event_index is not None else "Plot"
             st.error(f"{prefix} failed: {exc}")
             show_technical_details(exc)
+        if not stored:
+            # A failure such as a histogram range too narrow for float64 can itself be
+            # caused by integers beyond 2**53, so name such branches here too.
+            for warning in _integer_precision_warnings(request):
+                st.warning(warning)
     show_cached_plot_result(
         result_key,
         current_settings=_plot_settings(request),
@@ -577,6 +589,26 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         if figure is not None:
             plt.close(figure)
         raise
+
+
+def _integer_precision_warnings(request: PlotRequest) -> list[str]:
+    """Warn about plotted, coloured, weighting or cut branches beyond 2**53 (#166)."""
+
+    active_cuts = [
+        spec
+        for spec, (low, high) in zip(request.cut_specs, request.cut_bounds, strict=True)
+        if low is not None or high is not None
+    ]
+    context = request.context
+    return integer_precision_warnings(
+        [request.x_spec, request.y_spec, request.z_spec, request.color_spec, *active_cuts],
+        [request.weight_branch],
+        context.root_path,
+        context.event_container_name,
+        context.entry_start,
+        context.entry_stop,
+        request.event_index,
+    )
 
 
 def _build_plot_result(request: PlotRequest) -> dict[str, Any]:

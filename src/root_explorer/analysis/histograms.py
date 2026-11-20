@@ -52,7 +52,7 @@ def build_histogram_1d(
     else:
         resolved_range = None
 
-    edges = np.histogram_bin_edges(selected_values, bins=bin_count, range=resolved_range)
+    edges = _bin_edges(selected_values, bin_count, resolved_range)
     axis = hist.axis.Variable(
         edges,
         name="x",
@@ -69,6 +69,35 @@ def build_histogram_1d(
     else:
         histogram.fill(x=fill_values, weight=selected_weights)
     return histogram
+
+
+def _bin_edges(
+    values: np.ndarray,
+    bins: int,
+    value_range: tuple[float, float] | None,
+    *,
+    axis_name: str = "",
+) -> np.ndarray:
+    """Return NumPy histogram edges, explaining ranges too narrow for float64.
+
+    Values far from zero with a small spread, such as nanosecond timestamps near
+    1.7e18 (#166), can span fewer representable floating-point numbers than there are
+    bins; NumPy then cannot create distinct edges.
+    """
+
+    try:
+        return np.histogram_bin_edges(values, bins=bins, range=value_range)
+    except ValueError as exc:
+        if "finite-sized bins" not in str(exc):
+            raise
+        if value_range is None:
+            value_range = (float(np.min(values)), float(np.max(values)))
+        raise InvalidHistogramRangeError(
+            f"Cannot create {bins} distinct {axis_name}histogram bins between "
+            f"{value_range[0]:.17g} and {value_range[1]:.17g}: the range is too narrow for "
+            "values of this size in floating point. Use fewer bins or a wider range; see "
+            "Numeric precision in the user guide."
+        ) from exc
 
 
 def _numpy_compatible_fill_values(values: np.ndarray, edges: np.ndarray) -> np.ndarray:
@@ -131,8 +160,8 @@ def build_histogram_2d(
                     f"{axis_name} histogram range bounds must be finite with minimum < maximum."
                 )
 
-    x_edges = np.histogram_bin_edges(selected_x, bins=int(bins_x), range=x_range)
-    y_edges = np.histogram_bin_edges(selected_y, bins=int(bins_y), range=y_range)
+    x_edges = _bin_edges(selected_x, int(bins_x), x_range, axis_name="x ")
+    y_edges = _bin_edges(selected_y, int(bins_y), y_range, axis_name="y ")
     histogram = hist.Hist(
         hist.axis.Variable(x_edges, name="x", label=x_label, underflow=True, overflow=True),
         hist.axis.Variable(y_edges, name="y", label=y_label, underflow=True, overflow=True),
@@ -199,7 +228,7 @@ def resolve_histogram_range(
     upper = bound("hist_x_max_text")
     if lower is None and upper is None:
         return None
-    automatic_edges = np.histogram_bin_edges(values, bins=int(bins))
+    automatic_edges = _bin_edges(values, int(bins), None)
     if lower is None:
         lower = float(automatic_edges[0])
     if upper is None:
