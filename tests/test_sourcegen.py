@@ -85,9 +85,32 @@ def test_bundle_python_source_reports_missing_source_as_bundle_error(monkeypatch
     def no_source(obj):
         raise OSError("could not get source code")
 
+    # Sources are cached per object (#169); forget those read by earlier tests.
+    sourcegen._object_source.cache_clear()
+    sourcegen._module_import_map.cache_clear()
     monkeypatch.setattr(sourcegen.inspect, "getsource", no_source)
     with pytest.raises(SourceBundleError, match="Cannot inspect the source"):
         bundle_python_source(calculate_quantile_result)
+
+
+def test_repeated_bundles_reuse_parsed_sources_and_give_identical_output() -> None:
+    # Re-reading and re-parsing whole modules for every vendored object made each
+    # Make plot 0.3-0.7 s slower (#169); a repeated bundle must hit the caches only.
+    first = bundle_python_source(calculate_quantile_result)
+    import_maps = sourcegen._module_import_map.cache_info()
+    sources = sourcegen._object_source.cache_info()
+
+    assert bundle_python_source(calculate_quantile_result) == first
+    assert sourcegen._module_import_map.cache_info().misses == import_maps.misses
+    assert sourcegen._object_source.cache_info().misses == sources.misses
+    assert sourcegen._module_import_map.cache_info().hits > import_maps.hits
+
+
+def test_cached_import_map_is_read_only() -> None:
+    import_map = sourcegen._module_import_map(sourcegen)
+    assert import_map["ast"] == "import ast"
+    with pytest.raises(TypeError):
+        import_map["ast"] = "import something_else"  # type: ignore[index]
 
 
 @pytest.fixture

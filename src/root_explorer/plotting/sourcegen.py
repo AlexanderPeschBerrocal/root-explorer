@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import ast
 import builtins
+import functools
 import importlib
 import inspect
 import math
 import textwrap
-from collections.abc import Callable
+from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib.util import resolve_name
-from types import ModuleType
-from typing import Any
+from types import MappingProxyType, ModuleType
+from typing import Any, cast
 
 
 class SourceBundleError(ValueError):
@@ -145,7 +146,7 @@ def bundle_python_source(
             return
 
         try:
-            source = textwrap.dedent(inspect.getsource(obj))
+            source = _object_source(cast(Hashable, obj))
         except (OSError, TypeError) as exc:
             # For example, an installation that ships only bytecode.
             raise SourceBundleError(f"Cannot inspect the source of {object_name!r}.") from exc
@@ -485,7 +486,25 @@ def _annotation_only_names(tree: ast.AST) -> set[str]:
     return {node.id for node in names if node.id not in evaluated}
 
 
-def _module_import_map(module: ModuleType) -> dict[str, str]:
+@functools.cache
+def _object_source(obj: Any) -> str:
+    """Return the dedented source of a function or class, cached per object.
+
+    inspect.getsource re-parses the whole module to locate a class, so uncached it
+    was the largest remaining cost of each export (#169). Like the module import map,
+    the source cannot change while the object exists.
+    """
+    return textwrap.dedent(inspect.getsource(obj))
+
+
+@functools.cache
+def _module_import_map(module: ModuleType) -> Mapping[str, str]:
+    """Map each top-level imported name of a module to its import statement.
+
+    Cached per module object: a module's source does not change while it is loaded,
+    and parsing whole modules once per vendored object made every export slow (#169).
+    A module reloaded under Streamlit's runOnSave is a new object and is parsed afresh.
+    """
     try:
         source = inspect.getsource(module)
     except (OSError, TypeError) as exc:
@@ -508,7 +527,8 @@ def _module_import_map(module: ModuleType) -> dict[str, str]:
                 continue
             for alias in node.names:
                 result[alias.asname or alias.name] = segment
-    return result
+    # Read-only, because the cached mapping is shared by every export.
+    return MappingProxyType(result)
 
 
 def _is_internal_import(source: str, package_prefix: str) -> bool:
