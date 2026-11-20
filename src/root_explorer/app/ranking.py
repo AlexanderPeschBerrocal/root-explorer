@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ..analysis.precision import integer_precision_warnings
 from ..analysis.ranking import compute_event_metric, metric_dataframe
 from ..io.root import FieldReadError, choose_default
+from ..models import VariableSpec
 from .controls import field_option_labels, slider_or_number_input
 from .results import show_technical_details
 from .state import DataContext
 from .tables import render_dataframe
 
-RANKING_KEYS = ("rank_metric", "rank_settings", "rank_df", "rank_label", "rank_table_key")
+RANKING_KEYS = (
+    "rank_metric",
+    "rank_settings",
+    "rank_df",
+    "rank_label",
+    "rank_table_key",
+    "rank_warnings",
+)
 
 
 def clear_ranking() -> None:
@@ -91,6 +100,18 @@ def render_event_selection(context: DataContext) -> int:
                 st.session_state["rank_version"] = st.session_state.get("rank_version", 0) + 1
                 metric_input = f"|{metric_branch}|" if metric_abs else metric_branch
                 st.session_state["rank_label"] = f"{metric_mode}({metric_input})"
+                # Multiplicity counts objects and never uses their values.
+                st.session_state["rank_warnings"] = integer_precision_warnings(
+                    [VariableSpec(mode="branch", branch=metric_branch)]
+                    if metric_mode != "multiplicity"
+                    else [],
+                    [],
+                    context.root_path,
+                    context.event_container_name,
+                    context.entry_start,
+                    context.entry_stop,
+                    None,
+                )
             except Exception as exc:
                 # The previous ranking belongs to other settings and must not remain visible.
                 clear_ranking()
@@ -113,6 +134,8 @@ def render_event_selection(context: DataContext) -> int:
                 )
         if "rank_df" in st.session_state:
             st.write(f"Metric: **{st.session_state.get('rank_label', 'metric')}**")
+            for warning in st.session_state.get("rank_warnings", []):
+                st.warning(warning)
             render_dataframe(st.session_state["rank_df"], height=220)
             ranked_events = st.session_state["rank_df"]["event"].astype(int).tolist()
             if ranked_events:

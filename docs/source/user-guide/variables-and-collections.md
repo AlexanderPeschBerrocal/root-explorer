@@ -128,4 +128,34 @@ whether inputs are scalar, fixed-size or jagged before combining them.
 
 For fields with optional/missing values, see [Missing values](#missing-values).
 
+## Numeric precision
+
+ROOT Explorer computes with 64-bit floating-point numbers, because missing
+values are represented as NaN. These represent every integer up to
+2⁵³ ≈ 9.0 × 10¹⁵ exactly. Larger integers are rounded to the nearest
+representable value: near 1.7 × 10¹⁸, for example, representable values are 256
+apart, so integers that differ by less than that can become equal. Typical
+physics variables are far below this limit. Branches that can exceed it include:
+
+- timestamps in nanoseconds since the epoch (about 1.7 × 10¹⁸);
+- bit-packed time words;
+- 64-bit packed detector IDs and hash keys.
+
+For such branches, results can be silently wrong:
+
+- a difference such as `A - B` of two nearby timestamps can be off by up to the
+  spacing above, for example 0 instead of 1 ns;
+- range cuts can keep or reject the wrong entries;
+- event rankings can tie entries that differ;
+- the plotted values themselves are rounded.
+
+The application warns when a plotted, colour, weight or cut branch, or the
+branch of an event ranking, holds integers beyond 2⁵³, and when a typed
+integer cut bound cannot be represented exactly. Exported Python scripts
+compute the same values but do not repeat the warning.
+
+**Workaround:** store values relative to an offset, for example nanoseconds
+since the start of the run instead of since the epoch, so that they stay below
+2⁵³; store packed IDs as separate fields. Then subtract or recombine as needed.
+
 Continue with [Plotting](plotting.md).

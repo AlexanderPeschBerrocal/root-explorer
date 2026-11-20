@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import streamlit as st
 
 from ..analysis.arrays import reduction_can_lack_value
+from ..analysis.precision import is_inexact_integer_bound
 from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
 from ..models import FieldInfo, VariableSpec
@@ -731,6 +732,13 @@ def range_cut_controls(
             if str(hi).strip() and (hi_value is None or math.isnan(hi_value)):
                 st.warning(f"Cut {i + 1} maximum must be a number. Correct it before plotting.")
                 hi_value = float("nan")
+            for name, text, value in (("minimum", lo, lo_value), ("maximum", hi, hi_value)):
+                if value is not None and is_inexact_integer_bound(text):
+                    st.warning(
+                        f"Cut {i + 1} {name} {str(text).strip()} is beyond 2⁵³ and is used as "
+                        f"{value:.17g}, the nearest floating-point value. See Numeric "
+                        "precision in the user guide."
+                    )
             cut_bounds.append((lo_value, hi_value))
     return cut_specs, cut_bounds
 
