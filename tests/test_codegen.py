@@ -9,11 +9,12 @@ from dataclasses import replace
 from types import ModuleType
 from typing import Any
 
+import hist
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d
+from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d, model_bin_integrals
 from root_explorer.analysis.variables import VARIABLE_EVALUATORS
 from root_explorer.app.plotting import PlotRequest
 from root_explorer.app.state import DataContext, GeometryState
@@ -734,6 +735,42 @@ def test_weighted_fit_export_uses_requested_stored_variances(root_path) -> None:
             assert exported.success == canonical.success
         finally:
             plt.close(module.plt.gcf())
+
+
+def test_exported_fit_matches_application_across_units_and_offsets() -> None:
+    """The vendored fit must carry the unit-independent solver (#162)."""
+    request = _request(
+        "events.root",
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="Muon_pt"),
+        style={"fig_width": 8.0, "fig_height": 6.0, "bins_x": 20},
+        fit_config=FitConfig("Gaussian", use_variances=True),
+    )
+    rng = np.random.default_rng(162)
+    cases = {
+        "D0 in GeV": (1.865, 0.008),
+        "ns width in seconds": (25e-9, 1e-9),
+        "large offset": (1e6, 0.01),
+    }
+    with _executed_generated_module(generate_static_plot_code(request)) as module:
+        for case, (mu, sigma) in cases.items():
+            edges = mu + sigma * np.linspace(-5.0, 5.0, 61)
+            expected = model_bin_integrals(
+                "Gaussian", edges, {"A": 1.0, "mu": mu, "sigma": sigma}, x0=mu
+            )
+            counts = rng.poisson(expected * 2_000 / expected.sum()).astype(float)
+            histogram = hist.Hist(hist.axis.Variable(edges), storage=hist.storage.Weight())
+            histogram.view().value[...] = counts
+            histogram.view().variance[...] = counts
+            config = FitConfig("Gaussian", use_variances=True)
+
+            application = fit_histogram_1d(histogram, config)
+            exported = module.fit_histogram_1d(histogram, module.FitConfig(**vars(config)))
+            assert application.success, (case, application.message)
+            assert exported.success, (case, exported.message)
+            assert exported.parameters == application.parameters, case
+            assert exported.uncertainties == application.uncertainties, case
+            assert all(value is not None for value in exported.uncertainties.values()), case
 
 
 def test_custom_fit_export_matches_canonical_backend(root_path):
