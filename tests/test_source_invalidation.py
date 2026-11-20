@@ -239,7 +239,10 @@ def test_persisted_histogram_viewer_shows_replaced_contents(tmp_path, monkeypatc
         original_open = uproot.open
 
         def open_source(file, *args, **kwargs):
-            return original_open(str(path) if file == source else file, *args, **kwargs)
+            if file == source:
+                # Serve the URL from the local file, without the remote transport options.
+                return original_open(str(path))
+            return original_open(file, *args, **kwargs)
 
         monkeypatch.setattr(uproot, "open", open_source)
 

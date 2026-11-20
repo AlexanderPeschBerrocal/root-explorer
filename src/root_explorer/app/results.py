@@ -19,7 +19,7 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 from ..analysis.fitting import FitResult
 from ..analysis.histograms import HistogramNormalisationResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
-from ..io.root import FieldReadError
+from ..io.root import FieldReadError, ObjectReadError
 from ..io.source import is_remote_source
 from ..models import FieldInfo
 from ..plotting.plots import (
@@ -39,10 +39,11 @@ def show_technical_details(error: BaseException) -> None:
     """Offer the traceback of a failure without making it the primary message.
 
     For a failed read, the traceback of the reader's original error is shown,
-    since the wrapping FieldReadError only adds context to its message.
+    since the wrapping FieldReadError or ObjectReadError only adds context to its
+    message.
     """
 
-    cause = error.__cause__ if isinstance(error, FieldReadError) else None
+    cause = error.__cause__ if isinstance(error, (FieldReadError, ObjectReadError)) else None
     with st.expander("Technical details"):
         st.exception(cause or error)
 

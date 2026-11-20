@@ -8,7 +8,7 @@ import numpy as np
 import streamlit as st
 
 from ..io.histograms import PersistedHistogram, UnsupportedHistogramError, read_histogram
-from ..io.root import RemoteBackendUnavailableError, explain_missing_remote_backend
+from ..io.root import ObjectReadError, RemoteBackendUnavailableError, object_read_errors
 from ..io.source import SourceVersion, source_version
 from ..plotting.histograms import (
     HistogramPlotSpec,
@@ -27,6 +27,7 @@ from .results import (
     close_plot_result,
     discard_plot_result,
     show_cached_plot_result,
+    show_technical_details,
     store_plot_result,
 )
 
@@ -36,7 +37,7 @@ def _cached_histogram(
     root_path: str, object_path: str, version: SourceVersion
 ) -> PersistedHistogram:
     """Load one histogram; ``version`` invalidates the cache when the file changes."""
-    with explain_missing_remote_backend(root_path):
+    with object_read_errors(root_path, object_path, "histogram", keep=(UnsupportedHistogramError,)):
         return read_histogram(root_path, object_path)
 
 
@@ -62,6 +63,8 @@ def render_histogram_controls(
     ) as exc:
         discard_plot_result("root_histogram_result")
         st.warning(str(exc))
+        if isinstance(exc, ObjectReadError):
+            show_technical_details(exc)
         return None
     h = data.histogram
     st.caption(" x ".join(f"{len(axis)} bins" for axis in h.axes))

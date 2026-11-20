@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import re
 from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ import numpy as np
 import streamlit as st
 import uproot
 
+from ..config import REMOTE_TIMEOUT_SECONDS
 from ..models import FieldInfo, FieldStructure, RootObjectInfo, RootObjectKind
 from .source import SourceVersion, is_remote_source, source_version
 
@@ -85,7 +87,15 @@ def _cached_get_root_catalogue(path: str, version: SourceVersion) -> tuple[RootO
     """Cached implementation; ``version`` only keys the cache (see ``io.source``)."""
 
     with open_uproot_source(path) as root_file:
-        return build_root_catalogue(root_file)
+        catalogue = build_root_catalogue(root_file)
+    if not catalogue and is_remote_source(path):
+        # A server that returns the wrong bytes can make a non-empty file look empty;
+        # an empty catalogue would then be misreported as "no event data".
+        raise OSError(
+            "The remote file lists no ROOT objects. If it is not empty, the server "
+            "returned unexpected data; download the file and open it locally."
+        )
+    return catalogue
 
 
 def latest_root_objects(catalogue: Sequence[RootObjectInfo]) -> tuple[RootObjectInfo, ...]:
@@ -192,11 +202,26 @@ def explain_missing_remote_backend(path: str) -> Iterator[None]:
         raise RemoteBackendUnavailableError(message) from exc
 
 
+def uproot_open_options(path: str) -> dict[str, Any]:
+    """Return Uproot options that make remote reads fail clearly instead of hanging.
+
+    For http(s):// sources, Uproot's own HTTP source is used: it insists on byte-range
+    responses (status 206), so a server that ignores ranges is reported as such rather
+    than silently misread, and it honours the timeout. XRootD takes whole seconds.
+    """
+
+    if path.startswith(("http://", "https://")):
+        return {"handler": uproot.source.http.HTTPSource, "timeout": float(REMOTE_TIMEOUT_SECONDS)}
+    if path.startswith("root://"):
+        return {"timeout": int(REMOTE_TIMEOUT_SECONDS)}
+    return {}
+
+
 def open_uproot_source(path: str) -> Any:
     """Open ``path`` with Uproot, naming the missing backend of a remote source."""
 
     with explain_missing_remote_backend(path):
-        return uproot.open(path)
+        return uproot.open(path, **uproot_open_options(path))
 
 
 def open_uproot_source_standalone(path: str) -> Any:
@@ -205,7 +230,81 @@ def open_uproot_source_standalone(path: str) -> Any:
     Outside the app, fsspec's own error already names a missing remote backend.
     """
 
-    return uproot.open(path)
+    return uproot.open(path, **uproot_open_options(path))
+
+
+def _error_chain(error: BaseException) -> Iterator[BaseException]:
+    """Yield ``error`` and the exceptions it was raised from, innermost last."""
+
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
+
+
+def read_error_reason(error: BaseException) -> str:
+    """Return a short, never empty, user-facing reason for a failed read.
+
+    Timeouts and servers without byte-range support get an explanation with a
+    remedy; any other error is reduced to the first line of its message, or its type
+    name when the message is empty (as for fsspec's timeout error).
+    """
+
+    chain = list(_error_chain(error))
+    if any(isinstance(item, TimeoutError) for item in chain):
+        return (
+            f"The server did not respond within {REMOTE_TIMEOUT_SECONDS} s. Check the "
+            "address and your connection, then try again with Reload source."
+        )
+    if any(
+        isinstance(item, http.client.HTTPException) and "rather than 206" in str(item)
+        for item in chain
+    ):
+        return (
+            "The server does not support HTTP range requests, which ROOT files need. "
+            "Download the file and open it locally."
+        )
+    lines = str(error).strip().splitlines()
+    return lines[0] if lines else type(error).__name__
+
+
+class ObjectReadError(OSError):
+    """Raised when a persisted ROOT object, such as a histogram, cannot be read.
+
+    The message names the object and source; the original exception is kept as
+    ``__cause__`` for technical details.
+    """
+
+
+@contextmanager
+def object_read_errors(
+    path: str,
+    object_path: str,
+    description: str,
+    *,
+    keep: tuple[type[BaseException], ...] = (),
+) -> Iterator[None]:
+    """Turn any failure while reading an object into an :class:`ObjectReadError`.
+
+    Readers raise unpredictable exception types for corrupt payloads or broken
+    connections (``zlib.error``, Uproot's ``DeserializationError``, aiohttp or
+    http.client errors), so all of them are wrapped. Errors in ``keep`` already carry
+    a user-facing message and pass through unchanged, as does a missing backend.
+    """
+
+    passthrough: tuple[type[BaseException], ...] = (RemoteBackendUnavailableError, *keep)
+    try:
+        with explain_missing_remote_backend(path):
+            yield
+    except passthrough:
+        raise
+    except Exception as exc:
+        raise ObjectReadError(
+            f"Could not read {description} `{object_path}` in `{_source_name(path)}`: "
+            f"{read_error_reason(exc)}"
+        ) from exc
 
 
 __standalone_source_overrides__ = {"open_uproot_source": open_uproot_source_standalone}
@@ -515,11 +614,9 @@ def _field_read_error(
     location = f"`{container_name}`"
     if container is not None:
         location = f"{event_container_kind(container)} {location}"
-    lines = str(error).strip().splitlines()
-    reason = lines[0] if lines else type(error).__name__
     return FieldReadError(
         f"Could not read {item_name} `{field_name}` of {location} in "
-        f"`{_source_name(path)}` ({entries}): {reason}"
+        f"`{_source_name(path)}` ({entries}): {read_error_reason(error)}"
     )
 
 

@@ -7,7 +7,8 @@ from typing import Any
 
 import hist
 import numpy as np
-import uproot
+
+from .root import open_uproot_source
 
 
 class UnsupportedHistogramError(ValueError):
@@ -139,5 +140,5 @@ def histogram_from_object(obj: Any) -> PersistedHistogram:
 
 def read_histogram(root_path: str, object_path: str) -> PersistedHistogram:
     """Load only the selected histogram, honouring nested paths and ROOT cycles."""
-    with uproot.open(root_path) as root_file:
+    with open_uproot_source(root_path) as root_file:
         return histogram_from_object(root_file[object_path])

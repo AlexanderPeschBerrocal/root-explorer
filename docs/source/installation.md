@@ -83,7 +83,13 @@ are rejected with an error.
 `python -m root_explorer` is equivalent. Further options are passed to Streamlit, using either `--server.maxUploadSize=200` or `--server.maxUploadSize 200`, before or after the ROOT filename; run `root-explorer --help` for an overview. Boolean Streamlit settings also require a value, for example `--server.headless true`. The command applies the project's Streamlit defaults, such as the 4096 MiB upload limit, independently of the current directory. It listens only on `127.0.0.1`, so the app is reachable from your own computer only; to share it on a trusted network, pass `--server.address 0.0.0.0` (see the network note above). Starting the app with `streamlit run streamlit_app.py` from the repository root continues to work.
 
 `http://` and `https://` sources work with the default installation and the
-Docker image, which include the required `aiohttp` and `requests` packages.
+Docker image. The server must support HTTP range requests (status 206), as
+common web servers do; ROOT files are read in pieces. A server that ignores
+them is reported with a message to download the file and open it locally. A
+remote server that does not respond within 30 seconds produces a timeout
+message instead of blocking the application; the limit is
+`REMOTE_TIMEOUT_SECONDS` in `src/root_explorer/config.py` and also applies to
+`root://` sources.
 `root://` (XRootD) access additionally requires the optional `fsspec-xrootd`
 backend and the XRootD Python bindings in the **server's Python environment**:
 install them with `python -m pip install "root-explorer[xrootd]"` (or `-e
