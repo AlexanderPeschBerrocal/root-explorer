@@ -251,11 +251,38 @@ def _initial_guess(
     return guessed
 
 
+def _parameter_scale(
+    name: str, value: float, fit_range: tuple[float, float], *, custom: bool
+) -> float:
+    """Characteristic size of a parameter, used to solve in unit-free variables.
+
+    The fit is solved for (p - p0) / scale, so finite-difference steps and the
+    termination tests follow the parameter's physical scale instead of absolute
+    numbers in the user's units (e.g. a width of 1e-9 when x is in seconds).
+    """
+    half_range = 0.5 * (fit_range[1] - fit_range[0])
+    if custom:
+        # A custom parameter starting inside the fit range, far from zero relative to
+        # the range (a peak position at 1e6 in a range of width 0.1), is a position on
+        # the x axis, which varies on the scale of the range rather than of |p|.
+        if fit_range[0] <= value <= fit_range[1] and abs(value) > half_range:
+            return half_range
+        return abs(value) if value != 0 else 1.0
+    if name == "mu":
+        return half_range
+    if name == "k":
+        return 1.0 / half_range
+    if name in ("A", "sigma") and value != 0:
+        return abs(value)
+    return max(1.0, abs(value))
+
+
 def _default_bounds(name: str, edges: np.ndarray) -> tuple[float, float]:
     if name == "A":
         return (0.0, np.inf)
     if name == "sigma":
-        return (max(float(np.ptp(edges)) * 1e-6, 1e-12), np.inf)
+        # Relative to the histogram range only, so the bound does not depend on units.
+        return (float(np.ptp(edges)) * 1e-6, np.inf)
     if name.startswith("alpha"):
         return (1e-3, 100.0)
     if name.startswith("n"):
@@ -461,9 +488,44 @@ def fit_histogram_1d(
             np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100), dtype=float
         )
 
+    # Solve for u = (p - p0) / s with a characteristic scale s per parameter, so the
+    # result does not depend on the units of x (see _parameter_scale). The residual
+    # and custom expressions still receive physical parameters and physical x.
+    start = np.asarray(guess_values, dtype=float)
+    low_array = np.asarray(lower_bounds, dtype=float)
+    high_array = np.asarray(upper_bounds, dtype=float)
+    fitted_range = (float(fit_left[0]), float(fit_right[-1]))
+    natural_scales = np.array(
+        [
+            _parameter_scale(name, value, fitted_range, custom=expression is not None)
+            for name, value in zip(names, start, strict=True)
+        ]
+    )
+    # A parameter far from zero relative to its scale (a peak at 1e6 with width 0.01) is
+    # only resolved to eps * |p|, so a finite-difference step of sqrt(eps) * scale would
+    # span just a few rounding units. Widening the variable's unit to sqrt(|p| * scale)
+    # balances rounding against curvature in the steps; x_scale restores the natural
+    # scale for the solver's trust region, so only the finite differences change.
+    scales = natural_scales * np.sqrt(np.maximum(1.0, np.abs(start) / natural_scales))
+
+    def physical(u: np.ndarray) -> np.ndarray:
+        # Rounding in start + scales * u must not step outside the bounds.
+        return np.asarray(np.clip(start + scales * u, low_array, high_array), dtype=float)
+
+    def scaled_residual(u: np.ndarray) -> np.ndarray:
+        return residual(physical(u))
+
+    scaled_low = np.asarray((low_array - start) / scales, dtype=float)
+    scaled_high = np.asarray((high_array - start) / scales, dtype=float)
     try:
         solution = least_squares(
-            residual, guess_values, bounds=(lower_bounds, upper_bounds), max_nfev=3000
+            scaled_residual,
+            np.zeros(nparams),
+            bounds=(scaled_low, scaled_high),
+            # Not "jac": scaling by the Jacobian lets weakly constrained parameters (a
+            # large Crystal Ball n) take huge steps into flat regions of the chi-square.
+            x_scale=natural_scales / scales,
+            max_nfev=3000,
         )
     except (ValueError, RuntimeError, FloatingPointError, OverflowError, TypeError) as exc:
         return failed(f"Fit failed: {exc}", bins_used=len(indices), bins_excluded=excluded)
@@ -475,7 +537,7 @@ def fit_histogram_1d(
             bins_excluded=excluded,
         )
 
-    parameters = dict(zip(names, (float(x) for x in solution.x), strict=True))
+    parameters = dict(zip(names, (float(x) for x in physical(solution.x)), strict=True))
     statistic = float(np.sum(solution.fun**2))
     if not np.isfinite(statistic) or statistic > 1e150:
         return failed(
@@ -487,7 +549,14 @@ def fit_histogram_1d(
     uncertainties: dict[str, float | None] = dict.fromkeys(parameters)
     notes = []
     try:
-        _, singular_values, vt = np.linalg.svd(np.asarray(solution.jac), full_matrices=False)
+        # Normalise the Jacobian columns to unit length so that the rank test does not
+        # depend on units; the physical column norms are divided out again below.
+        jacobian = np.asarray(solution.jac, dtype=float)
+        scaled_norms = np.linalg.norm(jacobian, axis=0)
+        if not np.all(scaled_norms > 0):
+            raise np.linalg.LinAlgError("A parameter does not affect the model.")
+        physical_norms = scaled_norms / scales
+        _, singular_values, vt = np.linalg.svd(jacobian / scaled_norms, full_matrices=False)
         # The finite-difference Jacobian carries relative noise of order sqrt(eps), so
         # numpy's default rank tolerance would mistake that noise for an identifiable
         # direction and yield arbitrary or negative variances.
@@ -495,7 +564,9 @@ def fit_histogram_1d(
             _SINGULAR_RTOL * singular_values[0]
         ):
             scale = 1.0 if config.use_variances else statistic / ndof
-            diagonal = np.sum((vt / singular_values[:, None]) ** 2, axis=0) * scale
+            diagonal = (
+                np.sum((vt / singular_values[:, None]) ** 2, axis=0) / physical_norms**2 * scale
+            )
             if np.all(np.isfinite(diagonal)) and np.all(diagonal >= 0):
                 uncertainties = dict(zip(parameters, np.sqrt(diagonal).tolist(), strict=True))
             else:
