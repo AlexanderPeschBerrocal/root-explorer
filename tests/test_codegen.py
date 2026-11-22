@@ -785,6 +785,21 @@ def test_exported_fit_matches_application_across_units_and_offsets() -> None:
         assert exported.parameters == application.parameters
         assert exported.parameters["sigma"] == pytest.approx(0.7, rel=1e-7)
 
+        # Reference point and default bounds from the fitted bins (#192): a typed range
+        # beyond the histogram and a distant excluded bin.
+        edges = np.append(np.linspace(0.0, 10.0, 51), 1e6)
+        contents = np.append(
+            model_bin_integrals("Exponential", edges[:-1], {"A": 300.0, "k": -0.7}, x0=5.0), 0.0
+        )
+        histogram = hist.Hist(hist.axis.Variable(edges), storage=hist.storage.Double())
+        histogram.view()[...] = contents
+        config = FitConfig("Exponential", fit_range=(0.0, 1000.0))
+        application = fit_histogram_1d(histogram, config)
+        exported = module.fit_histogram_1d(histogram, module.FitConfig(**vars(config)))
+        assert exported.parameters == application.parameters
+        assert exported.reference_x == application.reference_x == 5.0
+        assert exported.parameters["k"] == pytest.approx(-0.7, rel=1e-7)
+
 
 def test_custom_fit_export_matches_canonical_backend(root_path):
     config = FitConfig(

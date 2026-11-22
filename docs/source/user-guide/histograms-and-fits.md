@@ -152,6 +152,21 @@ automatically. `TProfile` and `TProfile2D` bin means must not be treated as yiel
 For a 1D histogram, select **Enable fit** in the histogram fit controls and choose a **Fit model**:
 **Gaussian**, **Exponential**, **Crystal Ball** (single-sided), **Double-sided Crystal Ball**
 or **Custom expression** (see below).
+
+The built-in models are densities per unit of x, integrated over each bin:
+
+| Model | Function |
+| --- | --- |
+| Gaussian | $A \exp\left(-(x-\mu)^2 / 2\sigma^2\right)$ |
+| Exponential | $A \exp\left(k (x - x_0)\right)$ |
+| Crystal Ball | Gaussian core $A \exp(-t^2/2)$, $t = (x-\mu)/\sigma$, with a power-law tail below $t = -\alpha$ of exponent $n$ |
+| Double-sided Crystal Ball | Gaussian core with power-law tails below $t = -\alpha_L$ (exponent $n_L$) and above $t = \alpha_R$ (exponent $n_R$) |
+
+So $A$ is the peak height for the peak models. For the Exponential, $A$ is the
+value at the reference point $x_0$, the centre of the bins actually fitted; it is
+shown with the fit result and in exported scripts. Typed fit ranges that select
+the same bins therefore give the same parameters. Default parameter bounds are
+also derived from the fitted bins only.
 This is available for histograms built from TTree/RNTuple branches and
 persisted `TH1*` ROOT objects. Fitting of `TProfile` bin means is
 not yet supported.
