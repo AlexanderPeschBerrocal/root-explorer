@@ -35,6 +35,7 @@ from ..analysis.statistics import (
     calculate_threshold_result,
 )
 from ..analysis.variables import evaluate_variable
+from ..config import DEFAULT_MAX_POINTS
 from ..models import VariableSpec
 from .plots import (
     ColorClippingResult,
@@ -339,7 +340,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         threshold_result=threshold_result,
         quantile_result=quantile_result,
         color_clipping_result=color_clipping_result,
-        max_points=int(spec.style.get("max_points", 100_000)),
+        max_points=int(spec.style.get("max_points", DEFAULT_MAX_POINTS)),
         display_histogram_1d=display_histogram_1d,
         histogram_flow_summary=flow_summary,
         histogram_flow_mode=flow_mode,

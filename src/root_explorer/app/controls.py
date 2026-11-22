@@ -13,14 +13,19 @@ from ..analysis.precision import is_inexact_integer_bound
 from ..config import DEFAULT_MAX_POINTS
 from ..io.root import choose_default
 from ..models import FieldInfo, VariableSpec
-from ..plotting.plots import ContourConfigurationError, parse_contour_levels, parse_optional_float
+from ..plotting.plots import (
+    DEFAULT_EXPORT_DPI,
+    MAX_EXPORT_DPI,
+    ContourConfigurationError,
+    parse_contour_levels,
+    parse_optional_float,
+)
 
 if TYPE_CHECKING:
     from ..analysis.fitting import FitConfig
 
 DEFAULT_STATIC_DISPLAY_DPI = 200
-DEFAULT_STATIC_EXPORT_DPI = 300
-STATIC_EXPORT_DPI_OPTIONS = (150, 300, 600)
+STATIC_EXPORT_DPI_OPTIONS = (150, DEFAULT_EXPORT_DPI, MAX_EXPORT_DPI)
 
 
 def slider_or_number_input(
@@ -1032,7 +1037,7 @@ def export_controls(prefix: str, plot_kind: str, *, default_file_name: str) -> d
         controls["export_dpi"] = st.selectbox(
             "Raster export resolution",
             STATIC_EXPORT_DPI_OPTIONS,
-            index=STATIC_EXPORT_DPI_OPTIONS.index(DEFAULT_STATIC_EXPORT_DPI),
+            index=STATIC_EXPORT_DPI_OPTIONS.index(DEFAULT_EXPORT_DPI),
             format_func=lambda dpi: f"{dpi} DPI",
             key=f"{prefix}_export_dpi",
             help=(

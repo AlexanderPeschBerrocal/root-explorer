@@ -290,10 +290,6 @@ def histogram_for_flow_mode(histogram: hist.Hist, mode: str) -> hist.Hist:
     return result
 
 
-class InvalidHistogramNormalisationError(ValueError):
-    """The supplied 1D histogram cannot be normalised to unit area."""
-
-
 @dataclass(frozen=True)
 class HistogramNormalisationResult:
     """A density histogram and its denominator, or an explicit failure.

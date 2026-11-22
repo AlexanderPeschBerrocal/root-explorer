@@ -23,6 +23,7 @@ from ..io.root import FieldReadError, ObjectReadError
 from ..io.source import is_remote_source
 from ..models import FieldInfo
 from ..plotting.plots import (
+    DEFAULT_EXPORT_DPI,
     ColorClippingResult,
     CorrelationResult,
     InvalidPlotResolutionError,
@@ -287,7 +288,7 @@ def show_cached_plot_result(
         )
         return
 
-    export_dpi = int(export.get("export_dpi", 300))
+    export_dpi = int(export.get("export_dpi", DEFAULT_EXPORT_DPI))
     resolution_error = None
     try:
         validate_raster_resolution(fig, export_dpi)

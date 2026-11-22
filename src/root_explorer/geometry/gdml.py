@@ -274,10 +274,6 @@ def angular_segments(delta: float, base_segments: int) -> int:
     return max(1, math.ceil(base_segments * frac))
 
 
-def ring_point(r: float, phi: float, z: float) -> Vec3:
-    return (r * math.cos(phi), r * math.sin(phi), z)
-
-
 def make_tube_like(
     rmin_low: float,
     rmax_low: float,

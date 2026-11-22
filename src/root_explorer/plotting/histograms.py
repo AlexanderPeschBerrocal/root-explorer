@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..analysis.fitting import FitConfig, FitResult, fit_histogram_1d
-from ..io.histograms import PersistedHistogram, read_histogram
+from ..io.histograms import PersistedHistogram
 from .plots import (
     InvalidAxisScaleError,
     apply_axis_limits,
@@ -145,16 +145,3 @@ def render_histogram_data(
     except Exception:
         plt.close(fig)
         raise
-
-
-def render_histogram_plot(spec: HistogramPlotSpec) -> Any:
-    data = read_histogram(spec.root_path, spec.object_path)
-    figure = render_histogram_data(data, spec.style, spec.labels)
-    if spec.fit_config is not None:
-        from .plots import draw_fit_overlay
-
-        result = fit_persisted_histogram(data, spec.fit_config)
-        if result.success:
-            draw_fit_overlay(figure.axes[0], data.histogram, result)
-            figure.tight_layout()
-    return figure

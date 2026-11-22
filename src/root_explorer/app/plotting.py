@@ -26,8 +26,6 @@ from ..analysis.fitting import FitConfig, fit_histogram_1d
 from ..analysis.histograms import InvalidHistogramRangeError
 from ..analysis.precision import integer_precision_warnings
 from ..analysis.statistics import (
-    calculate_quantile_result,
-    calculate_threshold_result,
     describe_weighted_array,
 )
 from ..analysis.variables import evaluate_variable
@@ -53,7 +51,6 @@ from ..plotting.plots import (
     calculate_correlations,
     describe_array,
     downsample_arrays,
-    render_static_plot,
     scatter_color_scale_linear,
     select_plot_values,
     validate_plot_labels,
@@ -367,10 +364,10 @@ def _generate_and_show(
         try:
             if request.plot_type in STATIC_PLOT_TYPES:
                 # Static plots report their individual steps themselves.
-                result = _build_plot_result(request)
+                result = _build_static_plot_result(request)
             else:
                 with st.spinner("Reading data and building the 3D plot…", show_time=True):
-                    result = _build_plot_result(request)
+                    result = _build_3d_plot_result(request)
             result["warnings"] = [
                 *_integer_precision_warnings(request),
                 *result.get("warnings", []),
@@ -611,11 +608,12 @@ def _integer_precision_warnings(request: PlotRequest) -> list[str]:
     )
 
 
-def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
-    """Create the cached plot payload shared by global and event plot tabs."""
+def _build_3d_plot_result(request: PlotRequest) -> dict[str, Any]:
+    """Create the cached payload of an interactive 3D scatter plot.
 
-    if request.plot_type in STATIC_PLOT_TYPES:
-        return _build_static_plot_result(request)
+    Every other plot type is static and built by ``_build_static_plot_result``
+    through the shared plotting pipeline.
+    """
 
     context = request.context
     event_index = request.event_index
@@ -693,21 +691,6 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_color=request.color_spec is not None,
     )
     require_values(x, excluded_count)
-    threshold_result = None
-    quantile_result = None
-    reference_x = None
-    reference_label = None
-    if request.plot_type == "1D histogram" and request.threshold is not None:
-        threshold_result = calculate_threshold_result(x, request.threshold, weights)
-        reference_x = request.threshold
-        reference_label = f"threshold = {request.threshold:g}"
-    elif request.plot_type == "1D histogram" and request.quantile_percentile is not None:
-        quantile_result = calculate_quantile_result(x, request.quantile_percentile, weights)
-        if quantile_result.value is not None:
-            reference_x = quantile_result.value
-            reference_label = (
-                f"{request.quantile_percentile:g}% quantile = {quantile_result.value:g}"
-            )
 
     summary_rows = [describe_array(axis_labels[0], x)]
     if y is not None:
@@ -717,20 +700,13 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     if color is not None:
         summary_rows.append(describe_array(color_label or "color", color))
     summary = pd.DataFrame(summary_rows)
-    correlation_result = None
-    color_clipping_result = None
-    if request.plot_type == "2D scatter":
-        if y is None:
-            raise ValueError("2D scatter requires a y variable.")
-        correlation_result = calculate_correlations(x, y)
-    if supports_point_color(request.plot_type) and color is not None:
-        color_clipping_result = calculate_color_clipping(color, request.style, weights)
+    color_clipping_result = (
+        calculate_color_clipping(color, request.style, weights) if color is not None else None
+    )
 
-    # Resolve a one-sided 3D colour range from all points before sampling them.
+    # Resolve a one-sided colour range from all points before sampling them.
     color_min, color_max = (
-        scatter_color_scale_linear(request.style, color)
-        if request.plot_type == "3D scatter interactive" and color is not None
-        else (None, None)
+        scatter_color_scale_linear(request.style, color) if color is not None else (None, None)
     )
     value_count = len(x)
     x, y, z, color = _downsample_scatter(request.plot_type, request.style, x, y, z, color)
@@ -751,83 +727,40 @@ def _build_plot_result(request: PlotRequest) -> dict[str, Any]:
     )
     preview = _preview_dataframe(x, y, z, weights, color) if request.preview else None
 
-    if request.plot_type == "3D scatter interactive":
-        if y is None or z is None:
-            raise ValueError("3D scatter requires y and z variables.")
-        figure = build_plotly_3d(
-            x,
-            y,
-            z,
-            x_label,
-            y_axis_label,
-            z_axis_label,
-            color=color,
-            color_label=request.labels.get("custom_colorbar") or color_label,
-            title=title,
-            marker_size=request.style["marker_size_3d"],
-            opacity=request.style["opacity_3d"],
-            colorscale=request.style.get("colorscale", "Viridis"),
-            reversescale=request.style.get("reverse_colorscale", False),
-            aspectmode=request.style["aspectmode"],
-            color_min=color_min,
-            color_max=color_max,
-        )
-        return {
-            "kind": "plotly",
-            "plot_type": request.plot_type,
-            "figure": overlay_geometry_on_plotly(
-                figure, request.geometry.scene, request.geometry.options
-            ),
-            "geometry_source": request.geometry.source,
-            "summary": summary,
-            "exclusion_note": _exclusion_note(request, excluded_count),
-            "preview": preview,
-            "sampling_note": sampling_note,
-            "threshold_result": threshold_result,
-            "quantile_result": quantile_result,
-            "correlation_result": correlation_result,
-            "color_clipping_result": color_clipping_result,
-            "file_name": file_name,
-        }
-    figure, axes = plt.subplots(figsize=(request.style["fig_width"], request.style["fig_height"]))
-    try:
-        plot_warnings = render_static_plot(
-            figure,
-            axes,
-            request.plot_type,
-            x,
-            y,
-            x_label,
-            y_axis_label,
-            request.style,
-            title=title,
-            weights=weights,
-            weight_branch=request.weight_branch,
-            color=color,
-            color_label=color_label,
-            reference_x=reference_x,
-            reference_label=reference_label,
-            colorbar_extend=(
-                color_clipping_result.extend if color_clipping_result is not None else "neither"
-            ),
-        )
-        return {
-            "kind": "matplotlib",
-            "figure": figure,
-            "code": _safe_generate_plot_code(request, plot_warnings),
-            "summary": summary,
-            "preview": preview,
-            "sampling_note": sampling_note,
-            "threshold_result": threshold_result,
-            "quantile_result": quantile_result,
-            "correlation_result": correlation_result,
-            "color_clipping_result": color_clipping_result,
-            "warnings": plot_warnings,
-            "file_name": file_name,
-        }
-    except Exception:
-        plt.close(figure)
-        raise
+    if y is None or z is None:
+        raise ValueError("3D scatter requires y and z variables.")
+    figure = build_plotly_3d(
+        x,
+        y,
+        z,
+        x_label,
+        y_axis_label,
+        z_axis_label,
+        color=color,
+        color_label=request.labels.get("custom_colorbar") or color_label,
+        title=title,
+        marker_size=request.style["marker_size_3d"],
+        opacity=request.style["opacity_3d"],
+        colorscale=request.style.get("colorscale", "Viridis"),
+        reversescale=request.style.get("reverse_colorscale", False),
+        aspectmode=request.style["aspectmode"],
+        color_min=color_min,
+        color_max=color_max,
+    )
+    return {
+        "kind": "plotly",
+        "plot_type": request.plot_type,
+        "figure": overlay_geometry_on_plotly(
+            figure, request.geometry.scene, request.geometry.options
+        ),
+        "geometry_source": request.geometry.source,
+        "summary": summary,
+        "exclusion_note": _exclusion_note(request, excluded_count),
+        "preview": preview,
+        "sampling_note": sampling_note,
+        "color_clipping_result": color_clipping_result,
+        "file_name": file_name,
+    }
 
 
 def _evaluate_optional(
