@@ -228,7 +228,10 @@ def _initial_guess(
         mu, sigma = float(np.mean(centers)), scale / 6
     sigma = max(sigma, scale / 100, float(np.min(widths)) / 2)
     density = values / widths
-    amplitude = max(float(np.max(density)), 1e-6)
+    # Positive, but without an absolute floor: a floor such as 1e-6 would start fits
+    # to very small yields far from the data (#199).
+    peak_density = float(np.max(density))
+    amplitude = peak_density if peak_density > 0 else 1.0
 
     if model == "Exponential":
         positive_bins = density > 0
@@ -241,7 +244,7 @@ def _initial_guess(
         exponential_amplitude = (
             float(np.exp(np.median(intercepts))) if intercepts.size else amplitude
         )
-        return {"A": max(exponential_amplitude, 1e-6), "k": k}
+        return {"A": exponential_amplitude if exponential_amplitude > 0 else amplitude, "k": k}
 
     guessed = {"A": amplitude, "mu": mu, "sigma": sigma}
     if model == "Crystal Ball":
@@ -483,10 +486,7 @@ def fit_histogram_1d(
                     ]
                 )
             predictions = integral_left
-        result = (predictions - selected_values) / sigma
-        return np.asarray(
-            np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100), dtype=float
-        )
+        return np.asarray((predictions - selected_values) / sigma, dtype=float)
 
     # Solve for u = (p - p0) / s with a characteristic scale s per parameter, so the
     # result does not depend on the units of x (see _parameter_scale). The residual
@@ -512,8 +512,23 @@ def fit_histogram_1d(
         # Rounding in start + scales * u must not step outside the bounds.
         return np.asarray(np.clip(start + scales * u, low_array, high_array), dtype=float)
 
+    # least_squares stops when the gradient of the cost falls below an absolute
+    # tolerance. For small yields (a normalised histogram, small weights) the residuals
+    # and their gradient are tiny from the start, so it would stop before the shape is
+    # resolved (#199). Optimise residuals divided by the typical size of the data in
+    # residual units instead: scaling all contents by c then leaves the optimisation
+    # unchanged. The statistic and covariance below are converted back.
+    residual_scale = float(np.sqrt(np.mean((selected_values / sigma) ** 2)))
+    if not np.isfinite(residual_scale) or residual_scale <= 0:
+        residual_scale = 1.0
+
     def scaled_residual(u: np.ndarray) -> np.ndarray:
-        return residual(physical(u))
+        result = residual(physical(u)) / residual_scale
+        # Undefined model values become a huge, finite penalty; applied after scaling
+        # so that the penalty cannot shrink for large data.
+        return np.asarray(
+            np.nan_to_num(result, nan=1e100, posinf=1e100, neginf=-1e100), dtype=float
+        )
 
     scaled_low = np.asarray((low_array - start) / scales, dtype=float)
     scaled_high = np.asarray((high_array - start) / scales, dtype=float)
@@ -538,8 +553,8 @@ def fit_histogram_1d(
         )
 
     parameters = dict(zip(names, (float(x) for x in physical(solution.x)), strict=True))
-    statistic = float(np.sum(solution.fun**2))
-    if not np.isfinite(statistic) or statistic > 1e150:
+    statistic = residual_scale**2 * float(np.sum(solution.fun**2))
+    if not np.isfinite(statistic) or float(np.sum(solution.fun**2)) > 1e150:
         return failed(
             "Model is undefined or numerically unstable over the selected bins.",
             bins_used=len(indices),
@@ -555,7 +570,8 @@ def fit_histogram_1d(
         scaled_norms = np.linalg.norm(jacobian, axis=0)
         if not np.all(scaled_norms > 0):
             raise np.linalg.LinAlgError("A parameter does not affect the model.")
-        physical_norms = scaled_norms / scales
+        # Undo both the parameter scaling and the residual normalisation.
+        physical_norms = scaled_norms * residual_scale / scales
         _, singular_values, vt = np.linalg.svd(jacobian / scaled_norms, full_matrices=False)
         # The finite-difference Jacobian carries relative noise of order sqrt(eps), so
         # numpy's default rank tolerance would mistake that noise for an identifiable
