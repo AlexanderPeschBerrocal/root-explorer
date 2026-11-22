@@ -549,7 +549,7 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     lines.append("arrays, excluded_count = select_plot_values(arrays, cuts)")
     index = 0
     lines.append(f"x = arrays[{index}]")
-    lines.append("require_values(x, excluded_count)")
+    lines.append("require_values(x, excluded_count, has_cuts=bool(cuts))")
     index += 1
     if plan.y_evaluator is not None:
         lines.append(f"y = arrays[{index}]")

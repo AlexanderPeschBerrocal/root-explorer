@@ -247,9 +247,11 @@ def _error_chain(error: BaseException) -> Iterator[BaseException]:
 def read_error_reason(error: BaseException) -> str:
     """Return a short, never empty, user-facing reason for a failed read.
 
-    Timeouts and servers without byte-range support get an explanation with a
-    remedy; any other error is reduced to the first line of its message, or its type
-    name when the message is empty (as for fsspec's timeout error).
+    Timeouts, servers without byte-range support and truncated files get an
+    explanation with a remedy; any other error is reduced to the first line of its
+    message (continued onto the next line when it ends with a comma, as Uproot's
+    multi-line messages do), or its type name when the message is empty (as for
+    fsspec's timeout error).
     """
 
     chain = list(_error_chain(error))
@@ -266,8 +268,27 @@ def read_error_reason(error: BaseException) -> str:
             "The server does not support HTTP range requests, which ROOT files need. "
             "Download the file and open it locally."
         )
-    lines = str(error).strip().splitlines()
-    return lines[0] if lines else type(error).__name__
+    for item in chain:
+        truncated = re.search(_TRUNCATED_READ_PATTERN, str(item))
+        if truncated:
+            expected, received = (int(group) for group in truncated.groups())
+            return (
+                "The file is truncated or incomplete: a read expected "
+                f"{expected:,} bytes but received {received:,}. Check that the file was "
+                "written and copied completely."
+            )
+    lines = [line.strip() for line in str(error).strip().splitlines() if line.strip()]
+    if not lines:
+        return type(error).__name__
+    if lines[0].endswith(",") and len(lines) > 1:
+        return f"{lines[0]} {lines[1]}"
+    return lines[0]
+
+
+# Uproot's message when a file ends before the bytes it promises, e.g. a 0-byte or
+# partially copied file: "expected Chunk of length 403,\nreceived 0 bytes from ...".
+# A plain string, not a compiled pattern, so that exported scripts can vendor it.
+_TRUNCATED_READ_PATTERN = r"expected Chunk of length (\d+),\s*received (\d+) bytes"
 
 
 class ObjectReadError(OSError):

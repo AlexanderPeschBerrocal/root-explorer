@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -44,6 +45,11 @@ def render_data_input() -> RootFileContext:
     root_path = ""
     if source_mode == "Path":
         root_path = st.text_input("ROOT file path", value=cli_path or "", key="root_path")
+        # Pasted paths often carry invisible surrounding whitespace, and `~` is the
+        # usual home-directory shorthand that the command-line launcher also expands.
+        root_path = root_path.strip()
+        if root_path and not is_remote_source(root_path):
+            root_path = os.path.expanduser(root_path)
     else:
         uploaded = st.file_uploader("Upload ROOT file", type=["root"])
         if uploaded is not None:

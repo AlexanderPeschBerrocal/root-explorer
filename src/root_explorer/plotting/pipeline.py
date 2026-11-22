@@ -206,7 +206,7 @@ def prepare_static_plot(spec: StaticPlotSpec) -> PreparedStaticPlot:
         has_weights=spec.weight_branch is not None,
         has_color=spec.color_spec is not None,
     )
-    require_values(x, excluded_count)
+    require_values(x, excluded_count, has_cuts=bool(cuts))
 
     threshold_result = None
     quantile_result = None
