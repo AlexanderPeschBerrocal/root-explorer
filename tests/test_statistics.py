@@ -8,6 +8,7 @@ from root_explorer.analysis.statistics import (
     calculate_quantile_result,
     calculate_threshold_result,
     describe_weighted_array,
+    sum_of_weights_is_positive,
 )
 
 
@@ -179,3 +180,56 @@ def test_threshold_fractions_are_invariant_to_weight_scale(scale):
     result = calculate_threshold_result(np.array([0.0, 1.0]), 0.5, np.full(2, scale))
     assert result.below_fraction == pytest.approx(0.5)
     assert result.above_fraction == pytest.approx(0.5)
+
+
+# --- Cancelling signed weights (#193) -------------------------------------------------
+
+CANCELLING = np.array([1.0, -1.0, 1.0, -1.0, 0.1, 0.2, -0.3])  # sums to 5.55e-17
+
+
+def test_cancelling_signed_weights_make_mean_and_std_unavailable() -> None:
+    summary = describe_weighted_array(np.arange(7.0), CANCELLING)
+    assert abs(summary["sum of weights"]) < 1e-15  # rounding noise, not a real total
+    assert np.isnan(summary["weighted mean"])
+    assert np.isnan(summary["weighted std"])
+    assert not sum_of_weights_is_positive(CANCELLING)
+
+
+@pytest.mark.parametrize("scale", [1e-300, 1e-6, 1.0, 1e6, 1e300])
+def test_cancellation_check_does_not_depend_on_the_weight_scale(scale) -> None:
+    assert not sum_of_weights_is_positive(CANCELLING * scale)
+    assert np.isnan(describe_weighted_array(np.arange(7.0), CANCELLING * scale)["weighted mean"])
+    assert sum_of_weights_is_positive(np.array([1.0, -0.5, 1.0]) * scale)
+
+
+def test_small_but_genuine_net_weight_keeps_the_mean() -> None:
+    # 1e-10 is far above the rounding error of about 4e-15 for these two weights.
+    weights = np.array([1.0, -(1.0 - 1e-10)])
+    assert sum_of_weights_is_positive(weights)
+    summary = describe_weighted_array(np.array([0.0, 0.0]), weights)
+    assert summary["weighted mean"] == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    ("weights", "positive"),
+    [
+        (np.array([]), False),
+        (np.array([0.0, 0.0]), False),
+        (np.array([-1.0, -2.0]), False),
+        (np.array([2.0, np.nan, np.inf]), True),  # non-finite weights are ignored
+        (np.array([np.nan]), False),
+    ],
+)
+def test_sum_of_weights_is_positive_edge_cases(weights, positive) -> None:
+    assert sum_of_weights_is_positive(weights) is positive
+
+
+def test_summary_note_explains_cancelling_weights() -> None:
+    from root_explorer.app.plotting import _weighted_summary_notes
+
+    notes = _weighted_summary_notes("genWeight", CANCELLING)
+    assert any("positive and negative weights cancel" in note for note in notes)
+    assert not any(
+        "unavailable" in note
+        for note in _weighted_summary_notes("genWeight", np.array([1.0, -0.5, 1.0]))
+    )

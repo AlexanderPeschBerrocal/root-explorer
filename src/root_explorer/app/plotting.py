@@ -27,6 +27,7 @@ from ..analysis.histograms import InvalidHistogramRangeError
 from ..analysis.precision import integer_precision_warnings
 from ..analysis.statistics import (
     describe_weighted_array,
+    sum_of_weights_is_positive,
 )
 from ..analysis.variables import evaluate_variable
 from ..geometry.overlay import overlay_geometry_on_plotly
@@ -485,10 +486,11 @@ def _weighted_summary_notes(weight_branch: str | None, weights: np.ndarray) -> l
     negative = int(np.count_nonzero(weights < 0))
     if negative:
         notes.append(f"{negative:,} of {len(weights):,} weights are negative.")
-    if float(np.sum(weights)) <= 0:
+    if not sum_of_weights_is_positive(weights):
         notes.append(
             "The weighted mean and standard deviation are unavailable because the sum of "
-            "weights is not positive."
+            "weights is not positive, or is zero within rounding error because positive "
+            "and negative weights cancel."
         )
     return notes
 
