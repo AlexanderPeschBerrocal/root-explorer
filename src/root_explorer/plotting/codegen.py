@@ -30,6 +30,7 @@ from ..analysis.statistics import (
     calculate_threshold_result,
 )
 from ..analysis.variables import VariableEvaluator, variable_evaluator
+from ..config import DEFAULT_MAX_POINTS
 from .pipeline import STATIC_PLOT_TYPES, StaticPlotSpec
 from .plots import (
     apply_log_histogram_y_axis,
@@ -603,7 +604,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
         lines.extend(
             [
                 "render_arrays = [x, y] + ([color] if color is not None else [])",
-                "render_arrays = downsample_arrays(render_arrays, int(PLOT.style.get('max_points', 100_000)))",
+                "render_arrays = downsample_arrays("
+                f"render_arrays, int(PLOT.style.get('max_points', {DEFAULT_MAX_POINTS:_})))",
                 "x, y = render_arrays[:2]",
                 "if color is not None:",
                 "    color = render_arrays[2]",

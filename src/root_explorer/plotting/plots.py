@@ -485,18 +485,6 @@ def select_plot_values(
     return apply_range_cuts(filtered[: len(arrays)], filtered_cuts), excluded
 
 
-def apply_range_cut(
-    arrays: Sequence[np.ndarray],
-    cut_var: np.ndarray | None,
-    lo: float | None,
-    hi: float | None,
-) -> list[np.ndarray]:
-    # Kept as a small compatibility wrapper for any local code that imports this helper.
-    if cut_var is None:
-        return align_arrays(arrays)
-    return apply_range_cuts(arrays, [(cut_var, lo, hi)])
-
-
 def _scatter_color_limits(style: dict[str, Any]) -> tuple[float | None, float | None]:
     """Parse and validate explicit scatter colour limits."""
 
@@ -653,17 +641,6 @@ def scatter_color_scale_log(color: np.ndarray, style: dict[str, Any]) -> LogNorm
         if cmax is None:
             vmax = min(vmax * 1.1, float(np.finfo(float).max))
     return LogNorm(vmin=vmin, vmax=vmax)
-
-
-def scatter_color_scale(
-    color: np.ndarray, style: dict[str, Any]
-) -> tuple[LogNorm | None, float | None, float | None]:
-    """Validate and resolve 2D-scatter colour normalization."""
-
-    if style.get("log_color", False):
-        return scatter_color_scale_log(color, style), None, None
-    cmin, cmax = scatter_color_scale_linear(style, color)
-    return None, cmin, cmax
 
 
 def parse_optional_float(text: str) -> float | None:
