@@ -83,8 +83,7 @@ def calculate_threshold_result(
         total_weight = float(np.float64(scale) * total)
         below_weight = float(np.float64(scale) * below_total)
         above_weight = float(np.float64(scale) * above_total)
-    rounding_tolerance = 8.0 * np.finfo(float).eps * float(np.sum(np.abs(relative)))
-    zero_total_weight = abs(total) <= rounding_tolerance
+    zero_total_weight = abs(total) <= _cancellation_tolerance(relative)
     below_fraction = None if zero_total_weight else below_total / total
     above_fraction = None if zero_total_weight else above_total / total
     return ThresholdResult(
@@ -185,6 +184,33 @@ def calculate_quantile_result(
     )
 
 
+def _cancellation_tolerance(relative_weights: np.ndarray) -> float:
+    """Rounding error of a sum of weights that are scaled to a maximum magnitude of 1.
+
+    Summing n weights accumulates rounding errors of order eps * sum(|w|). A total
+    within this tolerance cannot be told apart from zero: positive and negative
+    weights have cancelled, and the sign of the total is meaningless (#193).
+    """
+
+    return 8.0 * float(np.finfo(float).eps) * float(np.sum(np.abs(relative_weights)))
+
+
+def sum_of_weights_is_positive(weights: np.ndarray) -> bool:
+    """Return whether the sum of finite weights is positive beyond rounding error.
+
+    Weighted means and standard deviations divide by the sum of weights, so they
+    are only defined when this holds. The test is independent of the weights' scale.
+    """
+
+    finite = np.asarray(weights, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    scale = float(np.max(np.abs(finite))) if finite.size else 0.0
+    if scale == 0:
+        return False
+    relative = finite / scale
+    return float(np.sum(relative)) > _cancellation_tolerance(relative)
+
+
 def describe_weighted_array(values: np.ndarray, weights: np.ndarray) -> dict[str, float]:
     """Return weighted summary statistics for aligned values and weights.
 
@@ -192,7 +218,8 @@ def describe_weighted_array(values: np.ndarray, weights: np.ndarray) -> dict[str
     ``sqrt(sum(w * (x - mean)**2) / sum(w))``, as ROOT does for weighted
     histograms, so uniform weights reproduce the unweighted mean and standard
     deviation. Undefined quantities are returned as NaN: the mean and standard
-    deviation require a positive sum of weights, and a negative weighted variance
+    deviation require a sum of weights that is positive beyond rounding error (signed
+    weights that cancel do not qualify), and a negative weighted variance
     (possible with negative weights) has no standard deviation. A weighted median
     is deliberately omitted: the step-wise weighted quantile used elsewhere does
     not interpolate and would contradict the unweighted median for uniform weights.
@@ -219,7 +246,7 @@ def describe_weighted_array(values: np.ndarray, weights: np.ndarray) -> dict[str
         "weighted mean": np.nan,
         "weighted std": np.nan,
     }
-    if len(selected_values) == 0 or sum_relative <= 0:
+    if len(selected_values) == 0 or sum_relative <= _cancellation_tolerance(relative_weights):
         return result
 
     mean = float(np.sum(relative_weights * selected_values) / sum_relative)

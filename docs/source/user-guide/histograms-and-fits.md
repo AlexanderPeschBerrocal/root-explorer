@@ -43,7 +43,8 @@ shows weighted statistics of the plotted values:
 For object-level values with an event-level weight, each object carries the
 weight of its event. Negative weights are reported in a caption. The weighted
 mean and standard deviation are shown as unavailable when the sum of weights is
-not positive, and the weighted standard deviation is unavailable when negative
+not positive, including when positive and negative weights cancel to zero within
+rounding error, and the weighted standard deviation is unavailable when negative
 weights make the weighted variance negative. If your physics selection changes,
 regenerate the plot.
 
