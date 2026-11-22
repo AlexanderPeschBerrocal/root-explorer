@@ -1233,6 +1233,32 @@ def _exportable_plot_sources() -> dict[str, str]:
     return sources
 
 
+_EXPORT_DIGEST_SCRIPT = """
+import hashlib, sys
+sys.path.insert(0, sys.argv[1])
+import test_codegen
+sources = test_codegen._exportable_plot_sources()
+print(hashlib.sha256(repr(sorted(sources.items())).encode()).hexdigest())
+"""
+
+
+def test_exports_are_identical_across_app_restarts() -> None:
+    """Each restart has a new string hash seed; the exports must not depend on it (#184)."""
+
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    digests = {}
+    for seed in ("0", "1"):
+        result = subprocess.run(
+            [sys.executable, "-c", _EXPORT_DIGEST_SCRIPT, tests_dir],
+            env={**os.environ, "PYTHONHASHSEED": seed, "MPLBACKEND": "Agg"},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        digests[seed] = result.stdout.strip().splitlines()[-1]
+    assert digests["0"] == digests["1"]
+
+
 def test_generated_scripts_have_no_undefined_names(tmp_path) -> None:
     pytest.importorskip("ruff")
     for name, source in _exportable_plot_sources().items():

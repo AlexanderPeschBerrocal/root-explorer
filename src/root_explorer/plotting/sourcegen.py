@@ -163,7 +163,10 @@ def bundle_python_source(
         # Generated scripts use postponed annotations, so a name that appears only
         # in annotations is bundled when possible but never blocks the export.
         annotation_only = _annotation_only_names(tree)
-        for name in _referenced_global_names(tree, module):
+        # Sorted, because set order depends on the per-process hash seed and would give
+        # differently ordered exports of the same plot after each restart (#184).
+        # Dependencies are still emitted before the definitions that use them.
+        for name in sorted(_referenced_global_names(tree, module)):
             dependency = module.__dict__[name]
             dependency_module = getattr(dependency, "__module__", "")
 

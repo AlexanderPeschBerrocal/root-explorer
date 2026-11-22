@@ -95,3 +95,8 @@ above installs dependencies but does not lock their versions.
 Use ROOT Explorer for exploratory checks and plot prototyping; keep
 final selections, calibrations and publication plots in version-controlled,
 reproducible code and retain the input dataset provenance.
+
+The same plot settings always produce the same script, also after the
+application restarts, so downloaded scripts can be compared with `diff` or
+kept under version control without spurious changes. A newer ROOT Explorer
+version can produce a different script for the same settings.
