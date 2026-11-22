@@ -772,6 +772,19 @@ def test_exported_fit_matches_application_across_units_and_offsets() -> None:
             assert exported.uncertainties == application.uncertainties, case
             assert all(value is not None for value in exported.uncertainties.values()), case
 
+        # Small yields, e.g. a normalised histogram fitted without variances (#199).
+        edges = np.linspace(-1.0, 2.0, 41)
+        contents = model_bin_integrals(
+            "Gaussian", edges, {"A": 1e-5, "mu": 0.3, "sigma": 0.7}, x0=0.5
+        )
+        histogram = hist.Hist(hist.axis.Variable(edges), storage=hist.storage.Double())
+        histogram.view()[...] = contents
+        config = FitConfig("Gaussian")
+        application = fit_histogram_1d(histogram, config)
+        exported = module.fit_histogram_1d(histogram, module.FitConfig(**vars(config)))
+        assert exported.parameters == application.parameters
+        assert exported.parameters["sigma"] == pytest.approx(0.7, rel=1e-7)
+
 
 def test_custom_fit_export_matches_canonical_backend(root_path):
     config = FitConfig(
