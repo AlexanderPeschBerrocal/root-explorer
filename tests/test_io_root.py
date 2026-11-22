@@ -348,8 +348,6 @@ def test_out_of_range_event_read_has_context(root_path):
 @pytest.mark.parametrize(
     ("path", "missing", "install"),
     [
-        ("https://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
-        ("http://example.org/data.root", "aiohttp", "pip install aiohttp requests"),
         (
             "root://eos.example.org//store/data.root",
             "fsspec_xrootd",
@@ -388,14 +386,14 @@ def test_persisted_object_viewers_name_the_missing_remote_backend(monkeypatch) -
     from root_explorer.app import graph_viewer, histogram_viewer
 
     def missing_backend(*args, **kwargs):
-        raise ImportError("No module named 'aiohttp'")
+        raise ImportError("No module named 'fsspec_xrootd'")
 
-    path = "https://example.org/objects.root"
+    path = "root://eos.example.org//store/objects.root"
     monkeypatch.setattr(histogram_viewer, "read_histogram", missing_backend)
     monkeypatch.setattr(graph_viewer, "read_graph", missing_backend)
     for load in (histogram_viewer._cached_histogram, graph_viewer._cached_graph):
         load.clear()
-        with pytest.raises(root_io.RemoteBackendUnavailableError, match="aiohttp and requests"):
+        with pytest.raises(root_io.RemoteBackendUnavailableError, match="fsspec-xrootd and xrootd"):
             load(path, "h", ("remote", path, 0, 0))
 
 
