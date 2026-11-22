@@ -7,14 +7,12 @@ The direct runtime dependencies declared in `pyproject.toml` currently include:
 
 | Package | Licence |
 | --- | --- |
-| aiohttp | Apache-2.0 AND MIT |
 | Awkward Array | BSD-3-Clause |
 | Hist | BSD-3-Clause |
 | Matplotlib | Matplotlib licence (PSF-compatible) |
 | NumPy | BSD-3-Clause and additional permissive licences for bundled components |
 | pandas | BSD-3-Clause |
 | Plotly | MIT |
-| Requests | Apache-2.0 |
 | SciPy | BSD-3-Clause |
 | Streamlit | Apache-2.0 |
 | uproot | BSD-3-Clause |

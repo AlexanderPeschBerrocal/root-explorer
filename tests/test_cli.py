@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import socket
 import subprocess
 import sys
@@ -26,14 +25,16 @@ def test_console_script_is_declared() -> None:
     assert pyproject["project"]["scripts"]["root-explorer"] == "root_explorer.cli:main"
 
 
-def test_remote_source_backends_are_installed_with_the_package() -> None:
+def test_remote_source_backends_are_available() -> None:
+    import uproot
+
+    from root_explorer.io.root import uproot_open_options
+
+    # http(s):// sources use Uproot's HTTPSource, which needs only the standard
+    # library, so no extra transport package is required (#196).
+    for url in ("http://example.org/f.root", "https://example.org/f.root"):
+        assert uproot_open_options(url)["handler"] is uproot.source.http.HTTPSource
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    names = {
-        re.split(r"[<>=!~;\[ ]", requirement, maxsplit=1)[0]
-        for requirement in pyproject["project"]["dependencies"]
-    }
-    # fsspec's HTTPFileSystem, used by uproot for http(s):// sources, needs both.
-    assert {"aiohttp", "requests"} <= names
     xrootd = pyproject["project"]["optional-dependencies"]["xrootd"]
     assert any(requirement.startswith("fsspec-xrootd") for requirement in xrootd)
 

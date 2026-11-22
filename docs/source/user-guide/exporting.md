@@ -74,9 +74,16 @@ ROOT Explorer, Streamlit or PyROOT to be installed:
 ```bash
 python3.12 -m venv .plot-venv
 source .plot-venv/bin/activate
-python -m pip install numpy awkward uproot hist matplotlib pandas scipy
+python -m pip install numpy awkward "uproot>=5.7" hist matplotlib scipy
 python root_explorer_plot.py
 ```
+
+Scripts need NumPy, Awkward Array, uproot, hist and Matplotlib; SciPy is only
+used by scripts with a KDE or a fit. uproot must be version 5.7 or later, the
+same minimum as ROOT Explorer itself: older versions cannot read RNTuples and
+fail with an `AttributeError` about `uproot.behaviors`. The other packages have
+no particular minimum; pip chooses versions compatible with Python 3.12 and
+uproot.
 
 Replace `root_explorer_plot.py` with the downloaded filename and use the
 activation command appropriate to your shell. On a desktop, the final

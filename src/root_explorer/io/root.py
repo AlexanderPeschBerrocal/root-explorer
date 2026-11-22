@@ -168,11 +168,7 @@ class RemoteBackendUnavailableError(ImportError):
 def remote_backend_message(path: str) -> str | None:
     """Name what to install to read ``path``, or return ``None`` for local sources."""
 
-    if path.startswith(("http://", "https://")):
-        return (
-            f"Reading http(s):// sources such as `{path}` requires the Python packages "
-            "aiohttp and requests. Install them with `pip install aiohttp requests`."
-        )
+    # http(s):// needs no extra package: Uproot's HTTPSource uses the standard library.
     if path.startswith("root://"):
         return (
             f"Reading root:// (XRootD) sources such as `{path}` requires the optional "
@@ -182,7 +178,7 @@ def remote_backend_message(path: str) -> str | None:
     return None
 
 
-_TRANSPORT_PACKAGES = ("aiohttp", "requests", "fsspec_xrootd", "fsspec-xrootd", "xrootd")
+_TRANSPORT_PACKAGES = ("fsspec_xrootd", "fsspec-xrootd", "xrootd")
 
 
 @contextmanager
@@ -310,7 +306,7 @@ def object_read_errors(
     """Turn any failure while reading an object into an :class:`ObjectReadError`.
 
     Readers raise unpredictable exception types for corrupt payloads or broken
-    connections (``zlib.error``, Uproot's ``DeserializationError``, aiohttp or
+    connections (``zlib.error``, Uproot's ``DeserializationError``, or
     http.client errors), so all of them are wrapped. Errors in ``keep`` already carry
     a user-facing message and pass through unchanged, as does a missing backend.
     """
