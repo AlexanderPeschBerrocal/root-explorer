@@ -692,7 +692,7 @@ def _build_3d_plot_result(request: PlotRequest) -> dict[str, Any]:
         has_weights=request.weight_branch is not None,
         has_color=request.color_spec is not None,
     )
-    require_values(x, excluded_count)
+    require_values(x, excluded_count, has_cuts=bool(cuts))
 
     summary_rows = [describe_array(axis_labels[0], x)]
     if y is not None:

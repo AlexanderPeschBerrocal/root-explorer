@@ -164,12 +164,21 @@ def excluded_values_note(excluded: int) -> str:
     )
 
 
-def require_values(values: np.ndarray, excluded: int) -> None:
-    """Raise a concise error when no values remain after cuts and the finite mask."""
+def require_values(values: np.ndarray, excluded: int, *, has_cuts: bool) -> None:
+    """Raise a concise error when no values remain after cuts and the finite mask.
+
+    Without cuts, an empty selection means the selected variables have no values in
+    the selected events (for example an event without muons), so the message must
+    not send the user looking for a cut.
+    """
 
     if len(values) == 0:
         detail = f" {excluded_values_note(excluded)}" if excluded else ""
-        raise EmptySelectionError(f"No values remain to plot after applying the cuts.{detail}")
+        if has_cuts:
+            message = "No values remain to plot after applying the cuts."
+        else:
+            message = "No values to plot: the selected variables have no values in these events."
+        raise EmptySelectionError(f"{message}{detail}")
 
 
 def multiplicity_per_event(arr: Any) -> np.ndarray:
