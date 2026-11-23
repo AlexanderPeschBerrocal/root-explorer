@@ -198,6 +198,22 @@ class HistogramFlowSummary:
     weighted: bool
 
 
+def _automatic_range(values: np.ndarray) -> tuple[float, float]:
+    """Return NumPy's automatic histogram range, the outer edges of its default bins.
+
+    These are the data's minimum and maximum; constant data get ±0.5 around the value
+    and empty data (0, 1), exactly as ``np.histogram_bin_edges`` chooses them.
+    """
+
+    data = np.asarray(values, dtype=float)
+    if data.size == 0:
+        return 0.0, 1.0
+    first, last = float(np.min(data)), float(np.max(data))
+    if first == last:
+        return first - 0.5, last + 0.5
+    return first, last
+
+
 def resolve_histogram_range(
     values: np.ndarray, bins: int, style: dict[str, Any]
 ) -> tuple[float, float] | None:
@@ -228,11 +244,13 @@ def resolve_histogram_range(
     upper = bound("hist_x_max_text")
     if lower is None and upper is None:
         return None
-    automatic_edges = _bin_edges(values, int(bins), None)
-    if lower is None:
-        lower = float(automatic_edges[0])
-    if upper is None:
-        upper = float(automatic_edges[-1])
+    # Only a missing endpoint needs the automatic range, and only its endpoints, not
+    # automatic bins: binning the data's own (possibly tiny) span could reject a valid
+    # requested range (#200). The bin count is checked once the range is built.
+    if lower is None or upper is None:
+        automatic_lower, automatic_upper = _automatic_range(values)
+        lower = automatic_lower if lower is None else lower
+        upper = automatic_upper if upper is None else upper
     if lower >= upper:
         raise InvalidHistogramRangeError(
             "Histogram minimum must be smaller than histogram maximum."

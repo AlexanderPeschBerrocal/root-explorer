@@ -13,6 +13,7 @@ import hist
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import uproot
 
 from root_explorer.analysis.fitting import FitConfig, fit_histogram_1d, model_bin_integrals
 from root_explorer.analysis.variables import VARIABLE_EVALUATORS
@@ -1354,3 +1355,31 @@ def test_one_sided_scatter_colour_limit_uses_all_points_when_sampling(root_path)
     finally:
         plt.close(canonical_figure)
         plt.close(generated_figure)
+
+
+def test_export_accepts_explicit_bounds_around_a_tiny_data_span(tmp_path) -> None:
+    """Explicit bounds must not be rejected by automatic binning of the data (#200)."""
+    path = tmp_path / "tiny_span.root"
+    with uproot.recreate(path) as root_file:
+        root_file.mktree("Events", {"x": np.array([1.0, np.nextafter(1.0, 2.0)])})
+    request = _request(
+        path,
+        plot_type="1D histogram",
+        x_spec=VariableSpec(mode="branch", branch="x"),
+        style={
+            "fig_width": 8.0,
+            "fig_height": 6.0,
+            "bins_x": 100,
+            "manual_histogram_limits": True,
+            "hist_x_min_text": "0",
+            "hist_x_max_text": "2",
+        },
+    )
+    with _executed_generated_module(generate_static_plot_code(request)) as module:
+        module.plt.show = lambda: None
+        module.main()
+        figure = module.plt.gcf()
+        try:
+            assert figure.axes[0].get_xlim()[0] <= 0.0 and figure.axes[0].get_xlim()[1] >= 2.0
+        finally:
+            plt.close(figure)
