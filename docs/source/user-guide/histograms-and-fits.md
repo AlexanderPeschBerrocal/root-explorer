@@ -62,7 +62,8 @@ retain their stored bin contents and flow classification.
 
 - **Ignore (report separately):** draw and fit only nominal in-range bins.
 - **Fold into edge bins:** add underflow to the first bin and overflow to the last, including
-  their variances. These adjusted edge bins also participate in fitting.
+  their variances. This changes the display only: fits still use the entries
+  inside the range.
 - **Show separate bins:** display flow categories alongside nominal bins.
   The extra categories do not represent finite physical intervals and are
   excluded from fitting.
@@ -133,8 +134,9 @@ same data, these diagonal variances do not capture the full covariance of a
 self-normalised distribution. They must not be treated as independent
 statistical uncertainties in shape-only fits or tests.
 
-Histogram fits continue to operate on the original flow-adjusted bin yields;
-their displayed predictions are divided by `S * bin_width[i]` in density mode.
+Histogram fits operate on the original in-range bin yields, without folded
+flow entries; their displayed predictions are divided by `S * bin_width[i]` in
+density mode.
 Fit parameters and goodness-of-fit statistics therefore do not change when
 the density display is toggled. KDE overlays use density units when enabled;
 their visible area need not be one because the underlying smooth distribution
@@ -195,9 +197,12 @@ disable **Use stored bin variances** to use ordinary least squares.
 
 Predictions are **integrals of the fit model over the original bins**
 rather than evaluations at bin centres. The custom fit interval selects
-whole bins whose centres fall inside it. With **Fold**, flow yields contribute
-through the adjusted edge bins; with **Ignore** or **Show separate bins**, they
-do not contribute. Parameter guesses and physically meaningful default bounds
+whole bins whose centres fall inside it. Fits use only the entries inside the
+histogram range, whatever the **Underflow / overflow** choice: the model
+describes the visible range, so folded flow entries would inflate the edge bins
+and bias the fit. With **Fold**, the edge bins are drawn with their folded
+content and the fit curve shows the model's prediction for the in-range entries
+alone. Parameter guesses and physically meaningful default bounds
 (for example `A ≥ 0`, `sigma > 0`, `alpha` in [0.001, 100] and `n` in
 [1.0001, 10⁴]) are provided automatically; both can be overridden under
 **Override initial parameters and bounds**. If you enter only a lower or only an

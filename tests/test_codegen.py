@@ -1090,7 +1090,8 @@ def test_exported_script_prints_the_results_the_application_shows(root_path, tmp
     assert prepared.histogram_flow_summary is not None
     assert prepared.normalisation_result is not None
     assert prepared.normalisation_result.valid
-    fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
+    # Fits use only in-range entries, also in this Fold export (#206).
+    fit_result = fit_histogram_1d(prepared.histogram_1d, request.fit_config)
     assert fit_result.success, fit_result.message
     bounds = tuple(float(edge) for edge in prepared.histogram_1d.axes[0].edges[[0, -1]])
     expected_sections = {
