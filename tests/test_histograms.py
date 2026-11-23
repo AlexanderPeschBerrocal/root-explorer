@@ -185,6 +185,9 @@ def test_weighted_flow_modes_preserve_original_and_expected_variances(mode, expe
     )
     assert (summary.underflow_sumw, summary.overflow_sumw) == pytest.approx((2.0, 5.0))
     assert (summary.underflow_sumw2, summary.overflow_sumw2) == pytest.approx((4.0, 25.0))
+    # In-range sums cover only the nominal bins: weights 1, 3, 4 (#170).
+    assert summary.in_range_sumw == pytest.approx(8.0)
+    assert summary.in_range_sumw2 == pytest.approx(1.0 + 9.0 + 16.0)
 
 
 @pytest.mark.parametrize("mode", ["ignore", "fold", "separate"])

@@ -244,3 +244,15 @@ def test_one_sided_bound_beyond_the_kept_default_explains_the_empty_range():
     assert "enter inf or -inf" in result.message
     unbounded = fit_histogram_1d(h, FitConfig("Crystal Ball", bounds={"alpha": (150.0, np.inf)}))
     assert "Bounds for alpha are empty" not in unbounded.message
+
+
+def test_fit_range_bounds_on_bin_centres_include_those_bins():
+    # Range selection is inclusive: a bound exactly on a bin centre keeps that bin (#170).
+    edges = np.linspace(0.0, 10.0, 11)  # centres 0.5, 1.5, ..., 9.5
+    contents = model_bin_integrals("Gaussian", edges, {"A": 100.0, "mu": 5.0, "sigma": 2.0}, x0=5.0)
+    outcome = fit_histogram_1d(
+        _histogram(edges, contents), FitConfig("Gaussian", fit_range=(2.5, 7.5))
+    )
+    assert outcome.success, outcome.message
+    assert outcome.bins_used == 6  # centres 2.5, 3.5, ..., 7.5
+    assert outcome.fit_range == (2.0, 8.0)
