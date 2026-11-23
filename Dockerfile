@@ -1,6 +1,6 @@
 # Build and runtime use the same immutable, multi-platform Python base.
 # Keep .python-version at this Python release; the Docker workflow checks it.
-FROM python:3.12.15-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a2a3a14bcbe37dee6f0e3bbc70 AS base
+FROM python:3.12.16-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337 AS base
 
 # The uv used to install the lock, pinned by digest like the base image. Keep
 # setup-uv and .readthedocs.yaml at this version; the build workflow checks it.
