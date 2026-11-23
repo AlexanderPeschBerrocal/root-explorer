@@ -16,7 +16,7 @@ import pandas as pd
 import streamlit as st
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from ..analysis.fitting import FitResult
+from ..analysis.fitting import FitResult, fit_model_formula
 from ..analysis.histograms import HistogramNormalisationResult
 from ..analysis.statistics import QuantileResult, ThresholdResult
 from ..io.root import FieldReadError, ObjectReadError
@@ -244,6 +244,9 @@ def show_cached_plot_result(
     if isinstance(fit_result, FitResult):
         st.markdown("#### Histogram fit", anchors=False)
         st.caption(fit_result.objective)
+        formula = fit_model_formula(fit_result)
+        if formula is not None:
+            st.caption(f"Model function: {formula}")
         if fit_result.expression is not None:
             st.code(fit_result.expression, language="text")
         if fit_result.success:

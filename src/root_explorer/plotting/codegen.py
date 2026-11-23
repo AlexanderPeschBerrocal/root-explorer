@@ -12,7 +12,7 @@ from ..analysis.arrays import (
     require_values,
     validate_variable_event_shapes,
 )
-from ..analysis.fitting import FitConfig, FitResult, fit_histogram_1d
+from ..analysis.fitting import FitConfig, FitResult, fit_histogram_1d, fit_model_formula
 from ..analysis.histograms import (
     HistogramFlowSummary,
     HistogramNormalisationResult,
@@ -193,6 +193,9 @@ def fit_summary_lines(result: FitResult) -> list[str]:
     """Describe fit parameters and fit quality as the application's fit table does."""
 
     lines = [f"Model: {result.model}", f"Objective: {result.objective}"]
+    formula = fit_model_formula(result)
+    if formula is not None:
+        lines.append(f"Model function: {formula}")
     if result.expression is not None:
         lines.append(f"Expression: {result.expression}")
     if result.fit_range is not None:

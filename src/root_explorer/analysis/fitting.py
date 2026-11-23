@@ -64,6 +64,34 @@ class FitResult:
     expression: str | None = None
 
 
+_MODEL_FORMULAS = {
+    "Gaussian": "A * exp(-0.5 * ((x - mu) / sigma)**2)",
+    "Crystal Ball": (
+        "A * exp(-0.5 * t**2) with t = (x - mu) / sigma, and a power-law tail "
+        "(exponent n) below t = -alpha"
+    ),
+    "Double-sided Crystal Ball": (
+        "A * exp(-0.5 * t**2) with t = (x - mu) / sigma, and power-law tails below "
+        "t = -alpha_L (exponent n_L) and above t = alpha_R (exponent n_R)"
+    ),
+}
+
+
+def fit_model_formula(result: FitResult) -> str | None:
+    """Return the fitted model as readable text, so that ``A`` can be interpreted.
+
+    ``A`` is a density per unit of x: the peak height for the peak models and the
+    value at the reference point ``x0`` (the centre of the fitted bins) for the
+    Exponential. Custom expressions are shown as entered instead.
+    """
+
+    if result.model == "Exponential":
+        if result.reference_x is None:
+            return "A * exp(k * (x - x0))"
+        return f"A * exp(k * (x - x0)) with x0 = {result.reference_x:.6g}, the centre of the fitted bins"
+    return _MODEL_FORMULAS.get(result.model)
+
+
 def _core_integral(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return np.asarray(
         np.sqrt(np.pi / 2) * (erf(right / np.sqrt(2)) - erf(left / np.sqrt(2))), dtype=float
@@ -394,7 +422,10 @@ def fit_histogram_1d(
     # Vectorised evaluation: each pair is represented by a two-element array;
     # keeping the original boundaries avoids rebinning gaps.
     fit_edges = np.column_stack((fit_left, fit_right))
-    x0 = float((lower + upper) / 2)
+    # Centre of the bins actually fitted, not of the typed range: typed ranges that
+    # select the same bins must give the same parameters, and a typed range beyond
+    # the histogram must not move the reference point far from the data (#192).
+    x0 = float((fit_left[0] + fit_right[-1]) / 2)
     guesses = (
         dict.fromkeys(names, 1.0)
         if expression is not None
@@ -412,7 +443,13 @@ def fit_histogram_1d(
     lower_bounds: list[float] = []
     upper_bounds: list[float] = []
     for name in names:
-        low, high = (-np.inf, np.inf) if expression is not None else _default_bounds(name, edges)
+        # Default bounds follow the fitted bins: a distant excluded bin must not set
+        # the smallest allowed width (#192).
+        low, high = (
+            (-np.inf, np.inf)
+            if expression is not None
+            else _default_bounds(name, np.array([fit_left[0], fit_right[-1]]))
+        )
         if config.bounds and name in config.bounds:
             # A one-sided override keeps the default on the side left unset.
             override_low, override_high = config.bounds[name]
