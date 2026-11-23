@@ -77,6 +77,16 @@ where = ["src"]
 [tool.setuptools.package-data]
 root_explorer = ["assets/*.png"]
 
+[tool.coverage.run]
+# Measure branches too; CI runs pytest with --cov (see .github/workflows/test.yaml).
+branch = true
+
+[tool.coverage.report]
+# Fail the coverage run if total line-and-branch coverage drops below this level
+# (90.7 % in November 2026, so small refactorings keep some headroom). Raise it as
+# coverage grows (#170).
+fail_under = 89
+
 [tool.mypy]
 python_version = "3.12"
 files = ["src/root_explorer"]

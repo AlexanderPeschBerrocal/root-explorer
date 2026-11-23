@@ -233,3 +233,28 @@ def test_summary_note_explains_cancelling_weights() -> None:
         "unavailable" in note
         for note in _weighted_summary_notes("genWeight", np.array([1.0, -0.5, 1.0]))
     )
+
+
+# --- Documented quantile conventions (#170) -------------------------------------------
+
+
+def test_documented_median_examples() -> None:
+    # The user guide: the median of [0, 10] is 5 unweighted, but 0 with equal weights,
+    # because the weighted quantile takes the first value whose cumulative weight
+    # reaches the target (no interpolation).
+    values = np.array([0.0, 10.0])
+    assert calculate_quantile_result(values, 50.0).value == 5.0
+    assert calculate_quantile_result(values, 50.0, np.array([1.0, 1.0])).value == 0.0
+    assert calculate_quantile_result(values, 50.0, np.array([3.0, 3.0])).value == 0.0
+
+
+@pytest.mark.parametrize(
+    ("percentile", "expected"),
+    [(0.0, 1.0), (25.0, 1.0), (25.1, 2.0), (50.0, 2.0), (75.0, 3.0), (75.1, 4.0), (100.0, 4.0)],
+)
+def test_weighted_quantile_ties_take_the_lower_value(percentile, expected) -> None:
+    # Cumulative weights 0.25, 0.5, 0.75, 1.0: a target exactly on a step belongs to
+    # the lower value.
+    values = np.array([4.0, 2.0, 1.0, 3.0])
+    weights = np.full(4, 2.0)
+    assert calculate_quantile_result(values, percentile, weights).value == expected
