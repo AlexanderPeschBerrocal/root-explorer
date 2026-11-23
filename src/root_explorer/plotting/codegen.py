@@ -663,7 +663,8 @@ def _main_lines(plan: StaticPlotExportPlan) -> list[str]:
     if plan.has_fit:
         lines.extend(
             [
-                "fit_result = fit_histogram_1d(display_histogram, PLOT.fit_config)",
+                "# Only entries inside the histogram range are fitted, in every flow mode.",
+                "fit_result = fit_histogram_1d(histogram_1d, PLOT.fit_config)",
             ]
         )
 

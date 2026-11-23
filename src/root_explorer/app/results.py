@@ -247,6 +247,11 @@ def show_cached_plot_result(
         formula = fit_model_formula(fit_result)
         if formula is not None:
             st.caption(f"Model function: {formula}")
+        if result.get("histogram_flow_mode") == "fold":
+            st.caption(
+                "The fit uses only entries inside the histogram range; the underflow and "
+                "overflow folded into the edge bins are drawn but not fitted."
+            )
         if fit_result.expression is not None:
             st.code(fit_result.expression, language="text")
         if fit_result.success:

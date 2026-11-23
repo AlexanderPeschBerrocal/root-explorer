@@ -539,9 +539,12 @@ def _build_static_plot_result(request: PlotRequest) -> dict[str, Any]:
         else None
     )
     fit_result = None
-    if request.fit_config is not None and prepared.display_histogram_1d is not None:
+    if request.fit_config is not None and prepared.histogram_1d is not None:
         with st.spinner("Fitting histogram…"):
-            fit_result = fit_histogram_1d(prepared.display_histogram_1d, request.fit_config)
+            # Fit only the entries inside the histogram range, in every flow mode: the
+            # model describes the visible range, so folded flow entries would inflate
+            # the edge bins and distort the fit (#206). Their flow bins are ignored.
+            fit_result = fit_histogram_1d(prepared.histogram_1d, request.fit_config)
     figure = None
     try:
         with st.spinner("Rendering plot…"):
