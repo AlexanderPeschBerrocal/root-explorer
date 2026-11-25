@@ -4,7 +4,7 @@ FROM python:3.12.15-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a
 
 # The uv used to install the lock, pinned by digest like the base image. Keep
 # setup-uv and .readthedocs.yaml at this version; the build workflow checks it.
-FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.10@sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f AS uv
 
 
 # ----- Build stage -----------------------------------------------------------
